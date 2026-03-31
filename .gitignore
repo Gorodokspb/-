@@ -1,0 +1,35 @@
+# Python cache
+__pycache__/
+*.py[cod]
+.repo_git/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / editor
+.idea/
+.vscode/
+
+# OS files
+Thumbs.db
+Desktop.ini
+
+# Local runtime artifacts
+codex_write_test.txt
+
+# Application data
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated documents and working drafts
+Сметы/
+*.pdf
+*.json
+*.xlsx
+
+# Temporary exports
+*.tmp
+*.bak
