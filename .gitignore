@@ -26,6 +26,7 @@ codex_write_test.txt
 
 # Generated documents and working drafts
 Сметы/
+Договоры/
 *.pdf
 *.json
 *.xlsx
@@ -33,3 +34,5 @@ codex_write_test.txt
 # Temporary exports
 *.tmp
 *.bak
+_contract_tmp/
+contract_template_extracted.txt
