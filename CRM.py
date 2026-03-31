@@ -31,6 +31,7 @@ DOCUMENT_TYPES = [
 ]
 DOCUMENT_STATUSES = ["Черновик", "На согласовании", "Согласован", "Подписан", "Отменен"]
 CASH_TYPES = ["Приход", "Расход"]
+AUTH_USERS = ["Алексей", "Коллега"]
 
 COUNTERPARTY_FIELD_CONFIG = {
     "Физическое лицо": [
@@ -87,10 +88,14 @@ class CRMApp(ctk.CTk):
         self.counterparty_map = {}
         self.project_map = {}
         self.nav_buttons = {}
+        self.project_sidebar_buttons = {}
+        self.current_module = "projects"
+        self.current_user = AUTH_USERS[0]
 
         self.setup_database()
         self.configure_styles()
         self.build_ui()
+        self.prompt_user_login()
         self.refresh_all()
 
     def configure_styles(self):
@@ -802,6 +807,7 @@ class CRMApp(ctk.CTk):
             )
         conn.commit()
         conn.close()
+        self.log_project_event(project_id, "document", f"Обновлен документ: {title} [{status}]")
 
     def generate_contract_for_project(self, project_id, project_window=None):
         if not os.path.exists(CONTRACT_TEMPLATE_PATH):
@@ -964,6 +970,7 @@ finally {
         win.title("Настройки договора")
         win.geometry("920x900")
         win.attributes("-topmost", True)
+        self.present_window(win)
 
         scroll = ctk.CTkScrollableFrame(win, width=860, height=760)
         scroll.pack(fill="both", expand=True, padx=18, pady=(18, 0))
@@ -1283,6 +1290,18 @@ finally {
                    counterparty_id INTEGER,
                    category TEXT,
                    description TEXT,
+                   created_by TEXT,
+                   created_at TEXT NOT NULL
+               )"""
+        )
+
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS project_events (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   project_id INTEGER NOT NULL,
+                   event_type TEXT NOT NULL,
+                   event_text TEXT NOT NULL,
+                   author TEXT,
                    created_at TEXT NOT NULL
                )"""
         )
@@ -1335,6 +1354,14 @@ finally {
             if name not in document_columns:
                 c.execute(ddl)
 
+        cash_columns = {row[1] for row in c.execute("PRAGMA table_info(cash_transactions)").fetchall()}
+        if "created_by" not in cash_columns:
+            c.execute("ALTER TABLE cash_transactions ADD COLUMN created_by TEXT")
+
+        event_columns = {row[1] for row in c.execute("PRAGMA table_info(project_events)").fetchall()}
+        if "author" not in event_columns:
+            c.execute("ALTER TABLE project_events ADD COLUMN author TEXT")
+
         now = datetime.datetime.now().isoformat(timespec="seconds")
         c.execute(
             """UPDATE projects
@@ -1352,51 +1379,100 @@ finally {
         shell = ctk.CTkFrame(self, fg_color="transparent")
         shell.pack(fill="both", expand=True, padx=18, pady=18)
 
-        self.sidebar = ctk.CTkFrame(shell, width=250, corner_radius=24, fg_color="#183153")
+        self.sidebar = ctk.CTkFrame(shell, width=280, corner_radius=24, fg_color="#171b22")
         self.sidebar.pack(side="left", fill="y")
         self.sidebar.pack_propagate(False)
 
         brand = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        brand.pack(fill="x", padx=18, pady=(20, 10))
-        ctk.CTkLabel(brand, text="Dekorartstroy", font=("Segoe UI Semibold", 22), text_color="#f8fbff").pack(anchor="w")
-        ctk.CTkLabel(brand, text="CRM система проектов", font=("Segoe UI", 12), text_color="#a9bdd8").pack(anchor="w", pady=(4, 0))
+        brand.pack(fill="x", padx=18, pady=(20, 12))
+        ctk.CTkLabel(brand, text="Dekorartstroy", font=("Segoe UI Semibold", 21), text_color="#f8fbff").pack(anchor="w")
+        ctk.CTkLabel(brand, text="Объекты и сметы", font=("Segoe UI", 12), text_color="#9faec0").pack(anchor="w", pady=(4, 0))
 
-        nav = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        nav.pack(fill="x", padx=14, pady=(18, 0))
-        self.nav_buttons["counterparties"] = ctk.CTkButton(nav, text="Контрагенты", height=42, anchor="w", fg_color="#27476f", hover_color="#325887", command=lambda: self.show_main_tab("counterparties"))
-        self.nav_buttons["counterparties"].pack(fill="x", pady=5)
-        self.nav_buttons["projects"] = ctk.CTkButton(nav, text="Проекты", height=42, anchor="w", fg_color="#27476f", hover_color="#325887", command=lambda: self.show_main_tab("projects"))
-        self.nav_buttons["projects"].pack(fill="x", pady=5)
-        self.nav_buttons["finance"] = ctk.CTkButton(nav, text="Финансы", height=42, anchor="w", fg_color="#27476f", hover_color="#325887", command=self.open_finance_window)
-        self.nav_buttons["finance"].pack(fill="x", pady=5)
+        object_header = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        object_header.pack(fill="x", padx=14, pady=(4, 8))
+        ctk.CTkLabel(object_header, text="МОИ ОБЪЕКТЫ", font=("Segoe UI Semibold", 11), text_color="#7f92a9").pack(side="left")
+        ctk.CTkButton(
+            object_header,
+            text="+",
+            width=28,
+            height=28,
+            corner_radius=10,
+            fg_color="#1f8fff",
+            hover_color="#1873cf",
+            command=self.open_add_project_window,
+        ).pack(side="right")
 
-        sidebar_actions = ctk.CTkFrame(self.sidebar, fg_color="#214066", corner_radius=18)
-        sidebar_actions.pack(fill="x", padx=14, pady=(24, 0))
+        self.sidebar_project_caption = ctk.StringVar(value="Выбери объект слева, чтобы открыть карточку проекта.")
+        self.sidebar_project_list = ctk.CTkScrollableFrame(
+            self.sidebar,
+            fg_color="transparent",
+            corner_radius=0,
+            scrollbar_button_color="#2b3441",
+            scrollbar_button_hover_color="#3a4656",
+        )
+        self.sidebar_project_list.pack(fill="both", expand=True, padx=12, pady=(0, 10))
+
+        sidebar_actions = ctk.CTkFrame(self.sidebar, fg_color="#202733", corner_radius=18)
+        sidebar_actions.pack(fill="x", padx=14, pady=(0, 10))
         ctk.CTkLabel(sidebar_actions, text="Быстрые действия", font=("Segoe UI Semibold", 14), text_color="#f8fbff").pack(anchor="w", padx=14, pady=(14, 4))
+        ctk.CTkButton(sidebar_actions, text="+ Новый проект", height=38, fg_color="#1f8fff", hover_color="#1873cf", command=self.open_add_project_window).pack(fill="x", padx=12, pady=6)
         ctk.CTkButton(sidebar_actions, text="+ Новый контрагент", height=38, fg_color="#35a66f", hover_color="#2a885a", command=self.open_add_counterparty_window).pack(fill="x", padx=12, pady=6)
-        ctk.CTkButton(sidebar_actions, text="+ Новый проект", height=38, fg_color="#2f80ed", hover_color="#2567bd", command=self.open_add_project_window).pack(fill="x", padx=12, pady=6)
         ctk.CTkButton(sidebar_actions, text="Открыть проект", height=38, fg_color="#f0b429", text_color="#233042", hover_color="#d99a11", command=self.open_project_card).pack(fill="x", padx=12, pady=6)
         ctk.CTkButton(sidebar_actions, text="Удалить проект", height=38, fg_color="#d9534f", hover_color="#b63f3b", command=self.delete_project).pack(fill="x", padx=12, pady=(6, 14))
 
         info_block = ctk.CTkFrame(self.sidebar, fg_color="transparent")
-        info_block.pack(side="bottom", fill="x", padx=18, pady=20)
-        ctk.CTkLabel(info_block, text="Рабочая зона", font=("Segoe UI Semibold", 13), text_color="#f8fbff").pack(anchor="w")
-        ctk.CTkLabel(info_block, text="Проекты, документы, финансы\nи контрагенты в одной системе.", justify="left", font=("Segoe UI", 11), text_color="#a9bdd8").pack(anchor="w", pady=(4, 0))
+        info_block.pack(fill="x", padx=18, pady=(0, 18))
+        ctk.CTkLabel(info_block, text="Текущий фокус", font=("Segoe UI Semibold", 12), text_color="#f8fbff").pack(anchor="w")
+        ctk.CTkLabel(info_block, textvariable=self.sidebar_project_caption, justify="left", wraplength=220, font=("Segoe UI", 11), text_color="#9faec0").pack(anchor="w", pady=(4, 0))
 
         self.content = ctk.CTkFrame(shell, fg_color="transparent")
         self.content.pack(side="left", fill="both", expand=True, padx=(18, 0))
+
+        topbar = ctk.CTkFrame(self.content, corner_radius=24, fg_color="#ffffff")
+        topbar.pack(fill="x", pady=(0, 14))
+        topbar_inner = ctk.CTkFrame(topbar, fg_color="transparent")
+        topbar_inner.pack(fill="x", padx=18, pady=14)
+
+        module_bar = ctk.CTkFrame(topbar_inner, fg_color="transparent")
+        module_bar.pack(side="left", fill="x", expand=True)
+        self.nav_buttons["projects"] = self.create_module_button(module_bar, "Объекты и сметы", lambda: self.show_main_tab("projects"))
+        self.nav_buttons["projects"].pack(side="left", padx=(0, 8))
+        self.nav_buttons["counterparties"] = self.create_module_button(module_bar, "Контрагенты", lambda: self.show_main_tab("counterparties"))
+        self.nav_buttons["counterparties"].pack(side="left", padx=8)
+        self.nav_buttons["finance"] = self.create_module_button(module_bar, "Финансы", self.open_finance_window)
+        self.nav_buttons["finance"].pack(side="left", padx=8)
+        self.nav_buttons["payments"] = self.create_module_button(module_bar, "Платежи", lambda: self.show_placeholder_module("Платежи"))
+        self.nav_buttons["payments"].pack(side="left", padx=8)
+        self.nav_buttons["purchases"] = self.create_module_button(module_bar, "Закупки", lambda: self.show_placeholder_module("Закупки"))
+        self.nav_buttons["purchases"].pack(side="left", padx=8)
+        self.nav_buttons["company"] = self.create_module_button(module_bar, "Компания", lambda: self.show_placeholder_module("Компания"))
+        self.nav_buttons["company"].pack(side="left", padx=8)
+
+        ctk.CTkLabel(
+            topbar_inner,
+            text="Единая панель CRM",
+            font=("Segoe UI", 12),
+            text_color="#6d7b8a",
+        ).pack(side="right", padx=(12, 0))
+        self.user_badge_var = ctk.StringVar(value=f"Пользователь: {self.current_user}")
+        ctk.CTkLabel(
+            topbar_inner,
+            textvariable=self.user_badge_var,
+            font=("Segoe UI Semibold", 12),
+            text_color="#1f538d",
+        ).pack(side="right", padx=(0, 16))
 
         hero = ctk.CTkFrame(self.content, corner_radius=24, fg_color="#ffffff")
         hero.pack(fill="x", pady=(0, 16))
         hero_left = ctk.CTkFrame(hero, fg_color="transparent")
         hero_left.pack(side="left", fill="both", expand=True, padx=22, pady=18)
-        ctk.CTkLabel(hero_left, text="Управление объектами и документами", font=("Segoe UI Semibold", 24), text_color="#1d2b3a").pack(anchor="w")
-        ctk.CTkLabel(hero_left, text="Здесь мы ведем клиентов, проекты, сметы и движение денег по объектам.", font=("Segoe UI", 12), text_color="#5f7288").pack(anchor="w", pady=(6, 0))
+        ctk.CTkLabel(hero_left, text="Центр управления объектами", font=("Segoe UI Semibold", 24), text_color="#1d2b3a").pack(anchor="w")
+        ctk.CTkLabel(hero_left, text="Проекты, сметы, документы и деньги по объектам теперь живут в одной рабочей панели.", font=("Segoe UI", 12), text_color="#5f7288").pack(anchor="w", pady=(6, 0))
         hero_right = ctk.CTkFrame(hero, fg_color="transparent")
         hero_right.pack(side="right", padx=22, pady=18)
-        ctk.CTkButton(hero_right, text="+ Контрагент", width=130, fg_color="#35a66f", hover_color="#2a885a", command=self.open_add_counterparty_window).pack(side="left", padx=5)
         ctk.CTkButton(hero_right, text="+ Проект", width=130, fg_color="#2f80ed", hover_color="#2567bd", command=self.open_add_project_window).pack(side="left", padx=5)
-        ctk.CTkButton(hero_right, text="Финансы", width=120, fg_color="#e8eef7", text_color="#233042", hover_color="#d9e4f3", command=self.open_finance_window).pack(side="left", padx=5)
+        ctk.CTkButton(hero_right, text="+ Контрагент", width=130, fg_color="#35a66f", hover_color="#2a885a", command=self.open_add_counterparty_window).pack(side="left", padx=5)
+        ctk.CTkButton(hero_right, text="Открыть проект", width=140, fg_color="#0f2d52", hover_color="#143b6d", command=self.open_project_card).pack(side="left", padx=5)
 
         self.stats_frame = ctk.CTkFrame(self.content, fg_color="transparent")
         self.stats_frame.pack(fill="x", pady=(0, 16))
@@ -1423,6 +1499,19 @@ finally {
         self.build_projects_tab()
         self.show_main_tab("projects")
 
+    def create_module_button(self, parent, text, command):
+        return ctk.CTkButton(
+            parent,
+            text=text,
+            height=36,
+            corner_radius=14,
+            fg_color="#edf2f7",
+            hover_color="#d9e6f7",
+            text_color="#233042",
+            font=("Segoe UI Semibold", 12),
+            command=command,
+        )
+
     def build_stat_card(self, parent, title, value, accent_color):
         card = ctk.CTkFrame(parent, corner_radius=20, fg_color="#ffffff")
         top = ctk.CTkFrame(card, fg_color="transparent")
@@ -1434,16 +1523,179 @@ finally {
         card.value_var = value_var
         return card
 
+    def present_window(self, win, parent=None):
+        try:
+            if parent is None:
+                parent = self
+            win.transient(parent)
+        except Exception:
+            pass
+        try:
+            win.lift()
+            win.focus_force()
+            win.attributes("-topmost", True)
+            win.after(250, lambda: win.attributes("-topmost", False))
+        except Exception:
+            pass
+
+    def prompt_user_login(self):
+        win = ctk.CTkToplevel(self)
+        win.title("Вход в CRM")
+        win.geometry("420x220")
+        win.resizable(False, False)
+        win.grab_set()
+        self.present_window(win)
+
+        ctk.CTkLabel(win, text="Кто работает в программе", font=("Segoe UI Semibold", 18)).pack(anchor="w", padx=18, pady=(18, 6))
+        ctk.CTkLabel(win, text="Выбор пользователя нужен, чтобы фиксировать автора изменений.", font=("Segoe UI", 12), text_color="#667b90").pack(anchor="w", padx=18, pady=(0, 14))
+        user_var = ctk.StringVar(value=self.current_user)
+        ctk.CTkOptionMenu(win, variable=user_var, values=AUTH_USERS, width=260).pack(anchor="w", padx=18)
+
+        def confirm():
+            self.current_user = user_var.get()
+            if hasattr(self, "user_badge_var"):
+                self.user_badge_var.set(f"Пользователь: {self.current_user}")
+            win.destroy()
+
+        ctk.CTkButton(win, text="Войти", command=confirm, fg_color="#1f8fff", hover_color="#1873cf").pack(anchor="e", padx=18, pady=18)
+        self.wait_window(win)
+
     def show_main_tab(self, tab_name):
         if tab_name == "counterparties":
             self.main_notebook.select(self.counterparties_tab)
         elif tab_name == "projects":
             self.main_notebook.select(self.projects_tab)
+        self.current_module = tab_name
         for name, button in self.nav_buttons.items():
             if name == tab_name:
-                button.configure(fg_color="#3f6ea3")
-            elif name != "finance":
-                button.configure(fg_color="#27476f")
+                button.configure(fg_color="#1f8fff", hover_color="#1873cf", text_color="#ffffff")
+            else:
+                button.configure(fg_color="#edf2f7", hover_color="#d9e6f7", text_color="#233042")
+
+    def show_placeholder_module(self, module_name):
+        messagebox.showinfo("Раздел в работе", f"Раздел '{module_name}' будет следующим этапом развития CRM.")
+
+    def get_project_status_colors(self, status):
+        palette = {
+            "В работе": ("#214a7a", "#d8ebff"),
+            "Пауза": ("#6e5412", "#fff0c8"),
+            "Завершен": ("#2f5a41", "#d9f7e5"),
+        }
+        return palette.get(status or "", ("#2d3440", "#d7dde6"))
+
+    def truncate_text(self, value, limit=34):
+        text = (value or "").strip()
+        if len(text) <= limit:
+            return text
+        return text[: limit - 1].rstrip() + "…"
+
+    def update_project_focus_panel(self, row):
+        if not hasattr(self, "project_focus_title_var"):
+            return
+        if not row:
+            self.project_focus_title_var.set("Объект не выбран")
+            self.project_focus_meta_var.set("Выберите проект слева или в таблице, чтобы увидеть сводку.")
+            self.project_focus_status_var.set("Статус: —")
+            return
+        project_name = row[1] or "Без названия"
+        counterparty = row[2] or "Контрагент не указан"
+        contract = row[3] or "Договор не указан"
+        date_value = row[4] or "Дата не указана"
+        status = row[5] or "Без статуса"
+        self.project_focus_title_var.set(project_name)
+        self.project_focus_meta_var.set(f"{counterparty}\n{contract} • {date_value}")
+        self.project_focus_status_var.set(f"Статус: {status}")
+
+    def update_project_sidebar_selection(self):
+        for project_id, button in self.project_sidebar_buttons.items():
+            row = self.project_map.get(project_id)
+            status = row[5] if row else ""
+            normal_color, text_color = self.get_project_status_colors(status)
+            if str(self.selected_project_id) == str(project_id):
+                button.configure(fg_color="#1f8fff", hover_color="#1873cf", text_color="#ffffff")
+            else:
+                button.configure(fg_color=normal_color, hover_color="#2e3744", text_color=text_color)
+
+    def select_project(self, project_id, open_card=False):
+        self.selected_project_id = str(project_id)
+        if hasattr(self, "projects_tree"):
+            for item in self.projects_tree.get_children():
+                values = self.projects_tree.item(item, "values")
+                if values and str(values[0]) == str(project_id):
+                    self.projects_tree.selection_set(item)
+                    self.projects_tree.focus(item)
+                    self.projects_tree.see(item)
+                    break
+        row = self.project_map.get(str(project_id))
+        if row:
+            counterparty = row[2] or "контрагент не указан"
+            self.sidebar_project_caption.set(f"{row[1]}\n{counterparty}\nСтатус: {row[5]}")
+            self.update_project_focus_panel(row)
+        self.update_project_sidebar_selection()
+        if open_card:
+            self.open_project_card()
+
+    def sync_selected_project_from_table(self, event=None):
+        selected = self.projects_tree.selection()
+        if not selected:
+            return
+        project_id = self.projects_tree.item(selected[0], "values")[0]
+        self.selected_project_id = str(project_id)
+        row = self.project_map.get(str(project_id))
+        if row:
+            counterparty = row[2] or "контрагент не указан"
+            self.sidebar_project_caption.set(f"{row[1]}\n{counterparty}\nСтатус: {row[5]}")
+            self.update_project_focus_panel(row)
+        self.update_project_sidebar_selection()
+
+    def populate_project_sidebar(self, rows):
+        if not hasattr(self, "sidebar_project_list"):
+            return
+        for child in self.sidebar_project_list.winfo_children():
+            child.destroy()
+        self.project_sidebar_buttons = {}
+        if not rows:
+            ctk.CTkLabel(
+                self.sidebar_project_list,
+                text="Пока нет объектов.\nСоздай первый проект.",
+                justify="left",
+                text_color="#9faec0",
+                font=("Segoe UI", 12),
+            ).pack(anchor="w", padx=8, pady=10)
+            self.sidebar_project_caption.set("Проекты еще не созданы.")
+            return
+
+        for row in rows:
+            project_id, project_name, counterparty, contract, date_value, status = row
+            status_line = status or "Без статуса"
+            sub_line = counterparty or "Контрагент не указан"
+            compact_date = date_value or ""
+            compact_contract = contract or "Без договора"
+            title_line = self.truncate_text(project_name, 26)
+            sub_line = self.truncate_text(sub_line, 25)
+            meta = " • ".join(part for part in [status_line, compact_contract, compact_date] if part)
+            meta = self.truncate_text(meta, 31)
+            normal_color, text_color = self.get_project_status_colors(status_line)
+            button = ctk.CTkButton(
+                self.sidebar_project_list,
+                text=f"{title_line}\n{sub_line}\n{meta}",
+                anchor="w",
+                height=86,
+                corner_radius=16,
+                fg_color=normal_color,
+                hover_color="#2e3744",
+                text_color=text_color,
+                font=("Segoe UI", 11),
+                border_spacing=14,
+                command=lambda pid=project_id: self.select_project(pid),
+            )
+            button.pack(fill="x", padx=2, pady=5)
+            self.project_sidebar_buttons[str(project_id)] = button
+
+        current_id = str(self.selected_project_id) if self.selected_project_id else None
+        if current_id not in self.project_sidebar_buttons:
+            current_id = str(rows[0][0])
+        self.select_project(current_id)
 
     def build_counterparties_tab(self):
         header = ctk.CTkFrame(self.counterparties_tab, fg_color="#f5f8fc", corner_radius=18)
@@ -1470,6 +1722,22 @@ finally {
         self.counterparties_tree.bind("<Double-1>", lambda event: self.open_counterparty_card())
 
     def build_projects_tab(self):
+        focus = ctk.CTkFrame(self.projects_tab, fg_color="#eef4fb", corner_radius=18)
+        focus.pack(fill="x", padx=10, pady=(10, 0))
+        focus_left = ctk.CTkFrame(focus, fg_color="transparent")
+        focus_left.pack(side="left", fill="x", expand=True, padx=16, pady=14)
+        ctk.CTkLabel(focus_left, text="Выбранный объект", font=("Segoe UI Semibold", 13), text_color="#5d738a").pack(anchor="w")
+        self.project_focus_title_var = ctk.StringVar(value="Объект не выбран")
+        self.project_focus_meta_var = ctk.StringVar(value="Выберите проект слева или в таблице, чтобы увидеть сводку.")
+        self.project_focus_status_var = ctk.StringVar(value="Статус: —")
+        ctk.CTkLabel(focus_left, textvariable=self.project_focus_title_var, font=("Segoe UI Semibold", 19), text_color="#1d2b3a").pack(anchor="w", pady=(4, 2))
+        ctk.CTkLabel(focus_left, textvariable=self.project_focus_meta_var, justify="left", font=("Segoe UI", 11), text_color="#667b90").pack(anchor="w")
+        ctk.CTkLabel(focus_left, textvariable=self.project_focus_status_var, font=("Segoe UI Semibold", 11), text_color="#1f8fff").pack(anchor="w", pady=(8, 0))
+        focus_actions = ctk.CTkFrame(focus, fg_color="transparent")
+        focus_actions.pack(side="right", padx=16, pady=16)
+        ctk.CTkButton(focus_actions, text="Открыть смету", width=120, fg_color="#1f8a43", hover_color="#186d35", command=self.open_selected_project_smeta).pack(pady=4)
+        ctk.CTkButton(focus_actions, text="Карточка проекта", width=120, fg_color="#1f538d", hover_color="#163d68", command=self.open_project_card).pack(pady=4)
+
         filters = ctk.CTkFrame(self.projects_tab, fg_color="#f5f8fc", corner_radius=18)
         filters.pack(fill="x", padx=10, pady=10)
         left = ctk.CTkFrame(filters, fg_color="transparent")
@@ -1495,6 +1763,7 @@ finally {
             self.projects_tree.heading(name, text=text)
             self.projects_tree.column(name, width=width, anchor="w" if name in ("project_name", "counterparty") else "center")
         self.projects_tree.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self.projects_tree.bind("<<TreeviewSelect>>", self.sync_selected_project_from_table)
         self.projects_tree.bind("<Double-1>", lambda event: self.open_project_card())
 
     def get_counterparty_display_name(self, row):
@@ -1618,6 +1887,7 @@ finally {
                 (project_id, "Смета (приложение № 1)", default_title, "Черновик", "", "", "", now, now),
             )
             conn.commit()
+            self.log_project_event(project_id, "document", "Создан документ проекта: Смета (приложение № 1)")
         conn.close()
 
     def refresh_counterparties(self):
@@ -1637,6 +1907,7 @@ finally {
         self.project_map = {str(row[0]): row for row in rows}
         for row in rows:
             self.projects_tree.insert("", "end", values=row)
+        self.populate_project_sidebar(rows)
 
     def refresh_all(self):
         self.refresh_counterparties()
@@ -1670,6 +1941,7 @@ finally {
         win.title("Карточка контрагента" if counterparty_id else "Новый контрагент")
         win.geometry("700x820")
         win.attributes("-topmost", True)
+        self.present_window(win)
 
         existing = None
         if counterparty_id:
@@ -1797,6 +2069,7 @@ finally {
         win.title("Новый проект")
         win.geometry("620x640")
         win.attributes("-topmost", True)
+        self.present_window(win)
 
         form_frame = ctk.CTkFrame(win, fg_color="transparent")
         form_frame.pack(fill="both", expand=True, padx=18, pady=(14, 0))
@@ -1853,8 +2126,10 @@ finally {
                     now,
                 ),
             )
+            project_id = c.lastrowid
             conn.commit()
             conn.close()
+            self.log_project_event(project_id, "project", f"Создан проект: {project_name}")
             win.destroy()
             self.refresh_projects()
 
@@ -1866,8 +2141,18 @@ finally {
     def get_selected_project_id(self):
         selected = self.projects_tree.selection()
         if not selected:
-            return None
-        return self.projects_tree.item(selected[0], "values")[0]
+            return self.selected_project_id
+        project_id = self.projects_tree.item(selected[0], "values")[0]
+        self.selected_project_id = str(project_id)
+        return project_id
+
+    def open_selected_project_smeta(self):
+        project_id = self.get_selected_project_id()
+        if not project_id:
+            return messagebox.showinfo("Смета", "Сначала выберите проект.")
+        row = self.project_map.get(str(project_id))
+        project_name = row[1] if row else ""
+        self.open_project_smeta(project_id, project_name)
 
     def delete_project(self):
         project_id = self.get_selected_project_id()
@@ -1882,6 +2167,8 @@ finally {
         c.execute("DELETE FROM projects WHERE id=?", (project_id,))
         conn.commit()
         conn.close()
+        if str(self.selected_project_id) == str(project_id):
+            self.selected_project_id = None
         self.refresh_projects()
 
     def open_project_counterparty(self, counterparty_id):
@@ -1917,6 +2204,114 @@ finally {
         doc_id = str(docs_tree.item(selected[0], "values")[0])
         self.open_document_file(document_lookup.get(doc_id))
 
+    def log_project_event(self, project_id, event_type, event_text):
+        if not project_id or not event_text:
+            return
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO project_events (project_id, event_type, event_text, author, created_at) VALUES (?, ?, ?, ?, ?)",
+            (project_id, event_type, event_text, self.current_user, now),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_project_summary_metrics(self, project_id, project_name, documents, finances):
+        smeta_total = self.get_project_smeta_total(project_id) or 0
+        income_total = sum(row_[2] for row_ in finances if row_[1] == "Приход")
+        expense_total = sum(row_[2] for row_ in finances if row_[1] == "Расход")
+        document_total = len(documents)
+        approved_total = sum(1 for doc in documents if doc[3] == "Согласован")
+        draft_path = self.get_project_smeta_draft_path(project_id, project_name) or ""
+        has_smeta = "Да" if draft_path else "Нет"
+        return {
+            "smeta_total": smeta_total,
+            "income_total": income_total,
+            "expense_total": expense_total,
+            "balance_total": income_total - expense_total,
+            "document_total": document_total,
+            "approved_total": approved_total,
+            "has_smeta": has_smeta,
+            "draft_path": draft_path,
+        }
+
+    def build_metric_tile(self, parent, title, value, subtitle="", accent="#2f80ed"):
+        card = ctk.CTkFrame(parent, fg_color="#f5f8fc", corner_radius=18)
+        head = ctk.CTkFrame(card, fg_color="transparent")
+        head.pack(fill="x", padx=16, pady=(12, 6))
+        ctk.CTkFrame(head, width=10, height=10, corner_radius=5, fg_color=accent).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(head, text=title, font=("Segoe UI Semibold", 12), text_color="#516274").pack(side="left")
+        ctk.CTkLabel(card, text=value, font=("Segoe UI Semibold", 24), text_color="#1d2b3a").pack(anchor="w", padx=16)
+        if subtitle:
+            ctk.CTkLabel(card, text=subtitle, font=("Segoe UI", 11), text_color="#6b7d90").pack(anchor="w", padx=16, pady=(2, 12))
+        else:
+            ctk.CTkLabel(card, text="", font=("Segoe UI", 11)).pack(anchor="w", padx=16, pady=(2, 12))
+        return card
+
+    def build_info_row(self, parent, label, value):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=4)
+        ctk.CTkLabel(row, text=label, width=150, anchor="w", font=("Segoe UI Semibold", 11), text_color="#5f7288").pack(side="left")
+        ctk.CTkLabel(row, text=value or "—", anchor="w", justify="left", font=("Segoe UI", 11), text_color="#1d2b3a").pack(side="left", fill="x", expand=True)
+        return row
+
+    def build_progress_card(self, parent, title, value, total, accent, suffix="руб."):
+        card = ctk.CTkFrame(parent, fg_color="#ffffff", corner_radius=18)
+        ctk.CTkLabel(card, text=title, font=("Segoe UI Semibold", 12), text_color="#55687c").pack(anchor="w", padx=16, pady=(14, 4))
+        value_text = f"{value:,.0f} {suffix}".replace(",", " ") if isinstance(value, (int, float)) else str(value)
+        ctk.CTkLabel(card, text=value_text, font=("Segoe UI Semibold", 20), text_color="#1d2b3a").pack(anchor="w", padx=16)
+        progress = 0
+        if total and total > 0:
+            progress = max(0, min(value / total, 1))
+        progress_bar = ctk.CTkProgressBar(card, progress_color=accent, fg_color="#dfe7f2")
+        progress_bar.pack(fill="x", padx=16, pady=(10, 8))
+        progress_bar.set(progress)
+        caption = f"От базы: {total:,.0f} {suffix}".replace(",", " ") if isinstance(total, (int, float)) else str(total)
+        ctk.CTkLabel(card, text=caption, font=("Segoe UI", 11), text_color="#7a8da2").pack(anchor="w", padx=16, pady=(0, 14))
+        return card
+
+    def collect_project_files(self, project_id, project_name, raw_documents):
+        rows = []
+        seen_paths = set()
+        for doc in raw_documents:
+            for kind, path in (("PDF", doc["pdf_path"] or ""), ("Черновик", doc["draft_path"] or ""), ("Файл", doc["file_path"] or "")):
+                if not path or path in seen_paths:
+                    continue
+                seen_paths.add(path)
+                rows.append((doc["title"] or doc["doc_type"] or "Документ", kind, path, "Да" if os.path.exists(path) else "Нет"))
+
+        contracts_dir = self.get_contracts_dir(project_name)
+        if os.path.isdir(contracts_dir):
+            for name in sorted(os.listdir(contracts_dir)):
+                path = os.path.join(contracts_dir, name)
+                if os.path.isfile(path) and path not in seen_paths:
+                    seen_paths.add(path)
+                    rows.append(("Договор", "Файл", path, "Да"))
+        return rows
+
+    def fetch_project_history(self, project_id):
+        conn = self.get_connection()
+        c = conn.cursor()
+        rows = c.execute(
+            """SELECT created_at, event_type, COALESCE(author, '') AS author, event_text
+               FROM project_events
+               WHERE project_id=?
+               ORDER BY created_at DESC, id DESC""",
+            (project_id,),
+        ).fetchall()
+        conn.close()
+        return [(row["created_at"].replace("T", " "), row["event_type"], row["author"] or "—", row["event_text"]) for row in rows]
+
+    def open_file_from_tree(self, tree):
+        selected = tree.selection()
+        if not selected:
+            return messagebox.showinfo("Файл", "Выберите файл из списка.")
+        values = tree.item(selected[0], "values")
+        if not values or len(values) < 3:
+            return messagebox.showwarning("Файл", "Не удалось определить путь к файлу.")
+        self.open_document_file({"file_path": values[2], "draft_path": "", "pdf_path": ""})
+
     def open_change_document_status_window(self, docs_tree, document_lookup, project_window):
         selected = docs_tree.selection()
         if not selected:
@@ -1946,6 +2341,7 @@ finally {
             )
             conn.commit()
             conn.close()
+            self.log_project_event(doc_row["project_id"], "status", f"Изменен статус документа '{doc_row.get('title') or doc_row.get('doc_type')}' -> {status_var.get()}")
             win.destroy()
             project_window.destroy()
             self.open_project_card()
@@ -1971,6 +2367,7 @@ finally {
         c = conn.cursor()
         raw_documents = c.execute(
             """SELECT id,
+                      project_id,
                       doc_type,
                       title,
                       status,
@@ -1984,7 +2381,7 @@ finally {
             (project_id,),
         ).fetchall()
         finances = c.execute(
-            """SELECT txn_date, txn_type, amount, COALESCE(category, ''), COALESCE(description, '')
+            """SELECT txn_date, txn_type, amount, COALESCE(category, ''), COALESCE(description, ''), COALESCE(created_by, '')
                FROM cash_transactions
                WHERE project_id=?
                ORDER BY txn_date DESC, id DESC""",
@@ -2009,12 +2406,17 @@ finally {
                 )
             )
             document_lookup[str(doc_id)] = dict(doc)
+        metrics = self.get_project_summary_metrics(project_id, row[1], documents, finances)
+        project_files = self.collect_project_files(project_id, row[1], raw_documents)
+        project_history = self.fetch_project_history(project_id)
 
         win = ctk.CTkToplevel(self)
         win.title(f"Проект: {row[1]}")
-        win.geometry("1100x760")
+        win.geometry("1280x980")
+        win.minsize(1220, 900)
+        self.present_window(win)
 
-        header = ctk.CTkFrame(win)
+        header = ctk.CTkFrame(win, fg_color="#f5f8fc", corner_radius=18)
         header.pack(fill="x", padx=12, pady=12)
         header_top = ctk.CTkFrame(header, fg_color="transparent")
         header_top.pack(fill="x", padx=12, pady=(10, 2))
@@ -2037,36 +2439,131 @@ finally {
             font=("Arial", 12),
         ).pack(anchor="w", padx=12, pady=(0, 10))
 
+        metrics_row = ctk.CTkFrame(win, fg_color="transparent")
+        metrics_row.pack(fill="x", padx=12, pady=(0, 12))
+        self.build_metric_tile(metrics_row, "Смета", f"{metrics['smeta_total']:,.0f} руб.".replace(",", " "), f"Черновик: {metrics['has_smeta']}", "#2f80ed").pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.build_metric_tile(metrics_row, "Оплачено", f"{metrics['income_total']:,.0f} руб.".replace(",", " "), "Поступления по объекту", "#35a66f").pack(side="left", fill="x", expand=True, padx=6)
+        self.build_metric_tile(metrics_row, "Расход", f"{metrics['expense_total']:,.0f} руб.".replace(",", " "), "Затраты по объекту", "#d9534f").pack(side="left", fill="x", expand=True, padx=6)
+        self.build_metric_tile(metrics_row, "Документы", str(metrics["document_total"]), f"Согласовано: {metrics['approved_total']}", "#8e6ad8").pack(side="left", fill="x", expand=True, padx=(6, 0))
+
         notebook = ttk.Notebook(win)
         notebook.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         overview_tab = ctk.CTkFrame(notebook)
+        smeta_tab = ctk.CTkFrame(notebook)
         documents_tab = ctk.CTkFrame(notebook)
+        files_tab = ctk.CTkFrame(notebook)
+        history_tab = ctk.CTkFrame(notebook)
         finance_tab = ctk.CTkFrame(notebook)
         notebook.add(overview_tab, text="Обзор")
+        notebook.add(smeta_tab, text="Смета")
         notebook.add(documents_tab, text="Документы")
+        notebook.add(files_tab, text="Файлы")
+        notebook.add(history_tab, text="История")
         notebook.add(finance_tab, text="Финансы")
 
-        ctk.CTkLabel(overview_tab, text="Описание проекта", font=("Arial", 16, "bold")).pack(anchor="w", padx=12, pady=(12, 6))
-        notes_box = ctk.CTkTextbox(overview_tab, height=220)
-        notes_box.pack(fill="x", padx=12, pady=(0, 12))
-        notes_box.insert("1.0", row[6])
+        overview_scroll = ctk.CTkScrollableFrame(overview_tab, fg_color="transparent")
+        overview_scroll.pack(fill="both", expand=True, padx=12, pady=12)
+        overview_grid = ctk.CTkFrame(overview_scroll, fg_color="transparent")
+        overview_grid.pack(fill="both", expand=True)
+
+        top_overview = ctk.CTkFrame(overview_grid, fg_color="transparent")
+        top_overview.pack(fill="x", pady=(0, 12))
+        bottom_overview = ctk.CTkFrame(overview_grid, fg_color="transparent")
+        bottom_overview.pack(fill="both", expand=True)
+
+        info_card = ctk.CTkFrame(top_overview, fg_color="#ffffff", corner_radius=18)
+        info_card.pack(side="left", fill="both", expand=True, padx=(0, 6))
+        ctk.CTkLabel(info_card, text="Информация об объекте", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 6))
+        self.build_info_row(info_card, "Объект", row[1])
+        self.build_info_row(info_card, "Заказчик", row[2] or "не указан")
+        self.build_info_row(info_card, "Договор", row[3] or "не указан")
+        self.build_info_row(info_card, "Дата", row[4] or "не указана")
+        self.build_info_row(info_card, "Статус", row[5] or "без статуса")
+        notes_preview = row[6].strip() if row[6] else "Описание и заметки по объекту пока не добавлены."
+        notes_preview = self.truncate_text(notes_preview.replace("\n", " "), 180)
+        ctk.CTkLabel(info_card, text="Описание", font=("Segoe UI Semibold", 12), text_color="#5f7288").pack(anchor="w", padx=16, pady=(12, 2))
+        ctk.CTkLabel(info_card, text=notes_preview, wraplength=420, justify="left", font=("Segoe UI", 11), text_color="#6b7d90").pack(anchor="w", padx=16, pady=(0, 14))
+
+        docs_card = ctk.CTkFrame(top_overview, fg_color="#ffffff", corner_radius=18)
+        docs_card.pack(side="left", fill="both", expand=True, padx=6)
+        ctk.CTkLabel(docs_card, text="Документы и действия", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        ctk.CTkLabel(
+            docs_card,
+            text=f"Всего документов: {metrics['document_total']}  •  Согласовано: {metrics['approved_total']}",
+            font=("Segoe UI", 11),
+            text_color="#667b90",
+        ).pack(anchor="w", padx=16, pady=(0, 8))
+        recent_documents = documents[:4] if documents else []
+        if recent_documents:
+            for doc in recent_documents:
+                ctk.CTkLabel(
+                    docs_card,
+                    text=f"{doc[1]}  •  {doc[3]}",
+                    anchor="w",
+                    font=("Segoe UI", 11),
+                    text_color="#1f538d",
+                ).pack(fill="x", padx=16, pady=3)
+        else:
+            ctk.CTkLabel(docs_card, text="Документы по объекту пока не добавлены.", font=("Segoe UI", 11), text_color="#7a8da2").pack(anchor="w", padx=16, pady=(4, 8))
+        doc_actions = ctk.CTkFrame(docs_card, fg_color="transparent")
+        doc_actions.pack(fill="x", padx=12, pady=(10, 14))
+        ctk.CTkButton(doc_actions, text="Открыть смету", width=120, fg_color="#1f8a43", command=lambda: self.open_project_smeta(project_id, row[1])).pack(side="left", padx=4)
+        ctk.CTkButton(doc_actions, text="Добавить документ", width=140, fg_color="#355c7d", command=lambda: self.open_add_document_window(project_id, win)).pack(side="left", padx=4)
+
+        summary_right = ctk.CTkFrame(top_overview, fg_color="#ffffff", corner_radius=18)
+        summary_right.pack(side="left", fill="both", expand=True, padx=(6, 0))
+        ctk.CTkLabel(summary_right, text="Смета и баланс объекта", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        ctk.CTkLabel(
+            summary_right,
+            text=f"Черновик сметы: {metrics['has_smeta']}  •  Файлов: {len(project_files)}",
+            font=("Segoe UI", 11),
+            text_color="#667b90",
+        ).pack(anchor="w", padx=16)
+        quick_total = ctk.CTkFrame(summary_right, fg_color="#f5f8fc", corner_radius=14)
+        quick_total.pack(fill="x", padx=16, pady=14)
+        ctk.CTkLabel(quick_total, text="Текущая сумма по смете", font=("Segoe UI", 11), text_color="#5f7288").pack(anchor="w", padx=14, pady=(12, 2))
+        ctk.CTkLabel(quick_total, text=f"{metrics['smeta_total']:,.0f} руб.".replace(",", " "), font=("Segoe UI Semibold", 26), text_color="#1d2b3a").pack(anchor="w", padx=14, pady=(0, 10))
+        ctk.CTkLabel(
+            summary_right,
+            text=f"Баланс по объекту: {metrics['balance_total']:,.0f} руб.".replace(",", " "),
+            font=("Segoe UI Semibold", 12),
+            text_color="#1f8fff" if metrics["balance_total"] >= 0 else "#d9534f",
+        ).pack(anchor="w", padx=16, pady=(0, 14))
+
+        financials_wrap = ctk.CTkFrame(bottom_overview, fg_color="transparent")
+        financials_wrap.pack(fill="x", pady=(0, 12))
+        self.build_progress_card(financials_wrap, "Оплачено", metrics["income_total"], max(metrics["smeta_total"], metrics["income_total"], 1), "#35a66f").pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.build_progress_card(financials_wrap, "Расход", metrics["expense_total"], max(metrics["smeta_total"], metrics["expense_total"], 1), "#d9534f").pack(side="left", fill="x", expand=True, padx=6)
+        self.build_progress_card(financials_wrap, "Баланс", max(metrics["balance_total"], 0), max(metrics["smeta_total"], max(metrics["balance_total"], 0), 1), "#2f80ed").pack(side="left", fill="x", expand=True, padx=(6, 0))
+
+        notes_card = ctk.CTkFrame(bottom_overview, fg_color="#ffffff", corner_radius=18)
+        notes_card.pack(fill="both", expand=True)
+        ctk.CTkLabel(notes_card, text="Заметки по проекту", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        notes_box = ctk.CTkTextbox(notes_card, height=260)
+        notes_box.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+        notes_box.insert("1.0", row[6] or "Здесь можно хранить заметки по объекту, договоренностям и следующему шагу.")
         notes_box.configure(state="disabled")
 
-        overview_info = ctk.CTkTextbox(overview_tab, height=180)
-        overview_info.pack(fill="both", expand=True, padx=12, pady=(0, 12))
-        overview_info.insert(
+        smeta_header = ctk.CTkFrame(smeta_tab, fg_color="#f5f8fc", corner_radius=18)
+        smeta_header.pack(fill="x", padx=12, pady=12)
+        ctk.CTkLabel(smeta_header, text="Смета проекта", font=("Segoe UI Semibold", 18), text_color="#1d2b3a").pack(anchor="w", padx=14, pady=(12, 2))
+        ctk.CTkLabel(smeta_header, text=f"Сумма по смете: {metrics['smeta_total']:,.0f} руб.".replace(",", " "), font=("Segoe UI", 12), text_color="#516274").pack(anchor="w", padx=14, pady=(0, 12))
+        smeta_actions = ctk.CTkFrame(smeta_tab, fg_color="transparent")
+        smeta_actions.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkButton(smeta_actions, text="Открыть смету", command=lambda: self.open_project_smeta(project_id, row[1]), fg_color="#1f8a43").pack(side="left", padx=6)
+        ctk.CTkButton(smeta_actions, text="Открыть черновик", command=lambda: self.open_document_file({"draft_path": metrics["draft_path"], "pdf_path": "", "file_path": ""}), fg_color="#1f538d").pack(side="left", padx=6)
+        smeta_info = ctk.CTkTextbox(smeta_tab, height=260)
+        smeta_info.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        smeta_info.insert(
             "1.0",
-            "Документы, которые будут жить внутри проекта:\n"
-            "- Договор\n"
-            "- Смета (приложение № 1)\n"
-            "- Промежуточные акты\n"
-            "- Акт дополнительных работ\n"
-            "- Акт невыполненных работ\n"
-            "- Итоговый акт\n\n"
-            "Смета уже открывается прямо из карточки проекта. Следующий шаг - связать с ней создание актов и статусы согласования.",
+            f"Объект: {row[1]}\n"
+            f"Заказчик: {row[2] or 'не указан'}\n"
+            f"Договор: {row[3] or 'не указан'}\n"
+            f"Черновик сметы: {metrics['draft_path'] or 'не найден'}\n"
+            f"Сумма по смете: {metrics['smeta_total']:,.0f} руб.".replace(",", " ")
         )
-        overview_info.configure(state="disabled")
+        smeta_info.configure(state="disabled")
 
         docs_top = ctk.CTkFrame(documents_tab)
         docs_top.pack(fill="x", padx=12, pady=12)
@@ -2120,29 +2617,106 @@ finally {
             docs_tree.insert("", "end", values=doc)
         docs_tree.bind("<Double-1>", lambda event: self.open_selected_project_document(docs_tree, document_lookup))
 
-        finance_summary = ctk.CTkFrame(finance_tab)
-        finance_summary.pack(fill="x", padx=12, pady=12)
+        files_top = ctk.CTkFrame(files_tab)
+        files_top.pack(fill="x", padx=12, pady=12)
+        ctk.CTkLabel(files_top, text="Файлы проекта", font=("Segoe UI Semibold", 16)).pack(side="left", padx=6)
+        files_tree = ttk.Treeview(files_tab, columns=("title", "kind", "path", "exists"), show="headings")
+        for name, text, width in [
+            ("title", "Документ", 260),
+            ("kind", "Тип файла", 120),
+            ("path", "Путь", 620),
+            ("exists", "Есть на диске", 120),
+        ]:
+            files_tree.heading(name, text=text)
+            files_tree.column(name, width=width, anchor="w" if name in ("title", "path") else "center")
+        files_tree.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        for file_row in project_files:
+            files_tree.insert("", "end", values=file_row)
+        files_tree.bind("<Double-1>", lambda event: self.open_file_from_tree(files_tree))
+
+        history_top = ctk.CTkFrame(history_tab)
+        history_top.pack(fill="x", padx=12, pady=12)
+        ctk.CTkLabel(history_top, text="История проекта", font=("Segoe UI Semibold", 16)).pack(side="left", padx=6)
+        history_tree = ttk.Treeview(history_tab, columns=("date", "type", "author", "text"), show="headings")
+        for name, text, width in [
+            ("date", "Дата", 180),
+            ("type", "Тип", 120),
+            ("author", "Автор", 140),
+            ("text", "Событие", 620),
+        ]:
+            history_tree.heading(name, text=text)
+            history_tree.column(name, width=width, anchor="w" if name == "text" else "center")
+        history_tree.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        for history_row in project_history:
+            history_tree.insert("", "end", values=history_row)
 
         total_income = sum(row_[2] for row_ in finances if row_[1] == "Приход")
         total_expense = sum(row_[2] for row_ in finances if row_[1] == "Расход")
         total_balance = total_income - total_expense
-        ctk.CTkLabel(finance_summary, text=f"Приход: {total_income:,.0f} руб.".replace(",", " "), font=("Arial", 14, "bold")).pack(side="left", padx=8)
-        ctk.CTkLabel(finance_summary, text=f"Расход: {total_expense:,.0f} руб.".replace(",", " "), font=("Arial", 14, "bold")).pack(side="left", padx=20)
-        ctk.CTkLabel(finance_summary, text=f"Баланс: {total_balance:,.0f} руб.".replace(",", " "), font=("Arial", 14, "bold")).pack(side="left", padx=20)
 
-        finance_tree = ttk.Treeview(finance_tab, columns=("date", "type", "amount", "category", "desc"), show="headings")
+        finance_dashboard = ctk.CTkFrame(finance_tab, fg_color="transparent")
+        finance_dashboard.pack(fill="both", expand=True, padx=12, pady=12)
+
+        finance_top = ctk.CTkFrame(finance_dashboard, fg_color="transparent")
+        finance_top.pack(fill="x", pady=(0, 12))
+
+        finance_left = ctk.CTkFrame(finance_top, fg_color="#ffffff", corner_radius=18)
+        finance_left.pack(side="left", fill="both", expand=True, padx=(0, 6))
+        ctk.CTkLabel(finance_left, text="Финансовые показатели объекта", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        finance_cards = ctk.CTkFrame(finance_left, fg_color="transparent")
+        finance_cards.pack(fill="x", padx=16, pady=(0, 8))
+        self.build_progress_card(finance_cards, "Поступления", total_income, max(metrics["smeta_total"], total_income, 1), "#35a66f").pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.build_progress_card(finance_cards, "Затраты", total_expense, max(metrics["smeta_total"], total_expense, 1), "#d9534f").pack(side="left", fill="x", expand=True, padx=(6, 0))
+
+        finance_balance = ctk.CTkFrame(finance_left, fg_color="#f5f8fc", corner_radius=14)
+        finance_balance.pack(fill="x", padx=16, pady=(2, 16))
+        ctk.CTkLabel(finance_balance, text="Текущий баланс объекта", font=("Segoe UI", 11), text_color="#5f7288").pack(anchor="w", padx=14, pady=(12, 2))
+        ctk.CTkLabel(
+            finance_balance,
+            text=f"{total_balance:,.0f} руб.".replace(",", " "),
+            font=("Segoe UI Semibold", 26),
+            text_color="#1f8fff" if total_balance >= 0 else "#d9534f",
+        ).pack(anchor="w", padx=14, pady=(0, 4))
+        ctk.CTkLabel(
+            finance_balance,
+            text=f"Сумма по смете: {metrics['smeta_total']:,.0f} руб.".replace(",", " "),
+            font=("Segoe UI", 11),
+            text_color="#7a8da2",
+        ).pack(anchor="w", padx=14, pady=(0, 12))
+
+        finance_right = ctk.CTkFrame(finance_top, fg_color="#ffffff", corner_radius=18)
+        finance_right.pack(side="left", fill="both", expand=True, padx=(6, 0))
+        ctk.CTkLabel(finance_right, text="Последние движения", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        if finances:
+            for txn in finances[:5]:
+                amount_color = "#35a66f" if txn[1] == "Приход" else "#d9534f"
+                txn_row = ctk.CTkFrame(finance_right, fg_color="#f5f8fc", corner_radius=12)
+                txn_row.pack(fill="x", padx=16, pady=5)
+                ctk.CTkLabel(txn_row, text=txn[0], width=110, anchor="w", font=("Segoe UI", 11), text_color="#5f7288").pack(side="left", padx=(12, 6), pady=10)
+                ctk.CTkLabel(txn_row, text=txn[1], width=90, anchor="w", font=("Segoe UI Semibold", 11), text_color=amount_color).pack(side="left", padx=6)
+                ctk.CTkLabel(txn_row, text=f"{txn[2]:,.0f} руб.".replace(",", " "), width=130, anchor="w", font=("Segoe UI Semibold", 11), text_color="#1d2b3a").pack(side="left", padx=6)
+                ctk.CTkLabel(txn_row, text=f"{txn[5] or '—'} • {txn[3] or txn[4] or 'Без комментария'}", anchor="w", font=("Segoe UI", 11), text_color="#6b7d90").pack(side="left", fill="x", expand=True, padx=(6, 12))
+        else:
+            ctk.CTkLabel(finance_right, text="По этому объекту пока нет операций.", font=("Segoe UI", 11), text_color="#7a8da2").pack(anchor="w", padx=16, pady=(8, 12))
+        ctk.CTkButton(finance_right, text="Открыть общие финансы", fg_color="#1f538d", command=self.open_finance_window).pack(anchor="w", padx=16, pady=(8, 16))
+
+        finance_table_shell = ctk.CTkFrame(finance_dashboard, fg_color="#ffffff", corner_radius=18)
+        finance_table_shell.pack(fill="both", expand=True)
+        ctk.CTkLabel(finance_table_shell, text="Реестр операций по объекту", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 10))
+        finance_tree = ttk.Treeview(finance_table_shell, columns=("date", "type", "amount", "category", "author", "desc"), show="headings")
         for name, text, width in [
             ("date", "Дата", 120),
             ("type", "Тип", 100),
             ("amount", "Сумма", 140),
             ("category", "Категория", 180),
-            ("desc", "Комментарий", 420),
+            ("author", "Автор", 140),
+            ("desc", "Комментарий", 300),
         ]:
             finance_tree.heading(name, text=text)
-            finance_tree.column(name, width=width, anchor="w" if name in ("category", "desc") else "center")
-        finance_tree.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+            finance_tree.column(name, width=width, anchor="w" if name in ("category", "author", "desc") else "center")
+        finance_tree.pack(fill="both", expand=True, padx=16, pady=(0, 16))
         for txn in finances:
-            finance_tree.insert("", "end", values=(txn[0], txn[1], f"{txn[2]:,.0f}".replace(",", " "), txn[3], txn[4]))
+            finance_tree.insert("", "end", values=(txn[0], txn[1], f"{txn[2]:,.0f}".replace(",", " "), txn[3], txn[5] or "—", txn[4]))
 
     def open_add_document_window(self, project_id, parent_window):
         win = ctk.CTkToplevel(parent_window)
@@ -2178,6 +2752,7 @@ finally {
             )
             conn.commit()
             conn.close()
+            self.log_project_event(project_id, "document", f"Добавлен документ: {title} [{status_var.get()}]")
             win.destroy()
             parent_window.destroy()
             self.open_project_card()
@@ -2187,17 +2762,26 @@ finally {
     def open_finance_window(self):
         win = ctk.CTkToplevel(self)
         win.title("Финансы компании")
-        win.geometry("1240x760")
+        win.geometry("1400x980")
+        win.minsize(1320, 920)
+        win.configure(fg_color="#eef2f7")
+        self.present_window(win)
 
-        top = ctk.CTkFrame(win)
-        top.pack(fill="x", padx=12, pady=12)
-        ctk.CTkButton(top, text="+ Операция", command=lambda: self.open_add_transaction_window(win), fg_color="green").pack(side="left", padx=6)
+        header = ctk.CTkFrame(win, fg_color="#ffffff", corner_radius=22)
+        header.pack(fill="x", padx=14, pady=14)
+        header_left = ctk.CTkFrame(header, fg_color="transparent")
+        header_left.pack(side="left", fill="x", expand=True, padx=18, pady=16)
+        ctk.CTkLabel(header_left, text="Финансы компании", font=("Segoe UI Semibold", 24), text_color="#1d2b3a").pack(anchor="w")
+        ctk.CTkLabel(header_left, text="Общая касса и отдельные вкладки по активным объектам.", font=("Segoe UI", 12), text_color="#667b90").pack(anchor="w", pady=(6, 0))
 
-        notebook = ttk.Notebook(win)
-        notebook.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        notebook_shell = ctk.CTkFrame(win, fg_color="#ffffff", corner_radius=22)
+        notebook_shell.pack(fill="both", expand=True, padx=14, pady=(0, 14))
+        notebook = ttk.Notebook(notebook_shell)
+        notebook.pack(fill="both", expand=True, padx=12, pady=12)
 
         all_tab = ctk.CTkFrame(notebook)
         notebook.add(all_tab, text="Общая касса")
+        tab_project_map = {str(all_tab): None}
 
         projects = self.fetch_projects()
         project_tabs = []
@@ -2207,6 +2791,22 @@ finally {
             tab = ctk.CTkFrame(notebook)
             notebook.add(tab, text=str(project[1])[:28])
             project_tabs.append((project[0], tab))
+            tab_project_map[str(tab)] = project[0]
+
+        def open_operation_for_current_tab():
+            current_tab = notebook.select()
+            default_project_id = tab_project_map.get(current_tab)
+            self.open_add_transaction_window(win, default_project_id=default_project_id)
+
+        ctk.CTkButton(
+            header,
+            text="+ Операция",
+            width=150,
+            height=40,
+            fg_color="#35a66f",
+            hover_color="#2a885a",
+            command=open_operation_for_current_tab,
+        ).pack(side="right", padx=18, pady=18)
 
         self.fill_finance_tab(all_tab, None)
         for project_id, tab in project_tabs:
@@ -2222,7 +2822,8 @@ finally {
                           t.amount,
                           COALESCE(p.project_name, p.address, 'Общая касса'),
                           COALESCE(t.category, ''),
-                          COALESCE(t.description, '')
+                          COALESCE(t.description, ''),
+                          COALESCE(t.created_by, '')
                    FROM cash_transactions t
                    LEFT JOIN projects p ON p.id = t.project_id
                    ORDER BY t.txn_date DESC, t.id DESC"""
@@ -2234,7 +2835,8 @@ finally {
                           t.amount,
                           COALESCE(p.project_name, p.address, ''),
                           COALESCE(t.category, ''),
-                          COALESCE(t.description, '')
+                          COALESCE(t.description, ''),
+                          COALESCE(t.created_by, '')
                    FROM cash_transactions t
                    LEFT JOIN projects p ON p.id = t.project_id
                    WHERE t.project_id=?
@@ -2245,37 +2847,82 @@ finally {
 
         income = sum(row[2] for row in rows if row[1] == "Приход")
         expense = sum(row[2] for row in rows if row[1] == "Расход")
-        summary = ctk.CTkFrame(tab)
-        summary.pack(fill="x", padx=12, pady=12)
-        ctk.CTkLabel(summary, text=f"Приход: {income:,.0f} руб.".replace(",", " "), font=("Arial", 14, "bold")).pack(side="left", padx=8)
-        ctk.CTkLabel(summary, text=f"Расход: {expense:,.0f} руб.".replace(",", " "), font=("Arial", 14, "bold")).pack(side="left", padx=18)
-        ctk.CTkLabel(summary, text=f"Баланс: {income-expense:,.0f} руб.".replace(",", " "), font=("Arial", 14, "bold")).pack(side="left", padx=18)
+        balance = income - expense
+        scope_name = "Общая касса компании" if project_id is None else (rows[0][3] if rows else "Объект")
 
-        tree = ttk.Treeview(tab, columns=("date", "type", "amount", "project", "category", "desc"), show="headings")
+        for child in tab.winfo_children():
+            child.destroy()
+
+        dashboard = ctk.CTkFrame(tab, fg_color="transparent")
+        dashboard.pack(fill="both", expand=True, padx=12, pady=12)
+
+        summary_header = ctk.CTkFrame(dashboard, fg_color="#f5f8fc", corner_radius=18)
+        summary_header.pack(fill="x", pady=(0, 12))
+        ctk.CTkLabel(summary_header, text=scope_name, font=("Segoe UI Semibold", 18), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 2))
+        ctk.CTkLabel(summary_header, text=f"Операций: {len(rows)}", font=("Segoe UI", 11), text_color="#6b7d90").pack(anchor="w", padx=16, pady=(0, 14))
+
+        metrics_row = ctk.CTkFrame(dashboard, fg_color="transparent")
+        metrics_row.pack(fill="x", pady=(0, 12))
+        self.build_metric_tile(metrics_row, "Приход", f"{income:,.0f} руб.".replace(",", " "), "Поступления", "#35a66f").pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.build_metric_tile(metrics_row, "Расход", f"{expense:,.0f} руб.".replace(",", " "), "Списания и выплаты", "#d9534f").pack(side="left", fill="x", expand=True, padx=6)
+        self.build_metric_tile(metrics_row, "Баланс", f"{balance:,.0f} руб.".replace(",", " "), "Текущее состояние", "#2f80ed").pack(side="left", fill="x", expand=True, padx=(6, 0))
+
+        charts_row = ctk.CTkFrame(dashboard, fg_color="transparent")
+        charts_row.pack(fill="x", pady=(0, 12))
+        self.build_progress_card(charts_row, "Поступления", income, max(income + expense, 1), "#35a66f").pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.build_progress_card(charts_row, "Затраты", expense, max(income + expense, 1), "#d9534f").pack(side="left", fill="x", expand=True, padx=(6, 0))
+
+        latest_shell = ctk.CTkFrame(dashboard, fg_color="#ffffff", corner_radius=18)
+        latest_shell.pack(fill="x", pady=(0, 12))
+        ctk.CTkLabel(latest_shell, text="Последние операции", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        if rows:
+            for row in rows[:3]:
+                color = "#35a66f" if row[1] == "Приход" else "#d9534f"
+                item = ctk.CTkFrame(latest_shell, fg_color="#f5f8fc", corner_radius=12)
+                item.pack(fill="x", padx=16, pady=4)
+                ctk.CTkLabel(item, text=row[0], width=110, anchor="w", font=("Segoe UI", 11), text_color="#5f7288").pack(side="left", padx=(12, 6), pady=10)
+                ctk.CTkLabel(item, text=row[1], width=90, anchor="w", font=("Segoe UI Semibold", 11), text_color=color).pack(side="left", padx=6)
+                ctk.CTkLabel(item, text=f"{row[2]:,.0f} руб.".replace(",", " "), width=140, anchor="w", font=("Segoe UI Semibold", 11), text_color="#1d2b3a").pack(side="left", padx=6)
+                ctk.CTkLabel(item, text=f"{row[6] or '—'} • {row[4] or row[5] or 'Без комментария'}", anchor="w", font=("Segoe UI", 11), text_color="#6b7d90").pack(side="left", fill="x", expand=True, padx=(6, 12))
+        else:
+            ctk.CTkLabel(latest_shell, text="Операций пока нет.", font=("Segoe UI", 11), text_color="#7a8da2").pack(anchor="w", padx=16, pady=(4, 14))
+
+        table_shell = ctk.CTkFrame(dashboard, fg_color="#ffffff", corner_radius=18)
+        table_shell.pack(fill="both", expand=True)
+        ctk.CTkLabel(table_shell, text="Реестр операций", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 10))
+
+        tree = ttk.Treeview(table_shell, columns=("date", "type", "amount", "project", "category", "author", "desc"), show="headings")
         for name, text, width in [
             ("date", "Дата", 120),
             ("type", "Тип", 100),
             ("amount", "Сумма", 120),
             ("project", "Проект", 280),
             ("category", "Категория", 180),
-            ("desc", "Комментарий", 320),
+            ("author", "Автор", 130),
+            ("desc", "Комментарий", 250),
         ]:
             tree.heading(name, text=text)
-            tree.column(name, width=width, anchor="w" if name in ("project", "category", "desc") else "center")
-        tree.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+            tree.column(name, width=width, anchor="w" if name in ("project", "category", "author", "desc") else "center")
+        tree.configure(height=14)
+        tree.pack(fill="both", expand=True, padx=16, pady=(0, 16))
         for row in rows:
-            tree.insert("", "end", values=(row[0], row[1], f"{row[2]:,.0f}".replace(",", " "), row[3], row[4], row[5]))
+            tree.insert("", "end", values=(row[0], row[1], f"{row[2]:,.0f}".replace(",", " "), row[3], row[4], row[6] or "—", row[5]))
 
-    def open_add_transaction_window(self, finance_window):
+    def open_add_transaction_window(self, finance_window, default_project_id=None):
         projects = self.fetch_projects()
         project_labels = {"Общая касса": None}
+        project_label_by_id = {None: "Общая касса"}
         for project in projects:
-            project_labels[str(project[1])] = project[0]
+            label = str(project[1])
+            project_labels[label] = project[0]
+            project_label_by_id[project[0]] = label
 
         win = ctk.CTkToplevel(finance_window)
         win.title("Новая операция")
-        win.geometry("620x460")
+        win.geometry("700x620")
+        win.resizable(False, False)
         win.attributes("-topmost", True)
+        self.present_window(win, finance_window)
 
         ctk.CTkLabel(win, text="Дата").pack(anchor="w", padx=18, pady=(14, 4))
         date_entry = ctk.CTkEntry(win, width=560, placeholder_text="31.03.2026")
@@ -2290,9 +2937,15 @@ finally {
         amount_entry = ctk.CTkEntry(win, width=560)
         amount_entry.pack(padx=18)
 
-        ctk.CTkLabel(win, text="Проект").pack(anchor="w", padx=18, pady=(12, 4))
-        project_var = ctk.StringVar(value="Общая касса")
+        ctk.CTkLabel(win, text="Привязать к объекту").pack(anchor="w", padx=18, pady=(12, 4))
+        project_var = ctk.StringVar(value=project_label_by_id.get(default_project_id, "Общая касса"))
         ctk.CTkOptionMenu(win, variable=project_var, values=list(project_labels.keys()), width=560).pack(padx=18)
+        ctk.CTkLabel(
+            win,
+            text="Если оставить 'Общая касса', операция не попадет во вкладку конкретного объекта.",
+            font=("Segoe UI", 11),
+            text_color="#6b7d90",
+        ).pack(anchor="w", padx=18, pady=(4, 0))
 
         ctk.CTkLabel(win, text="Категория").pack(anchor="w", padx=18, pady=(12, 4))
         category_entry = ctk.CTkEntry(win, width=560, placeholder_text="Например: аванс, зарплата, материалы")
@@ -2307,20 +2960,29 @@ finally {
                 amount = float(amount_entry.get().replace(",", "."))
             except ValueError:
                 return messagebox.showwarning("Ошибка", "Сумма должна быть числом.")
+            selected_project_id = project_labels[project_var.get()]
+            if selected_project_id is None:
+                confirmed = messagebox.askyesno(
+                    "Подтвердите сохранение",
+                    "Операция будет сохранена только в общей кассе и не появится во вкладке объекта.\n\nСохранить без привязки к проекту?",
+                )
+                if not confirmed:
+                    return
             now = datetime.datetime.now().isoformat(timespec="seconds")
             conn = self.get_connection()
             c = conn.cursor()
             c.execute(
                 """INSERT INTO cash_transactions
-                   (txn_date, txn_type, amount, project_id, category, description, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (txn_date, txn_type, amount, project_id, category, description, created_by, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     date_entry.get().strip(),
                     type_var.get(),
                     amount,
-                    project_labels[project_var.get()],
+                    selected_project_id,
                     category_entry.get().strip(),
                     desc_entry.get().strip(),
+                    self.current_user,
                     now,
                 ),
             )

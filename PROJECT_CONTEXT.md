@@ -1,94 +1,194 @@
-# Project Context
+# PROJECT_CONTEXT
 
-## Project
+## Проект
 
-Desktop CRM and estimate generator for Dekorartstroy.
+Рабочее название:
+- CRM и сметная программа для `Декорартстрой`
 
-Main files:
-- `CRM.py` - desktop CRM for counterparties, projects, documents, and finance
-- `smeta.py` - estimate editor, draft autosave, PDF export, price list management
-- `dekorart_base.db` - main SQLite database
-- `dekorart_prices.db` - price list SQLite database
+Основные файлы:
+- `CRM.py` — CRM: контрагенты, проекты, документы, финансы
+- `smeta.py` — сметная программа: смета, черновики, PDF, прайс-лист
+- `dekorart_base.db` — основная база SQLite
+- `dekorart_prices.db` — база прайс-листа
 
-## What Was Done
+Репозиторий GitHub:
+- `https://github.com/Gorodokspb/-.git`
 
-### Environment
+Рабочая ветка:
+- `master`
 
-- Found working Python:
-  - `C:\Users\CD86~1\AppData\Local\Programs\Python\Python313\python.exe`
-- Installed dependencies:
-  - `customtkinter`
-  - `reportlab`
-  - `openpyxl`
-- Added `requirements.txt`
-- Confirmed `CRM.py` and `smeta.py` pass `py_compile`
-- Confirmed both apps start without immediate crash when launched through the full Python path
 
-### Database / Permissions
+## Где сейчас правда
 
-- Found and fixed SQLite write issue for `dekorart_base.db`
-- CRM startup was failing because SQLite could not write to the database
-- After access fix, `CRM.py` starts correctly
+Актуальный рабочий код сейчас находится:
+- локально в папке проекта на Яндекс Диске
+- в git-репозитории этой же папки
 
-### smeta.py
+Git уже подключен и рабочая ветка сейчас:
+- `master`
 
-- Stabilized file storage:
-  - estimate files are now tied to the project folder, not just current working directory
-  - drafts and PDFs are organized under the local project folder
-- Improved validation:
-  - quantity and price validation added
-  - PDF export now checks required fields and ensures at least one real work item exists
-- Improved draft behavior:
-  - draft file path adapts better when object name changes
-- Improved Excel import:
-  - clearer handling of duplicates
-  - clearer handling of invalid rows
-  - final import summary now shows inserted, duplicate, and skipped rows
-- Removed some weak error handling and duplicate helper methods
-- `smeta.py` import and startup smoke-test passed after changes
+Удаленный репозиторий:
+- `origin -> https://github.com/Gorodokspb/-.git`
+
+Последний подтвержденный коммит на GitHub в `master`:
+- `ddd2ebecc2b429afc14682478ed1d037dafead5c`
+- сообщение: `Finalize CRM contract workflow`
+- дата по Москве: `31.03.2026 17:51:03`
+
+
+## Что уже сделано
+
+### Smeta.py
+
+- программа оставлена только под `СМЕТУ`
+- настроены реквизиты для:
+  - `ООО Декорартстрой`
+  - `ИП Гордеев А.Н.`
+- банковские реквизиты убраны из PDF
+- из PDF убраны служебные поля `кто подготовил` и `когда сформирована`
+- добавлено автосохранение черновика
+- добавлено ручное сохранение сметы
+- черновики сохраняются в:
+  - `Сметы\\Черновики`
+- PDF сохраняются в:
+  - `Сметы`
+- имя файла PDF и черновика строится по адресу/объекту
+- можно открыть ранее сохраненную смету
+- добавлен внутренний учет:
+  - кто создал
+  - кто редактировал
+  - когда редактировал
+- это видно в программе, но не попадает в PDF
+- добавлен встроенный поиск работ по прайсу
+- работы можно добавлять прямо из главного окна
+- есть калькулятор
+- сделана офлайн-проверка текста и подсветка полей
+- PDF-шапка и таблица уже сильно подогнаны под рабочий образец
+- уменьшена плотность строк PDF
+- сделан первый редизайн интерфейса
+- сделана более мягкая серая тема интерфейса
 
 ### CRM.py
 
-- Reviewed for blocking issues
-- No critical code-level blocker found after runtime environment was fixed
-- Main next functional direction: document workflow, starting with Word contract integration
+- сделан рабочий каркас CRM
+- есть типы контрагентов:
+  - `Физическое лицо`
+  - `Юридическое лицо ООО`
+  - `Юридическое лицо ИП`
+- для каждого типа добавлены нужные поля
+- можно:
+  - создавать контрагентов
+  - редактировать контрагентов
+  - создавать проекты
+  - открывать карточку проекта
+- в проекте уже есть вкладки:
+  - `Обзор`
+  - `Документы`
+  - `Финансы`
+- сделан блок финансов:
+  - общая касса
+  - вкладки по активным объектам
+- сделана интеграция `CRM -> smeta.py`
+- смета открывается из карточки проекта
+- при открытии сметы из CRM подставляются:
+  - объект
+  - заказчик
+  - договор
+- смета проекта автоматически создается как документ:
+  - `Смета (приложение № 1)`
+- во вкладке `Документы` уже работает:
+  - список документов
+  - отдельные признаки `Черновик` / `PDF`
+  - открытие файла
+  - двойной клик по документу
+  - изменение статуса документа
+- статусы документов:
+  - `Черновик`
+  - `На согласовании`
+  - `Согласован`
+  - `Подписан`
+  - `Отменен`
+- сделан первый редизайн CRM:
+  - боковая панель
+  - сводные карточки
+  - современный главный экран
 
-## Current State
 
-- `smeta.py` is now more stable and runnable
-- `CRM.py` is runnable
-- Next business feature to implement in CRM:
-  - Word contract integration
-  - contract should pull data from client card and project card
-  - future support for editable/selectable contract positions
+## Что важно помнить
 
-## Known Technical Notes
+### По git
 
-- In this Codex environment, `python` may still not resolve by command name reliably
-- Use full path when needed:
+- обычный `git` теперь работает из этой папки
+- папка уже подключена к `.repo_git`
+- перед началом работы лучше делать:
+  - `git pull origin master`
+- после завершения работы:
+  - `git add`
+  - `git commit`
+  - `git push origin master`
 
-```powershell
-C:\Users\CD86~1\AppData\Local\Programs\Python\Python313\python.exe CRM.py
-C:\Users\CD86~1\AppData\Local\Programs\Python\Python313\python.exe smeta.py
-```
+### По проекту
 
-- Install dependencies with:
+- `smeta.py` и `CRM.py` уже связаны
+- бизнес-логика актов пока еще не сделана
+- итоговый акт пока не собирается автоматически
+- генерация договора в CRM пока не доведена до рабочего сценария
 
-```powershell
-C:\Users\CD86~1\AppData\Local\Programs\Python\Python313\python.exe -m pip install -r requirements.txt
-```
 
-## Next Step
+## Что осталось сделать
 
-Integrate Word contract template into CRM:
-- load `.docx` contract template
-- map placeholders to counterparty and project fields
-- generate contract file for selected project
-- prepare structure for editable contract sections/positions
+### Ближайший приоритет
 
-## If You Resume Work Later
+1. Логика актов внутри проекта
+2. Использовать статус `Согласован` для итоговых документов
+3. Сделать:
+   - `Акт невыполненных работ`
+   - `Промежуточный акт`
+   - `Акт дополнительных работ`
+   - `Итоговый акт`
 
-Tell Codex:
-- read `PROJECT_CONTEXT.md`
-- continue from Word contract integration in `CRM.py`
+### После этого
 
+1. Генерация договора из CRM
+2. Полировка вкладки документов
+3. Полировка финансов
+4. Подготовка к сборке `.exe`
+
+
+## Следующий правильный шаг
+
+Следующий большой блок:
+- начать делать акты по проекту
+
+Логичный первый акт:
+- `Акт невыполненных работ`
+
+Почему именно он:
+- проще всего строится из сметы
+- полезен сразу
+- даст основу для структуры остальных актов
+
+
+## Как продолжать дома и в офисе
+
+Перед началом новой сессии:
+1. Открыть этот файл `PROJECT_CONTEXT.md`
+2. Проверить `Что осталось сделать`
+3. Сделать `git pull origin master`
+4. Только после этого продолжать работу
+
+После окончания сессии:
+1. Обновить этот файл
+2. Коротко записать:
+   - что сделали
+   - что не доделали
+   - какой следующий шаг
+3. Сделать `git commit`
+4. Сделать `git push origin master`
+
+
+## Короткий handoff для следующей сессии
+
+Если продолжаем работу с Codex, можно писать так:
+
+`Прочитай PROJECT_CONTEXT.md и продолжай следующий шаг: акты внутри проекта, начиная с акта невыполненных работ.`
