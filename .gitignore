@@ -36,3 +36,8 @@ codex_write_test.txt
 *.bak
 _contract_tmp/
 contract_template_extracted.txt
+
+# Local duplicate copies and notes
+.git (2)/
+* (2).py
+*Codex.docx
