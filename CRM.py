@@ -1,3 +1,4 @@
+import argparse
 import os
 import subprocess
 import sys
@@ -6,9 +7,17 @@ import re
 import shutil
 
 import customtkinter as ctk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import sqlite3
 import datetime
+
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 
 ctk.set_appearance_mode("System")
@@ -78,7 +87,7 @@ COUNTERPARTY_FIELD_CONFIG = {
 
 
 class CRMApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, initial_project_id=None):
         super().__init__()
         self.title("CRM Декорартстрой")
         self.geometry("1440x900")
@@ -91,12 +100,15 @@ class CRMApp(ctk.CTk):
         self.project_sidebar_buttons = {}
         self.current_module = "projects"
         self.current_user = AUTH_USERS[0]
+        self.initial_project_id = initial_project_id
 
         self.setup_database()
         self.configure_styles()
         self.build_ui()
         self.prompt_user_login()
         self.refresh_all()
+        if self.initial_project_id:
+            self.after(250, lambda: self.show_project_from_cli(self.initial_project_id))
 
     def configure_styles(self):
         style = ttk.Style()
@@ -117,6 +129,44 @@ class CRMApp(ctk.CTk):
 
     def get_workspace_dir(self):
         return os.path.dirname(os.path.abspath(__file__))
+
+    def split_object_lines(self, value):
+        text = " ".join((value or "").split())
+        if not text:
+            return "", ""
+        parts = [part.strip() for part in text.split(",", 1)]
+        if len(parts) == 1:
+            return parts[0], ""
+        return parts[0], parts[1]
+
+    def get_company_details(self, company_name):
+        companies = {
+            "ООО Декорартстрой": {
+                "title": "<b>ООО «Декорартстрой»</b>",
+                "details": [
+                    "ИНН 7811530330 / КПП 780501001",
+                    "ОГРН 1127847464942",
+                    "Юр. адрес: г. Санкт-Петербург, Ленинский пр-кт,",
+                    "д. 144, кор. 1, стр. 2, оф. 302",
+                    "Тел.: +7 (911) 921-30-39, +7 (911) 031-61-01",
+                    "E-mail: info@dekorartstroy.ru",
+                    "Сайт: remontstroyspb.ru",
+                ],
+            },
+            "ИП Гордеев А.Н.": {
+                "title": "<b>ИП Гордеев А.Н.</b>",
+                "details": [
+                    "ИНН 781144532689",
+                    "ОГРНИП 318784700361262",
+                    "Адрес: г. Санкт-Петербург, Ленинский пр-кт,",
+                    "д. 144, кор. 1, стр. 2, оф. 302",
+                    "Тел.: +7 (911) 921-30-39, +7 (911) 031-61-01",
+                    "Почта: gorodok198@yandex.ru",
+                    "Сайт: remontstroyspb.ru",
+                ],
+            },
+        }
+        return companies.get(company_name, companies["ООО Декорартстрой"])
 
     def sanitize_filename(self, value, fallback="Документ"):
         cleaned = (value or "").strip()
@@ -292,6 +342,68 @@ class CRMApp(ctk.CTk):
             f"{kopecks:02d} {self.pluralize(kopecks, ('копейка', 'копейки', 'копеек'))}"
         )
 
+    def get_counterparty_required_fields(self, counterparty_type):
+        if counterparty_type == "Физическое лицо":
+            return [
+                ("full_name", "ФИО"),
+                ("passport_series_number", "Серия и номер паспорта"),
+                ("passport_issued_by", "Кем и когда выдан паспорт"),
+                ("passport_department_code", "Код подразделения"),
+                ("registration_address", "Адрес регистрации"),
+                ("work_address", "Адрес выполнения работ"),
+                ("phone", "Телефон"),
+                ("email", "E-mail"),
+            ]
+        if counterparty_type == "Юридическое лицо ООО":
+            return [
+                ("company_name", "Наименование ООО"),
+                ("inn", "ИНН"),
+                ("kpp", "КПП"),
+                ("ogrn", "ОГРН"),
+                ("checking_account", "Расчетный счет"),
+                ("correspondent_account", "Корреспондентский счет"),
+                ("bank_name", "Банк"),
+                ("bank_bik", "БИК банка"),
+                ("legal_address", "Юридический адрес"),
+                ("phone", "Телефон"),
+                ("email", "E-mail"),
+                ("director_name", "ФИО гендиректора"),
+                ("director_basis", "На основании чего действует"),
+            ]
+        if counterparty_type == "Юридическое лицо ИП":
+            return [
+                ("company_name", "Наименование ИП"),
+                ("inn", "ИНН"),
+                ("ogrnip", "ОГРНИП"),
+                ("checking_account", "Расчетный счет"),
+                ("correspondent_account", "Корреспондентский счет"),
+                ("bank_name", "Банк"),
+                ("bank_bik", "БИК банка"),
+                ("phone", "Телефон"),
+                ("email", "E-mail"),
+            ]
+        return []
+
+    def validate_counterparty_payload(self, counterparty_type, values):
+        missing_labels = []
+        for field_name, label in self.get_counterparty_required_fields(counterparty_type):
+            if not str(values.get(field_name) or "").strip():
+                missing_labels.append(label)
+
+        if counterparty_type == "Юридическое лицо ИП":
+            legal_address = str(values.get("legal_address") or "").strip()
+            actual_address = str(values.get("actual_address") or "").strip()
+            if not legal_address and not actual_address:
+                missing_labels.append("Юридический или фактический адрес")
+
+        return missing_labels
+
+    def validate_counterparty_row_for_contract(self, counterparty_row):
+        if not counterparty_row:
+            return ["Контрагент проекта не выбран"]
+        values = {key: counterparty_row[key] for key in counterparty_row.keys()}
+        return self.validate_counterparty_payload(counterparty_row["type"], values)
+
     def parse_date_value(self, raw_value):
         text = str(raw_value or "").strip()
         if not text:
@@ -445,6 +557,298 @@ class CRMApp(ctk.CTk):
                 return generic_path
         return None
 
+    def get_project_smeta_overview(self, project_id, project_name=""):
+        payload = self.get_project_smeta_payload(project_id, project_name)
+        if not payload:
+            return {
+                "payload": None,
+                "section_count": 0,
+                "item_count": 0,
+                "discount": "",
+                "saved_at": "",
+                "customer": "",
+                "object_name": "",
+            }
+
+        section_count = 0
+        item_count = 0
+        for item in payload.get("items", []):
+            tags = set(item.get("tags") or [])
+            if "room" in tags:
+                section_count += 1
+            else:
+                item_count += 1
+
+        return {
+            "payload": payload,
+            "section_count": section_count,
+            "item_count": item_count,
+            "discount": str(payload.get("discount") or "").strip(),
+            "saved_at": str(payload.get("saved_at") or "").strip(),
+            "customer": str(payload.get("customer") or "").strip(),
+            "object_name": str(payload.get("object") or "").strip(),
+        }
+
+    def build_smeta_preview_rows(self, payload, limit=14):
+        rows = []
+        if not payload:
+            return rows
+        for item in payload.get("items", []):
+            tags = set(item.get("tags") or [])
+            values = item.get("values") or []
+            if "room" in tags:
+                title = values[0] if values else "Раздел"
+                rows.append(("section", title, "", "", "", ""))
+            else:
+                name = values[0] if len(values) > 0 else ""
+                unit = values[1] if len(values) > 1 else ""
+                qty = values[2] if len(values) > 2 else ""
+                price = values[3] if len(values) > 3 else ""
+                total = values[5] if len(values) > 5 and values[5] != "" else (values[4] if len(values) > 4 else "")
+                rows.append(("item", name, unit, qty, price, total))
+            if len(rows) >= limit:
+                break
+        return rows
+
+    def get_project_smeta_managed_draft_path(self, project_id, project_name, object_name=""):
+        base_name = str(object_name or project_name or f"Объект_{project_id}").strip()
+        object_label = self.sanitize_filename(base_name, f"Объект_{project_id}")
+        object_dir = os.path.join(self.get_workspace_dir(), "Сметы", f"{int(project_id):04d}_{object_label}")
+        drafts_dir = os.path.join(object_dir, "Черновики")
+        os.makedirs(drafts_dir, exist_ok=True)
+        file_name = f"{self.sanitize_filename(base_name, 'Черновик сметы')}.json"
+        return os.path.join(drafts_dir, file_name)
+
+    def save_project_smeta_payload(self, project_id, project_name, payload, existing_doc=None):
+        timestamp = datetime.datetime.now().isoformat(timespec="seconds")
+        contract_label = str(payload.get("contract") or "").strip()
+        contract_number, contract_date = self.parse_contract_label(contract_label)
+        draft_path = ""
+        if existing_doc:
+            draft_path = existing_doc.get("draft_path", "") or ""
+        if not draft_path:
+            draft_path = self.get_project_smeta_managed_draft_path(project_id, project_name, payload.get("object") or project_name)
+
+        os.makedirs(os.path.dirname(draft_path), exist_ok=True)
+        with open(draft_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+        conn = self.get_connection()
+        c = conn.cursor()
+        current = c.execute(
+            """SELECT id, pdf_path
+               FROM documents
+               WHERE project_id=? AND doc_type=?
+               ORDER BY updated_at DESC, id DESC
+               LIMIT 1""",
+            (project_id, "Смета (приложение № 1)"),
+        ).fetchone()
+        title_object = str(payload.get("object") or project_name or "").strip()
+        title = f"Смета - {title_object}" if title_object else "Смета"
+        pdf_path = ""
+        if existing_doc:
+            pdf_path = existing_doc.get("pdf_path", "") or ""
+        if current and current["pdf_path"]:
+            pdf_path = current["pdf_path"]
+        preferred_file_path = pdf_path or draft_path
+        if current:
+            c.execute(
+                """UPDATE documents
+                   SET title=?, status=?, file_path=?, draft_path=?, pdf_path=?, updated_at=?
+                   WHERE id=?""",
+                (title, "Черновик", preferred_file_path, draft_path, pdf_path, timestamp, current["id"]),
+            )
+        else:
+            c.execute(
+                """INSERT INTO documents (project_id, doc_type, title, status, file_path, draft_path, pdf_path, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (project_id, "Смета (приложение № 1)", title, "Черновик", preferred_file_path, draft_path, pdf_path, timestamp, timestamp),
+            )
+        c.execute(
+            "UPDATE projects SET project_name=?, address=?, customer=?, contract=?, date=?, updated_at=? WHERE id=?",
+            (
+                str(payload.get("object") or project_name or "").strip() or project_name,
+                str(payload.get("object") or project_name or "").strip() or project_name,
+                str(payload.get("customer") or "").strip(),
+                contract_label or contract_number,
+                contract_date,
+                timestamp,
+                project_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        self.log_project_event(project_id, "document", "Обновлен черновик сметы из карточки проекта")
+        return draft_path
+
+    def export_project_smeta_pdf(self, project_id, project_name, payload, rows, *, watermark=True, company_name="ООО Декорартстрой"):
+        object_name = str(payload.get("object") or project_name or "").strip()
+        customer_name = str(payload.get("customer") or "").strip()
+        contract_name = str(payload.get("contract") or "").strip()
+        if not contract_name:
+            return messagebox.showwarning("Смета", "Заполните поле договора перед сохранением PDF.")
+        if not customer_name:
+            return messagebox.showwarning("Смета", "Заполните поле заказчика перед сохранением PDF.")
+        if not object_name:
+            return messagebox.showwarning("Смета", "Заполните поле объекта перед сохранением PDF.")
+
+        object_dir = os.path.dirname(self.get_project_smeta_managed_draft_path(project_id, project_name, object_name))
+        object_dir = os.path.dirname(object_dir)
+        os.makedirs(object_dir, exist_ok=True)
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            initialdir=object_dir,
+            initialfile=f"{self.sanitize_filename(object_name, 'СМЕТА')}.pdf",
+        )
+        if not file_path:
+            return
+
+        try:
+            pdfmetrics.registerFont(TTFont("Arial", os.path.join(os.environ["WINDIR"], "Fonts", "arial.ttf")))
+            pdfmetrics.registerFont(TTFont("Arial-Bold", os.path.join(os.environ["WINDIR"], "Fonts", "arialbd.ttf")))
+            doc = SimpleDocTemplate(file_path, pagesize=A4, rightMargin=7 * mm, leftMargin=7 * mm, topMargin=8 * mm, bottomMargin=10 * mm)
+            watermark_text = "ИП ГОРДЕЕВ А.Н." if company_name == "ИП Гордеев А.Н." else "ДЕКОРАРТСТРОЙ"
+
+            def add_watermark(canvas, _doc):
+                if watermark:
+                    canvas.saveState()
+                    canvas.setFont("Arial-Bold", 65)
+                    canvas.setFillGray(0.5, 0.15)
+                    canvas.translate(A4[0] / 2, A4[1] / 2)
+                    canvas.rotate(45)
+                    canvas.drawCentredString(0, 0, watermark_text)
+                    canvas.restoreState()
+
+            company_details = self.get_company_details(company_name)
+            left_style = ParagraphStyle("L", fontName="Arial", fontSize=6.6, leading=8, alignment=0)
+            right_style = ParagraphStyle("R", fontName="Arial", fontSize=6.6, leading=8, alignment=2)
+            row_style = ParagraphStyle("N", fontName="Arial", fontSize=6.0, leading=6.4)
+
+            left_info = "<br/>".join([company_details["title"], *company_details["details"]])
+            object_head, object_tail = self.split_object_lines(object_name)
+            meta_lines = [
+                "Приложение № 1",
+                f"К договору: {contract_name}",
+                f"Заказчик: {customer_name}",
+                f"Объект: {object_head or 'не указан'}",
+            ]
+            if object_tail:
+                meta_lines.append(object_tail)
+            right_info = "<br/>".join(meta_lines)
+
+            elements = []
+            header = Table([[Paragraph(left_info, left_style), "", Paragraph(right_info, right_style)]], colWidths=[84 * mm, 16 * mm, 84 * mm])
+            header.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            elements.append(header)
+            elements.append(Spacer(1, 2 * mm))
+
+            discount_value = self.parse_money_value(payload.get("discount"))
+            discount_percent = discount_value if discount_value is not None else 0.0
+            table_data = [["Наименование", "Ед.", "Кол-во", "Цена", "Итого", f"Со скидкой ({int(discount_percent) if float(discount_percent).is_integer() else discount_percent}%)" if discount_percent > 0 else "Со скидкой"]]
+            table_style = TableStyle([
+                ("FONTNAME", (0, 0), (-1, -1), "Arial"),
+                ("FONTSIZE", (0, 0), (-1, -1), 6.0),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (0, -1), "LEFT"),
+                ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 0), (-1, 0), "Arial-Bold"),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("TOPPADDING", (0, 0), (-1, -1), 0.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0.5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+            ])
+
+            row_index = 1
+            room_total = room_total_disc = grand_total = grand_total_disc = 0.0
+            for row in rows:
+                row_type = row.get("type")
+                if row_type == "section":
+                    if room_total > 0:
+                        table_data.append(["Итого по разделу:", "", "", "", f"{room_total:,.0f}".replace(",", " "), f"{room_total_disc:,.0f}".replace(",", " ")])
+                        table_style.add("SPAN", (0, row_index), (3, row_index))
+                        table_style.add("FONTNAME", (0, row_index), (-1, row_index), "Arial-Bold")
+                        table_style.add("ALIGN", (0, row_index), (3, row_index), "RIGHT")
+                        row_index += 1
+                        room_total = room_total_disc = 0.0
+                    table_data.append([row.get("name", "Раздел"), "", "", "", "", ""])
+                    table_style.add("SPAN", (0, row_index), (-1, row_index))
+                    table_style.add("BACKGROUND", (0, row_index), (-1, row_index), colors.HexColor("#e8e8e8"))
+                    table_style.add("FONTNAME", (0, row_index), (-1, row_index), "Arial-Bold")
+                    table_style.add("ALIGN", (0, row_index), (-1, row_index), "CENTER")
+                    row_index += 1
+                    continue
+
+                qty_value = self.parse_money_value(row.get("qty"))
+                price_value = self.parse_money_value(row.get("price"))
+                total_value = round((qty_value or 0.0) * (price_value or 0.0), 2)
+                total_disc_value = round(total_value * (1 - discount_percent / 100), 2)
+                table_data.append([
+                    Paragraph(row.get("name", ""), row_style),
+                    row.get("unit", ""),
+                    self.format_money_value(qty_value) if qty_value is not None else "",
+                    f"{price_value:,.0f}".replace(",", " ") if price_value is not None else "",
+                    f"{total_value:,.0f}".replace(",", " "),
+                    f"{total_disc_value:,.0f}".replace(",", " "),
+                ])
+                room_total += total_value
+                room_total_disc += total_disc_value
+                grand_total += total_value
+                grand_total_disc += total_disc_value
+                row_index += 1
+
+            if room_total > 0:
+                table_data.append(["Итого по разделу:", "", "", "", f"{room_total:,.0f}".replace(",", " "), f"{room_total_disc:,.0f}".replace(",", " ")])
+                table_style.add("SPAN", (0, row_index), (3, row_index))
+                table_style.add("FONTNAME", (0, row_index), (-1, row_index), "Arial-Bold")
+                table_style.add("ALIGN", (0, row_index), (3, row_index), "RIGHT")
+
+            table = Table(table_data, colWidths=[78 * mm, 12 * mm, 16 * mm, 23 * mm, 24 * mm, 27 * mm])
+            table.setStyle(table_style)
+            elements.append(table)
+            elements.append(Spacer(1, 4 * mm))
+
+            footer_data = [["Итого по документу:", f"{grand_total:,.0f} руб.".replace(",", " ")]]
+            if discount_percent > 0:
+                footer_data.append(["Скидка:", f"{(grand_total - grand_total_disc):,.0f} руб.".replace(",", " ")])
+                footer_data.append(["ИТОГО СО СКИДКОЙ:", f"{grand_total_disc:,.0f} руб.".replace(",", " ")])
+            footer = Table(footer_data, colWidths=[145 * mm, 40 * mm])
+            footer.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, -1), "Arial-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 7.2),
+                ("ALIGN", (0, 0), (1, -1), "RIGHT"),
+            ]))
+            elements.append(footer)
+
+            year = datetime.datetime.now().year
+            sign_left = ParagraphStyle("SigL", fontName="Arial", fontSize=6.5, leading=7.2, alignment=0)
+            sign_right = ParagraphStyle("SigR", fontName="Arial", fontSize=6.5, leading=7.2, alignment=2)
+            left_sign = f"<b>Подрядчик:</b><br/>{company_name}<br/><br/>________________ / ____________ /<br/>« ___ » ____________ {year} г.<br/>М.П."
+            right_sign = f"<b>Заказчик:</b><br/>{customer_name}<br/><br/>________________ / ____________ /<br/>« ___ » ____________ {year} г."
+            sign_table = Table([[Paragraph(left_sign, sign_left), "", Paragraph(right_sign, sign_right)]], colWidths=[85 * mm, 15 * mm, 85 * mm])
+            sign_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            elements.append(Spacer(1, 5 * mm))
+            elements.append(sign_table)
+
+            doc.build(elements, onFirstPage=add_watermark, onLaterPages=add_watermark)
+        except Exception as exc:
+            return messagebox.showerror("Ошибка", f"Не удалось сохранить PDF сметы:\n{exc}")
+
+        conn = self.get_connection()
+        c = conn.cursor()
+        c.execute(
+            """UPDATE documents
+               SET status=?, file_path=?, pdf_path=?, updated_at=?
+               WHERE project_id=? AND doc_type=?""",
+            ("Черновик", file_path, file_path, datetime.datetime.now().isoformat(timespec="seconds"), project_id, "Смета (приложение № 1)"),
+        )
+        conn.commit()
+        conn.close()
+        self.log_project_event(project_id, "document", "Сохранен PDF сметы из карточки проекта")
+        messagebox.showinfo("Смета", f"PDF сметы сохранен:\n{file_path}")
+        return file_path
+
     def normalize_contract_settings(self, settings):
         normalized = dict(settings or {})
         payments = normalized.get("payments")
@@ -480,6 +884,34 @@ class CRMApp(ctk.CTk):
     def build_default_payment_schedule(self):
         return [{"date": "", "amount": ""}, {"date": "", "amount": ""}]
 
+    def parse_contract_label(self, raw_value):
+        text = str(raw_value or "").strip()
+        if not text:
+            return "", ""
+        normalized = text.replace("№", "").strip()
+        number = normalized
+        date_value = ""
+        if " от " in normalized:
+            number, date_value = normalized.split(" от ", 1)
+        return number.strip(), date_value.strip()
+
+    def get_project_contract_context(self, project_row=None):
+        project_id = project_row["id"] if project_row and "id" in project_row.keys() else None
+        project_name = project_row["project_name"] if project_row and "project_name" in project_row.keys() else ""
+        project_address = project_row["address"] if project_row and "address" in project_row.keys() else ""
+        payload = self.get_project_smeta_payload(project_id, project_name or project_address) if project_id else None
+        contract_label = str((payload or {}).get("contract") or "").strip()
+        contract_number, contract_date = self.parse_contract_label(contract_label)
+        return {
+            "payload": payload or {},
+            "object_name": str((payload or {}).get("object") or project_name or project_address or "").strip(),
+            "customer_name": str((payload or {}).get("customer") or (project_row["customer"] if project_row and "customer" in project_row.keys() else "") or "").strip(),
+            "contract_label": contract_label,
+            "contract_number": contract_number,
+            "contract_date": contract_date,
+            "price_total": self.calculate_smeta_total_from_payload(payload) if payload else None,
+        }
+
     def get_default_contract_settings(self, project_row=None, counterparty_row=None):
         project_name = ""
         contract_number = ""
@@ -493,11 +925,20 @@ class CRMApp(ctk.CTk):
         work_address = ""
         phone = ""
         project_id = project_row["id"] if project_row and "id" in project_row.keys() else None
+        contract_context = self.get_project_contract_context(project_row)
         if project_row:
             project_name = project_row["project_name"] or project_row["address"] or ""
             contract_number = project_row["contract"] or ""
             contract_date = project_row["date"] or ""
             customer_name = project_row["customer"] or ""
+        if not customer_name:
+            customer_name = contract_context["customer_name"]
+        if not contract_number and contract_context["contract_number"]:
+            contract_number = contract_context["contract_number"]
+        if not contract_date and contract_context["contract_date"]:
+            contract_date = contract_context["contract_date"]
+        if contract_context["object_name"]:
+            project_name = contract_context["object_name"]
         if counterparty_row:
             display_name = self.get_counterparty_display_name(counterparty_row)
             customer_email = counterparty_row["email"] or ""
@@ -508,7 +949,7 @@ class CRMApp(ctk.CTk):
             registration_address = counterparty_row["registration_address"] or counterparty_row["legal_address"] or ""
             work_address = counterparty_row["work_address"] or project_name
             phone = counterparty_row["phone"] or ""
-        smeta_total = self.get_project_smeta_total(project_id) if project_id else None
+        smeta_total = contract_context["price_total"] if contract_context["price_total"] is not None else (self.get_project_smeta_total(project_id) if project_id else None)
         return {
             "contract_variant": "physical",
             "contractor_mode": "ooo",
@@ -537,6 +978,7 @@ class CRMApp(ctk.CTk):
 
     def load_contract_settings(self, project_row, counterparty_row=None):
         settings = self.get_default_contract_settings(project_row, counterparty_row)
+        contract_context = self.get_project_contract_context(project_row)
         raw_settings = project_row["contract_settings_json"] if "contract_settings_json" in project_row.keys() else ""
         if raw_settings:
             try:
@@ -544,6 +986,16 @@ class CRMApp(ctk.CTk):
             except json.JSONDecodeError:
                 pass
         settings = self.normalize_contract_settings(settings)
+        if not str(settings.get("customer_name") or "").strip() and contract_context["customer_name"]:
+            settings["customer_name"] = contract_context["customer_name"]
+        if not str(settings.get("object_address") or "").strip() and contract_context["object_name"]:
+            settings["object_address"] = contract_context["object_name"]
+        if not str(settings.get("contract_number") or "").strip() and contract_context["contract_number"]:
+            settings["contract_number"] = contract_context["contract_number"]
+        if not str(settings.get("contract_date") or "").strip() and contract_context["contract_date"]:
+            settings["contract_date"] = contract_context["contract_date"]
+        if not str(settings.get("price_total") or "").strip() and contract_context["price_total"] is not None:
+            settings["price_total"] = self.format_money_value(contract_context["price_total"])
         if not settings.get("payments"):
             settings["payments"] = self.build_default_payment_schedule()
         return settings
@@ -613,6 +1065,9 @@ class CRMApp(ctk.CTk):
         )
 
     def build_customer_contract_clause(self, counterparty_row, settings):
+        intro_override = str(settings.get("intro_override", "")).strip()
+        if intro_override:
+            return intro_override
         display_name = str(settings.get("customer_name") or (self.get_counterparty_display_name(counterparty_row) if counterparty_row else "") or "Заказчик").strip()
         gender = settings.get("customer_gender", "auto")
         if gender == "auto":
@@ -649,6 +1104,13 @@ class CRMApp(ctk.CTk):
         return "\r".join(lines)
 
     def build_payment_lines_for_template(self, settings):
+        dynamic_block = self.build_dynamic_payment_block(settings)
+        if dynamic_block:
+            lines = [line.strip() for line in dynamic_block.split("\r") if line.strip()]
+            line_1 = lines[0] if len(lines) > 0 else ""
+            line_2 = lines[1] if len(lines) > 1 else ""
+            line_3_plus = "\r".join(lines[2:]) if len(lines) > 2 else ""
+            return line_1, line_2, line_3_plus
         payments = settings.get("payments") or []
         if not payments:
             return "", "", ""
@@ -687,15 +1149,16 @@ class CRMApp(ctk.CTk):
 
     def build_contract_replacements(self, project_row, counterparty_row, contract_settings=None):
         project_name = project_row["project_name"] or project_row["address"] or ""
+        contract_context = self.get_project_contract_context(project_row)
         settings = self.get_default_contract_settings(project_row, counterparty_row)
         if contract_settings:
             settings.update(contract_settings)
         settings = self.normalize_contract_settings(settings)
         executor_profile = self.get_executor_profile(settings.get("contractor_mode", "ooo"))
-        contract_number = settings.get("contract_number") or project_row["contract"] or "б/н"
-        contract_date = self.format_contract_date(settings.get("contract_date") or project_row["date"])
+        contract_number = settings.get("contract_number") or contract_context["contract_number"] or project_row["contract"] or "б/н"
+        contract_date = self.format_contract_date(settings.get("contract_date") or contract_context["contract_date"] or project_row["date"])
         counterparty_name = self.get_counterparty_display_name(counterparty_row) if counterparty_row else ""
-        customer_name = settings.get("customer_name") or counterparty_name or project_row["customer"] or "Заказчик"
+        customer_name = settings.get("customer_name") or counterparty_name or contract_context["customer_name"] or project_row["customer"] or "Заказчик"
 
         if counterparty_row and counterparty_row["type"] == "Физическое лицо":
             passport_main = settings.get("passport_series_number") or counterparty_row["passport_series_number"] or "не указано"
@@ -728,7 +1191,7 @@ class CRMApp(ctk.CTk):
             phone = settings.get("customer_phone") or (counterparty_row["phone"] if counterparty_row else "") or "не указан"
             email = settings.get("customer_email") or (counterparty_row["email"] if counterparty_row else "") or "не указан"
 
-        object_address = settings.get("object_address") or project_name or "не указано"
+        object_address = settings.get("object_address") or contract_context["object_name"] or project_name or "не указано"
         work_end_date = self.format_deadline_text(settings.get("work_end_date"))
         smeta_total = self.get_project_smeta_total(project_row["id"]) if project_row and "id" in project_row.keys() else None
         price_total_value = self.parse_money_value(settings.get("price_total"))
@@ -759,6 +1222,7 @@ class CRMApp(ctk.CTk):
             "[[CONTRACT_NUMBER]]": f"ДОГОВОР № {contract_number}",
             "[[CONTRACT_DATE]]": contract_date,
             "[[CUSTOMER_CLAUSE]]": self.build_customer_contract_clause(counterparty_row, settings),
+            "[[CUSTOMER_INTRO]]": self.build_customer_intro(counterparty_row, settings),
             "[[CUSTOMER_NAME]]": customer_name,
             "[[OBJECT_ADDRESS]]": object_address,
             "[[PASSPORT]]": passport_main,
@@ -775,8 +1239,10 @@ class CRMApp(ctk.CTk):
             "[[PAYMENT_LINE_1]]": payment_1_line,
             "[[PAYMENT_LINE_2]]": payment_2_line,
             "[[PAYMENT_LINE_3_PLUS]]": payment_3_line,
+            "[[PAYMENTS_BLOCK]]": self.build_dynamic_payment_block(settings),
             "[[CONTRACTOR_EMAIL]]": settings.get('contractor_email') or executor_profile['email'],
             "[[WORKING_GROUP_TEXT]]": settings.get("working_group_text", "").strip(),
+            "[[COMMUNICATIONS_BLOCK]]": self.build_communications_block(settings),
             "Работы, предусмотренные настоящим Договором, выполняются из материалов, предоставляемых «Заказчиком» (давальческий материал) до начала выполнения Работ.": f"Работы, предусмотренные настоящим Договором, {materials_phrase} (давальческий материал) до начала выполнения Работ." if materials_mode == "customer" else f"Работы, предусмотренные настоящим Договором, {materials_phrase}.",
         }
         return {key: value for key, value in replacements.items() if value}
@@ -828,6 +1294,14 @@ class CRMApp(ctk.CTk):
             return messagebox.showwarning("Проект не найден", "Не удалось найти данные проекта для генерации договора.")
 
         project_name = project_row["project_name"] or project_row["address"] or f"Проект_{project_id}"
+        missing_labels = self.validate_counterparty_row_for_contract(project_row)
+        if missing_labels:
+            missing_text = "\n".join(f"- {label}" for label in missing_labels)
+            return messagebox.showwarning(
+                "Договор пока нельзя сформировать",
+                "Заполните обязательные данные контрагента перед генерацией договора:\n\n"
+                f"{missing_text}",
+            )
         contract_settings = self.load_contract_settings(project_row, project_row)
         contract_number = contract_settings.get("contract_number") or project_row["contract"] or f"Договор_{project_id}"
         output_dir = self.get_contracts_dir(project_name)
@@ -966,6 +1440,7 @@ finally {
             return messagebox.showwarning("Проект не найден", "Не удалось найти проект для настройки договора.")
 
         settings = self.load_contract_settings(project_row, project_row)
+        contract_context = self.get_project_contract_context(project_row)
         win = ctk.CTkToplevel(self)
         win.title("Настройки договора")
         win.geometry("920x900")
@@ -1000,6 +1475,17 @@ finally {
             ("registration_address", "Адрес регистрации"),
             ("working_group_text", "Пункт 8.1: рабочая группа"),
         ]
+        auto_fill_fields = {
+            "customer_name",
+            "object_address",
+            "price_total",
+            "customer_email",
+            "customer_phone",
+            "passport_series_number",
+            "passport_issued_by",
+            "passport_department_code",
+            "registration_address",
+        }
         field_widgets = {}
         for key, label in field_specs:
             ctk.CTkLabel(scroll, text=label).pack(anchor="w", pady=(10, 4))
@@ -1007,6 +1493,124 @@ finally {
             entry.pack(fill="x")
             entry.insert(0, settings.get(key, ""))
             field_widgets[key] = entry
+
+        manual_source_fields_var = ctk.BooleanVar(value=bool(settings.get("manual_source_fields")))
+
+        def update_source_field_states():
+            manual_mode = bool(manual_source_fields_var.get())
+            for key in auto_fill_fields:
+                widget = field_widgets.get(key)
+                if widget is not None:
+                    widget.configure(state="normal" if manual_mode else "disabled")
+
+        source_mode_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        source_mode_frame.pack(fill="x", pady=(10, 2))
+        ctk.CTkCheckBox(
+            source_mode_frame,
+            text="Редактировать автоподставленные данные вручную",
+            variable=manual_source_fields_var,
+            command=update_source_field_states,
+        ).pack(side="left")
+        update_source_field_states()
+
+        def refresh_contract_fields_from_project_context():
+            fresh_settings = self.load_contract_settings(project_row, project_row)
+            for key in ("contract_number", "contract_date", "customer_name", "object_address", "price_total", "customer_email", "customer_phone"):
+                value = str(fresh_settings.get(key, "") or "").strip()
+                if value:
+                    if key in auto_fill_fields:
+                        field_widgets[key].configure(state="normal")
+                    field_widgets[key].delete(0, "end")
+                    field_widgets[key].insert(0, value)
+                    if key in auto_fill_fields and not manual_source_fields_var.get():
+                        field_widgets[key].configure(state="disabled")
+            refresh_finance_summary()
+
+        source_actions = ctk.CTkFrame(scroll, fg_color="transparent")
+        source_actions.pack(fill="x", pady=(14, 4))
+        ctk.CTkButton(
+            source_actions,
+            text="Подтянуть из сметы и проекта",
+            command=refresh_contract_fields_from_project_context,
+            fg_color="#355c7d",
+        ).pack(side="left")
+
+        source_info_card = ctk.CTkFrame(scroll, fg_color="#f5f8fc", corner_radius=14)
+        source_info_card.pack(fill="x", pady=(8, 10))
+        ctk.CTkLabel(source_info_card, text="Откуда берутся данные", font=("Segoe UI Semibold", 14), text_color="#1d2b3a").pack(anchor="w", padx=14, pady=(12, 6))
+        counterparty_name = self.get_counterparty_display_name(project_row) or "контрагент не привязан"
+        source_rows = [
+            ("Смета", f"Объект: {contract_context['object_name'] or 'не указан'} | Заказчик: {contract_context['customer_name'] or 'не указан'} | Договор: {contract_context['contract_label'] or 'не указан'}"),
+            ("Проект", f"Карточка проекта хранит статус, заметки, номер/дату договора и связывает документы между собой."),
+            ("Контрагент", f"{counterparty_name}. Отсюда берутся контакты, паспортные данные или реквизиты."),
+        ]
+        for source_title, source_text in source_rows:
+            row_frame = ctk.CTkFrame(source_info_card, fg_color="transparent")
+            row_frame.pack(fill="x", padx=14, pady=3)
+            ctk.CTkLabel(row_frame, text=source_title, width=110, anchor="w", font=("Segoe UI Semibold", 11), text_color="#516274").pack(side="left")
+            ctk.CTkLabel(row_frame, text=source_text, anchor="w", justify="left", wraplength=640, font=("Segoe UI", 11), text_color="#1d2b3a").pack(side="left", fill="x", expand=True)
+        ctk.CTkLabel(
+            source_info_card,
+            text="Если значение нужно поправить надолго, лучше менять его в источнике: в смете, проекте или карточке контрагента, а не только в договоре.",
+            font=("Segoe UI", 11),
+            text_color="#667b90",
+            wraplength=780,
+            justify="left",
+        ).pack(anchor="w", padx=14, pady=(8, 12))
+
+        readiness_card = ctk.CTkFrame(scroll, fg_color="#ffffff", corner_radius=14)
+        readiness_card.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(readiness_card, text="Проверка перед генерацией", font=("Segoe UI Semibold", 14), text_color="#1d2b3a").pack(anchor="w", padx=14, pady=(12, 6))
+        missing_counterparty_labels = self.validate_counterparty_row_for_contract(project_row) if project_row["counterparty_id"] else ["Контрагент проекта не выбран"]
+        contract_blockers = []
+        if not contract_context["payload"]:
+            contract_blockers.append("Не сохранен черновик сметы")
+        if not contract_context["object_name"]:
+            contract_blockers.append("В смете не указан объект")
+        if not contract_context["customer_name"]:
+            contract_blockers.append("В смете или проекте не указан заказчик")
+        if not contract_context["contract_number"] and not str(project_row["contract"] or "").strip():
+            contract_blockers.append("Не указан номер договора")
+
+        if not missing_counterparty_labels and not contract_blockers:
+            ctk.CTkLabel(
+                readiness_card,
+                text="Минимальные данные для договора уже собраны. Можно сохранять настройки и формировать документ.",
+                font=("Segoe UI", 11),
+                text_color="#1f8a43",
+                wraplength=780,
+                justify="left",
+            ).pack(anchor="w", padx=14, pady=(0, 10))
+        else:
+            if missing_counterparty_labels:
+                ctk.CTkLabel(readiness_card, text="Контрагент", font=("Segoe UI Semibold", 11), text_color="#516274").pack(anchor="w", padx=14, pady=(0, 2))
+                for label in missing_counterparty_labels:
+                    ctk.CTkLabel(readiness_card, text=f"- {label}", font=("Segoe UI", 11), text_color="#8a5a00").pack(anchor="w", padx=20, pady=1)
+            if contract_blockers:
+                ctk.CTkLabel(readiness_card, text="Смета и проект", font=("Segoe UI Semibold", 11), text_color="#516274").pack(anchor="w", padx=14, pady=(8, 2))
+                for label in contract_blockers:
+                    ctk.CTkLabel(readiness_card, text=f"- {label}", font=("Segoe UI", 11), text_color="#8a5a00").pack(anchor="w", padx=20, pady=1)
+
+        readiness_actions = ctk.CTkFrame(readiness_card, fg_color="transparent")
+        readiness_actions.pack(fill="x", padx=14, pady=(10, 12))
+        ctk.CTkButton(
+            readiness_actions,
+            text="Открыть смету проекта",
+            command=lambda: self.open_project_smeta(project_id, project_row["project_name"] or project_row["address"] or ""),
+            fg_color="#355c7d",
+        ).pack(side="left")
+        ctk.CTkButton(
+            readiness_actions,
+            text="Открыть контрагента",
+            command=lambda: self.open_project_counterparty(project_row["counterparty_id"]),
+            fg_color="#1f538d",
+        ).pack(side="left", padx=(8, 0))
+        ctk.CTkButton(
+            readiness_actions,
+            text="Создать контрагента",
+            command=lambda: self.open_create_counterparty_for_project(project_id, project_window),
+            fg_color="#1f8a43",
+        ).pack(side="left", padx=(8, 0))
 
         finance_frame = ctk.CTkFrame(scroll)
         finance_frame.pack(fill="x", pady=(18, 8))
@@ -1023,6 +1627,10 @@ finally {
         finance_summary_var = ctk.StringVar(value="")
         finance_summary_label = ctk.CTkLabel(finance_frame, textvariable=finance_summary_var, font=("Segoe UI Semibold", 12), text_color="#1d2b3a")
         finance_summary_label.pack(anchor="w", padx=14, pady=(0, 12))
+        finance_status_var = ctk.StringVar(value="")
+        finance_status_label = ctk.CTkLabel(finance_frame, textvariable=finance_status_var, font=("Segoe UI", 11), text_color="#667b90")
+        finance_status_label.pack(anchor="w", padx=14, pady=(0, 12))
+        manual_final_var = ctk.BooleanVar(value=bool(settings.get("manual_final_payment")))
 
         options_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         options_frame.pack(fill="x", pady=(12, 6))
@@ -1049,7 +1657,7 @@ finally {
         ctk.CTkLabel(payments_frame, text="График последующих платежей", font=("Segoe UI Semibold", 15)).pack(anchor="w", padx=14, pady=(12, 8))
         ctk.CTkLabel(
             payments_frame,
-            text="Добавляйте 2, 3, 4 и более платежей. CRM считает окончательный расчёт как сумма по смете минус аванс и все последующие платежи.",
+            text="Добавляйте любое количество промежуточных платежей вручную. CRM по умолчанию считает финальный остаток автоматически: сумма сметы минус аванс и все указанные платежи.",
             font=("Segoe UI", 11),
             text_color="#5f7288",
         ).pack(anchor="w", padx=14, pady=(0, 8))
@@ -1057,6 +1665,12 @@ finally {
         payments_rows_frame = ctk.CTkFrame(payments_frame, fg_color="transparent")
         payments_rows_frame.pack(fill="x", padx=14, pady=(0, 10))
         payment_rows = []
+
+        def refresh_payment_row_labels():
+            for index, row_info in enumerate(payment_rows, start=1):
+                label_text = f"Платеж {index + 1}"
+                if hasattr(row_info.get("label"), "configure"):
+                    row_info["label"].configure(text=label_text)
 
         def refresh_contractor_email(*_args):
             current = contractor_email_entry.get().strip()
@@ -1091,14 +1705,31 @@ finally {
             final_text = self.format_money_value(final_value) if final_value is not None else "не рассчитан"
             current_final_text = field_widgets["final_payment_amount"].get().strip()
             auto_final_text = self.format_money_value(final_value) if final_value is not None else ""
-            if auto_final_text and (not current_final_text or current_final_text == last_auto_final["value"]):
+            if not manual_final_var.get() and auto_final_text and (not current_final_text or current_final_text == last_auto_final["value"]):
                 field_widgets["final_payment_amount"].delete(0, "end")
                 field_widgets["final_payment_amount"].insert(0, auto_final_text)
                 current_final_text = auto_final_text
             last_auto_final["value"] = auto_final_text
             finance_summary_var.set(
-                f"Смета: {total_text}   |   Аванс: {advance_text}   |   Платежей: {filled_payments} на {payments_text}   |   Остаток: {final_text}"
+                f"Смета: {total_text}   |   Аванс: {advance_text}   |   Платежей: {filled_payments} на {payments_text}   |   Остаток: {final_text}{' (вручную)' if manual_final_var.get() else ' (авто)'}"
             )
+            if total_value is None:
+                finance_status_var.set("Сначала укажите сумму сметы, чтобы CRM могла проверить график оплат.")
+                finance_status_label.configure(text_color="#667b90")
+            elif final_value is None:
+                finance_status_var.set("Не удалось рассчитать остаток по платежам.")
+                finance_status_label.configure(text_color="#8a5a00")
+            elif final_value > 0:
+                finance_status_var.set(f"После аванса и промежуточных платежей остается доплатить {self.format_money_value(final_value)} руб.")
+                finance_status_label.configure(text_color="#1f538d")
+            elif abs(final_value) < 0.01:
+                finance_status_var.set("График оплат полностью закрывает сумму сметы.")
+                finance_status_label.configure(text_color="#1f8a43")
+            else:
+                finance_status_var.set(f"Переплата по графику: {self.format_money_value(abs(final_value))} руб. Проверьте аванс и платежи.")
+                finance_status_label.configure(text_color="#d9534f")
+            if 'refresh_contract_preview' in locals():
+                refresh_contract_preview()
 
         def pull_sum_from_smeta():
             smeta_total = self.get_project_smeta_total(project_id)
@@ -1125,10 +1756,18 @@ finally {
             command=refresh_finance_summary,
             fg_color="#4a6572",
         ).pack(side="left", padx=(8, 0))
+        ctk.CTkCheckBox(
+            finance_actions,
+            text="Финальный платеж задаю вручную",
+            variable=manual_final_var,
+            command=refresh_finance_summary,
+        ).pack(side="left", padx=(16, 0))
 
         def add_payment_row(date_value="", amount_value=""):
             row_frame = ctk.CTkFrame(payments_rows_frame, fg_color="transparent")
             row_frame.pack(fill="x", pady=4)
+            row_label = ctk.CTkLabel(row_frame, text="Платеж", width=90, anchor="w", font=("Segoe UI Semibold", 11), text_color="#516274")
+            row_label.pack(side="left", padx=(0, 8))
             date_entry = ctk.CTkEntry(row_frame, width=280, placeholder_text="Дата платежа")
             date_entry.pack(side="left", padx=(0, 8))
             amount_entry = ctk.CTkEntry(row_frame, width=220, placeholder_text="Сумма платежа")
@@ -1141,13 +1780,15 @@ finally {
             amount_entry.bind("<KeyRelease>", refresh_finance_summary)
             date_entry.bind("<KeyRelease>", refresh_finance_summary)
 
-            row_info = {"frame": row_frame, "date": date_entry, "amount": amount_entry}
+            row_info = {"frame": row_frame, "label": row_label, "date": date_entry, "amount": amount_entry}
             payment_rows.append(row_info)
+            refresh_payment_row_labels()
 
             def remove_row():
                 if row_info in payment_rows:
                     payment_rows.remove(row_info)
                 row_frame.destroy()
+                refresh_payment_row_labels()
                 refresh_finance_summary()
 
             ctk.CTkButton(row_frame, text="Удалить", width=110, fg_color="#b63f3b", hover_color="#99312d", command=remove_row).pack(side="left")
@@ -1155,26 +1796,114 @@ finally {
         for payment in settings.get("payments") or self.build_default_payment_schedule():
             add_payment_row(payment.get("date", ""), payment.get("amount", ""))
 
-        for watched_key in ("price_total", "advance_amount", "final_payment_amount", "contract_number", "contract_date"):
+        for watched_key in ("price_total", "advance_amount", "final_payment_amount", "contract_number", "contract_date", "customer_name", "object_address"):
             field_widgets[watched_key].bind("<KeyRelease>", refresh_finance_summary)
 
         ctk.CTkButton(payments_frame, text="+ Добавить платеж", command=lambda: add_payment_row(), fg_color="#1f538d").pack(anchor="w", padx=14, pady=(0, 12))
 
+        def collect_current_contract_settings():
+            current_settings = {key: widget.get().strip() for key, widget in field_widgets.items()}
+            current_settings["customer_gender"] = gender_var.get()
+            current_settings["contractor_mode"] = contractor_var.get()
+            current_settings["contractor_email"] = contractor_email_entry.get().strip() or self.get_executor_profile(contractor_var.get())["email"]
+            current_settings["materials_mode"] = materials_var.get()
+            current_settings["manual_final_payment"] = bool(manual_final_var.get())
+            payments = []
+            for row_info in payment_rows:
+                payment_date = row_info["date"].get().strip()
+                payment_amount = row_info["amount"].get().strip()
+                if payment_date or payment_amount:
+                    payments.append({"date": payment_date, "amount": payment_amount})
+            current_settings["payments"] = payments
+            return current_settings
+
         ctk.CTkLabel(scroll, text="Ручная правка вводного абзаца", font=("Segoe UI Semibold", 14)).pack(anchor="w", pady=(14, 4))
+        intro_actions = ctk.CTkFrame(scroll, fg_color="transparent")
+        intro_actions.pack(fill="x", pady=(0, 4))
+        ctk.CTkButton(
+            intro_actions,
+            text="Заполнить шаблоном",
+            command=lambda: (
+                intro_box.delete("1.0", "end"),
+                intro_box.insert("1.0", self.build_customer_intro(project_row, collect_current_contract_settings())),
+            ),
+            fg_color="#355c7d",
+            width=180,
+        ).pack(side="left")
         intro_box = ctk.CTkTextbox(scroll, height=90)
         intro_box.pack(fill="x")
         intro_box.insert("1.0", settings.get("intro_override", ""))
 
         ctk.CTkLabel(scroll, text="Ручная правка блока платежей", font=("Segoe UI Semibold", 14)).pack(anchor="w", pady=(14, 4))
+        payments_actions = ctk.CTkFrame(scroll, fg_color="transparent")
+        payments_actions.pack(fill="x", pady=(0, 4))
+        ctk.CTkButton(
+            payments_actions,
+            text="Заполнить шаблоном",
+            command=lambda: (
+                payments_box.delete("1.0", "end"),
+                payments_box.insert("1.0", self.build_dynamic_payment_block(collect_current_contract_settings()).replace("\r", "\n")),
+            ),
+            fg_color="#355c7d",
+            width=180,
+        ).pack(side="left")
         payments_box = ctk.CTkTextbox(scroll, height=110)
         payments_box.pack(fill="x")
         payments_box.insert("1.0", settings.get("payments_override", ""))
 
         ctk.CTkLabel(scroll, text="Ручная правка пункта 8.1", font=("Segoe UI Semibold", 14)).pack(anchor="w", pady=(14, 4))
+        communications_actions = ctk.CTkFrame(scroll, fg_color="transparent")
+        communications_actions.pack(fill="x", pady=(0, 4))
+        ctk.CTkButton(
+            communications_actions,
+            text="Заполнить шаблоном",
+            command=lambda: (
+                communications_box.delete("1.0", "end"),
+                communications_box.insert("1.0", self.build_communications_block(collect_current_contract_settings()).replace("\r", "\n")),
+            ),
+            fg_color="#355c7d",
+            width=180,
+        ).pack(side="left")
         communications_box = ctk.CTkTextbox(scroll, height=120)
         communications_box.pack(fill="x")
         communications_box.insert("1.0", settings.get("communications_override", ""))
+
+        preview_card = ctk.CTkFrame(scroll, fg_color="#f5f8fc", corner_radius=14)
+        preview_card.pack(fill="x", pady=(16, 6))
+        ctk.CTkLabel(preview_card, text="Ключевые данные перед генерацией", font=("Segoe UI Semibold", 14), text_color="#1d2b3a").pack(anchor="w", padx=14, pady=(12, 6))
+        preview_var = ctk.StringVar(value="")
+        ctk.CTkLabel(
+            preview_card,
+            textvariable=preview_var,
+            font=("Segoe UI", 11),
+            text_color="#1d2b3a",
+            justify="left",
+            wraplength=780,
+        ).pack(anchor="w", padx=14, pady=(0, 12))
+
+        def refresh_contract_preview(*_args):
+            current_settings = collect_current_contract_settings()
+            total_value, advance_value, _, final_value, filled_payments = compute_financials()
+            preview_lines = [
+                f"Договор: {current_settings.get('contract_number') or 'не указан'}",
+                f"Заказчик: {current_settings.get('customer_name') or 'не указан'}",
+                f"Объект: {current_settings.get('object_address') or 'не указан'}",
+                f"Сумма сметы: {self.format_money_value(total_value) if total_value is not None else 'не указана'} руб.",
+                f"Аванс: {self.format_money_value(advance_value)} руб.",
+                f"Промежуточных платежей: {filled_payments}",
+                f"Финальный платеж: {current_settings.get('final_payment_amount') or 'будет рассчитан автоматически'}",
+            ]
+            if final_value is not None:
+                if final_value > 0:
+                    preview_lines.append(f"Остаток к доплате: {self.format_money_value(final_value)} руб.")
+                elif abs(final_value) < 0.01:
+                    preview_lines.append("График оплат полностью закрывает сумму сметы.")
+                else:
+                    preview_lines.append(f"Переплата: {self.format_money_value(abs(final_value))} руб.")
+            preview_var.set("\n".join(preview_lines))
+
         refresh_finance_summary()
+        refresh_contract_preview()
 
         buttons = ctk.CTkFrame(win)
         buttons.pack(fill="x", padx=18, pady=18)
@@ -1188,9 +1917,18 @@ finally {
                 if payment_date or payment_amount:
                     payments.append({"date": payment_date, "amount": payment_amount})
             new_settings["payments"] = payments
-            _, _, _, final_value, _ = compute_financials()
-            if not new_settings.get("final_payment_amount") and final_value is not None:
+            total_value, _, _, final_value, _ = compute_financials()
+            if total_value is None:
+                return messagebox.showwarning("Договор", "Укажите сумму сметы, чтобы сохранить договорные настройки.")
+            if final_value is not None and final_value < 0:
+                return messagebox.showwarning(
+                    "Переплата в графике оплат",
+                    f"Сумма аванса и последующих платежей превышает сумму сметы на {self.format_money_value(abs(final_value))} руб.\n\nПроверьте график оплат перед сохранением договора.",
+                )
+            if not manual_final_var.get() and not new_settings.get("final_payment_amount") and final_value is not None:
                 new_settings["final_payment_amount"] = self.format_money_value(final_value)
+            new_settings["manual_final_payment"] = bool(manual_final_var.get())
+            new_settings["manual_source_fields"] = bool(manual_source_fields_var.get())
             new_settings["customer_gender"] = gender_var.get()
             new_settings["contractor_mode"] = contractor_var.get()
             new_settings["contractor_email"] = contractor_email_entry.get().strip() or self.get_executor_profile(contractor_var.get())["email"]
@@ -1648,6 +2386,10 @@ finally {
             self.update_project_focus_panel(row)
         self.update_project_sidebar_selection()
 
+    def show_project_from_cli(self, project_id):
+        self.show_main_tab("projects")
+        self.select_project(project_id, open_card=True)
+
     def populate_project_sidebar(self, rows):
         if not hasattr(self, "sidebar_project_list"):
             return
@@ -1936,7 +2678,7 @@ finally {
     def open_add_counterparty_window(self):
         self.open_counterparty_form()
 
-    def open_counterparty_form(self, counterparty_id=None):
+    def open_counterparty_form(self, counterparty_id=None, initial_values=None, on_saved=None):
         win = ctk.CTkToplevel(self)
         win.title("Карточка контрагента" if counterparty_id else "Новый контрагент")
         win.geometry("700x820")
@@ -1944,6 +2686,7 @@ finally {
         self.present_window(win)
 
         existing = None
+        initial_values = dict(initial_values or {})
         if counterparty_id:
             conn = self.get_connection()
             c = conn.cursor()
@@ -1980,6 +2723,8 @@ finally {
                 entry.pack(fill="x")
                 if existing and field_name in existing.keys() and existing[field_name]:
                     entry.insert(0, existing[field_name])
+                elif initial_values.get(field_name):
+                    entry.insert(0, initial_values.get(field_name))
                 field_widgets[field_name] = entry
 
         type_var.trace_add("write", rebuild_fields)
@@ -1990,6 +2735,14 @@ finally {
             name = values.get("full_name") or values.get("company_name") or ""
             if not name:
                 return messagebox.showwarning("Внимание", "Укажите ФИО или название контрагента.")
+            missing_labels = self.validate_counterparty_payload(type_var.get(), values)
+            if missing_labels:
+                missing_text = "\n".join(f"- {label}" for label in missing_labels)
+                return messagebox.showwarning(
+                    "Не хватает данных контрагента",
+                    "Для сохранения карточки заполните обязательные поля:\n\n"
+                    f"{missing_text}",
+                )
             now = datetime.datetime.now().isoformat(timespec="seconds")
             conn = self.get_connection()
             c = conn.cursor()
@@ -2031,6 +2784,7 @@ finally {
                        WHERE id=?""",
                     payload + (counterparty_id,),
                 )
+                saved_counterparty_id = counterparty_id
             else:
                 c.execute(
                     """INSERT INTO counterparties (
@@ -2042,8 +2796,11 @@ finally {
                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     payload + (now,),
                 )
+                saved_counterparty_id = c.lastrowid
             conn.commit()
             conn.close()
+            if callable(on_saved):
+                on_saved(saved_counterparty_id)
             win.destroy()
             self.refresh_counterparties()
             self.refresh_projects()
@@ -2058,12 +2815,11 @@ finally {
 
     def open_add_project_window(self):
         counterparties = self.fetch_counterparties()
-        if not counterparties:
-            messagebox.showinfo("Контрагенты", "Сначала добавьте хотя бы одного контрагента.")
-            return
 
-        label_to_id = {f"{row[1]} | {row[2]}": row[0] for row in counterparties}
-        default_label = next(iter(label_to_id))
+        label_to_id = {"Без контрагента": None}
+        for row in counterparties:
+            label_to_id[f"{row[1]} | {row[2]}"] = row[0]
+        default_label = "Без контрагента"
 
         win = ctk.CTkToplevel(self)
         win.title("Новый проект")
@@ -2106,9 +2862,11 @@ finally {
             counterparty_id = label_to_id[counterparty_var.get()]
             conn = self.get_connection()
             c = conn.cursor()
-            c.execute("SELECT * FROM counterparties WHERE id=?", (counterparty_id,))
-            counterparty_row = c.fetchone()
-            counterparty_name = self.get_counterparty_display_name(counterparty_row)
+            counterparty_name = ""
+            if counterparty_id is not None:
+                c.execute("SELECT * FROM counterparties WHERE id=?", (counterparty_id,))
+                counterparty_row = c.fetchone()
+                counterparty_name = self.get_counterparty_display_name(counterparty_row)
             c.execute(
                 """INSERT INTO projects
                    (project_name, address, customer, contract, date, counterparty_id, status, notes, created_at, updated_at)
@@ -2116,7 +2874,7 @@ finally {
                 (
                     project_name,
                     project_name,
-                    counterparty_name,
+                    counterparty_name or project_name,
                     contract_entry.get().strip(),
                     date_entry.get().strip(),
                     counterparty_id,
@@ -2175,6 +2933,85 @@ finally {
         if not counterparty_id:
             return messagebox.showinfo("Контрагент", "У этого проекта пока не привязан контрагент.")
         self.open_counterparty_form(counterparty_id)
+
+    def attach_counterparty_to_project(self, project_id, counterparty_id):
+        if not project_id or not counterparty_id:
+            return
+        conn = self.get_connection()
+        c = conn.cursor()
+        counterparty_row = c.execute("SELECT * FROM counterparties WHERE id=?", (counterparty_id,)).fetchone()
+        if not counterparty_row:
+            conn.close()
+            return messagebox.showwarning("Контрагент", "Не удалось найти выбранного контрагента.")
+        counterparty_name = self.get_counterparty_display_name(counterparty_row)
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        c.execute(
+            "UPDATE projects SET counterparty_id=?, customer=?, updated_at=? WHERE id=?",
+            (counterparty_id, counterparty_name, now, project_id),
+        )
+        conn.commit()
+        conn.close()
+        self.log_project_event(project_id, "counterparty", f"Привязан контрагент: {counterparty_name}")
+        self.refresh_counterparties()
+        self.refresh_projects()
+        return counterparty_name
+
+    def open_project_counterparty_picker(self, project_id, project_window=None):
+        counterparties = self.fetch_counterparties()
+        if not counterparties:
+            return messagebox.showinfo("Контрагент", "Сначала создайте хотя бы одного контрагента.")
+
+        choice_map = {f"{row[2]} | {row[1]}": row[0] for row in counterparties}
+        labels = list(choice_map.keys())
+        win = ctk.CTkToplevel(self)
+        win.title("Привязать контрагента")
+        win.geometry("560x240")
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+        self.present_window(win, project_window or self)
+
+        ctk.CTkLabel(win, text="Выберите контрагента для проекта", font=("Segoe UI Semibold", 18)).pack(anchor="w", padx=18, pady=(18, 8))
+        ctk.CTkLabel(win, text="После привязки карточка проекта обновится, и можно будет сразу переходить к договору.", font=("Segoe UI", 12), text_color="#667b90").pack(anchor="w", padx=18, pady=(0, 14))
+        selected_label = ctk.StringVar(value=labels[0])
+        ctk.CTkOptionMenu(win, variable=selected_label, values=labels, width=500).pack(anchor="w", padx=18)
+
+        def confirm():
+            counterparty_name = self.attach_counterparty_to_project(project_id, choice_map[selected_label.get()])
+            if counterparty_name:
+                win.destroy()
+                messagebox.showinfo("Контрагент", f"К проекту привязан контрагент:\n{counterparty_name}")
+                if project_window is not None and project_window.winfo_exists():
+                    project_window.destroy()
+                self.select_project(project_id, open_card=True)
+
+        buttons = ctk.CTkFrame(win, fg_color="transparent")
+        buttons.pack(fill="x", padx=18, pady=18)
+        ctk.CTkButton(buttons, text="Отмена", command=win.destroy, fg_color="#5a5a5a").pack(side="left")
+        ctk.CTkButton(buttons, text="Привязать", command=confirm, fg_color="#1f8a43").pack(side="right")
+
+    def open_create_counterparty_for_project(self, project_id, project_window=None):
+        project_row = self.get_project_details(project_id)
+        smeta_payload = self.get_project_smeta_payload(project_id) or {}
+        customer_name = str((smeta_payload.get("customer") or (project_row["counterparty_name"] if project_row else "") or "")).strip()
+        object_name = str((smeta_payload.get("object") or (project_row["project_name"] if project_row else "") or "")).strip()
+        preset_values = {
+            "name": customer_name,
+            "full_name": customer_name,
+            "company_name": customer_name,
+            "work_address": object_name,
+            "registration_address": object_name,
+            "actual_address": object_name,
+            "legal_address": object_name,
+        }
+
+        def handle_saved(counterparty_id):
+            counterparty_name = self.attach_counterparty_to_project(project_id, counterparty_id)
+            if counterparty_name and project_window is not None and project_window.winfo_exists():
+                project_window.destroy()
+            if counterparty_name:
+                self.select_project(project_id, open_card=True)
+
+        self.open_counterparty_form(initial_values=preset_values, on_saved=handle_saved)
 
     def open_project_smeta(self, project_id, project_name):
         self.ensure_project_smeta_document(project_id, project_name)
@@ -2409,6 +3246,9 @@ finally {
         metrics = self.get_project_summary_metrics(project_id, row[1], documents, finances)
         project_files = self.collect_project_files(project_id, row[1], raw_documents)
         project_history = self.fetch_project_history(project_id)
+        smeta_doc = next((dict(doc) for doc in raw_documents if (doc["doc_type"] or "") == "Смета (приложение № 1)"), None)
+        smeta_overview = self.get_project_smeta_overview(project_id, row[1])
+        smeta_preview_rows = self.build_smeta_preview_rows(smeta_overview["payload"])
 
         win = ctk.CTkToplevel(self)
         win.title(f"Проект: {row[1]}")
@@ -2433,11 +3273,49 @@ finally {
             command=lambda: self.open_project_counterparty(row[7]),
             fg_color="#1f538d",
         ).pack(side="right")
+        ctk.CTkButton(
+            header_top,
+            text="Привязать контрагента",
+            command=lambda: self.open_project_counterparty_picker(project_id, win),
+            fg_color="#355c7d",
+        ).pack(side="right", padx=(0, 8))
+        ctk.CTkButton(
+            header_top,
+            text="Создать контрагента",
+            command=lambda: self.open_create_counterparty_for_project(project_id, win),
+            fg_color="#1f8a43",
+        ).pack(side="right", padx=(0, 8))
         ctk.CTkLabel(
             header,
             text=f"Контрагент: {row[2]} | Договор: {row[3] or 'не указан'} | Дата: {row[4] or 'не указана'} | Статус: {row[5]}",
             font=("Arial", 12),
         ).pack(anchor="w", padx=12, pady=(0, 10))
+        contract_context = self.get_project_contract_context(row)
+        workflow_frame = ctk.CTkFrame(header, fg_color="transparent")
+        workflow_frame.pack(fill="x", padx=12, pady=(0, 12))
+        workflow_steps = [
+            (
+                "1. Смета",
+                "Готова" if contract_context["payload"] and contract_context["object_name"] and contract_context["customer_name"] else "Заполнить смету",
+                "#1f8a43" if contract_context["payload"] and contract_context["object_name"] and contract_context["customer_name"] else "#b8860b",
+            ),
+            (
+                "2. Контрагент",
+                "Привязан" if row[7] else "Добавить контрагента",
+                "#1f8a43" if row[7] else "#b8860b",
+            ),
+            (
+                "3. Договор",
+                "Можно формировать" if row[7] and contract_context["payload"] and (contract_context["contract_number"] or str(row[3] or "").strip()) else "Не хватает данных",
+                "#1f8a43" if row[7] and contract_context["payload"] and (contract_context["contract_number"] or str(row[3] or "").strip()) else "#b8860b",
+            ),
+        ]
+        for index, (title, subtitle, accent) in enumerate(workflow_steps):
+            step_card = ctk.CTkFrame(workflow_frame, fg_color="#ffffff", corner_radius=14)
+            step_card.pack(side="left", fill="x", expand=True, padx=(0 if index == 0 else 6, 0))
+            ctk.CTkFrame(step_card, width=12, height=12, corner_radius=6, fg_color=accent).pack(anchor="w", padx=14, pady=(12, 6))
+            ctk.CTkLabel(step_card, text=title, font=("Segoe UI Semibold", 12), text_color="#516274").pack(anchor="w", padx=14)
+            ctk.CTkLabel(step_card, text=subtitle, font=("Segoe UI Semibold", 15), text_color="#1d2b3a").pack(anchor="w", padx=14, pady=(2, 12))
 
         metrics_row = ctk.CTkFrame(win, fg_color="transparent")
         metrics_row.pack(fill="x", padx=12, pady=(0, 12))
@@ -2565,6 +3443,374 @@ finally {
         )
         smeta_info.configure(state="disabled")
 
+        smeta_summary_row = ctk.CTkFrame(smeta_tab, fg_color="transparent")
+        smeta_summary_row.pack(fill="x", padx=12, pady=(0, 12))
+
+        smeta_card = ctk.CTkFrame(smeta_summary_row, fg_color="#ffffff", corner_radius=18)
+        smeta_card.pack(side="left", fill="both", expand=True, padx=(0, 6))
+        ctk.CTkLabel(smeta_card, text="Статус сметы", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        self.build_info_row(smeta_card, "Объект", smeta_overview["object_name"] or row[1])
+        self.build_info_row(smeta_card, "Заказчик", smeta_overview["customer"] or row[2] or "не указан")
+        self.build_info_row(smeta_card, "Разделов", str(smeta_overview["section_count"]))
+        self.build_info_row(smeta_card, "Позиций", str(smeta_overview["item_count"]))
+        self.build_info_row(smeta_card, "Скидка", f"{smeta_overview['discount']}%" if smeta_overview["discount"] else "0%")
+        self.build_info_row(smeta_card, "Сохранено", smeta_overview["saved_at"].replace("T", " ") if smeta_overview["saved_at"] else "нет данных")
+
+        files_card = ctk.CTkFrame(smeta_summary_row, fg_color="#ffffff", corner_radius=18)
+        files_card.pack(side="left", fill="both", expand=True, padx=6)
+        ctk.CTkLabel(files_card, text="Файлы сметы", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        self.build_info_row(files_card, "Документ", smeta_doc.get("title", "Смета") if smeta_doc else "еще не создан")
+        self.build_info_row(files_card, "Статус", smeta_doc.get("status", "черновик") if smeta_doc else "черновик")
+        self.build_info_row(files_card, "Черновик", smeta_doc.get("draft_path", "") or "нет файла")
+        self.build_info_row(files_card, "PDF", smeta_doc.get("pdf_path", "") or "нет файла")
+
+        smeta_edit_card = ctk.CTkFrame(smeta_tab, fg_color="#ffffff", corner_radius=18)
+        smeta_edit_card.pack(fill="x", padx=12, pady=(0, 12))
+        ctk.CTkLabel(smeta_edit_card, text="Основные поля сметы", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        ctk.CTkLabel(
+            smeta_edit_card,
+            text="Это первый шаг переноса редактора сметы в CRM: здесь уже можно править базовые поля и сохранять черновик без открытия отдельной программы.",
+            font=("Segoe UI", 11),
+            text_color="#667b90",
+            wraplength=980,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 10))
+
+        smeta_form = ctk.CTkFrame(smeta_edit_card, fg_color="transparent")
+        smeta_form.pack(fill="x", padx=16, pady=(0, 10))
+
+        object_var = ctk.StringVar(value=smeta_overview["object_name"] or row[1] or "")
+        customer_var = ctk.StringVar(value=smeta_overview["customer"] or row[2] or "")
+        contract_var = ctk.StringVar(value=(smeta_overview["payload"] or {}).get("contract", row[3] or ""))
+        discount_var = ctk.StringVar(value=smeta_overview["discount"] or "0")
+        watermark_var = ctk.BooleanVar(value=bool((smeta_overview["payload"] or {}).get("watermark", True)))
+
+        ctk.CTkLabel(smeta_form, text="Объект").grid(row=0, column=0, sticky="w", pady=(0, 4))
+        object_entry = ctk.CTkEntry(smeta_form, textvariable=object_var, width=420)
+        object_entry.grid(row=1, column=0, sticky="ew", padx=(0, 12))
+        ctk.CTkLabel(smeta_form, text="Заказчик").grid(row=0, column=1, sticky="w", pady=(0, 4))
+        customer_entry = ctk.CTkEntry(smeta_form, textvariable=customer_var, width=320)
+        customer_entry.grid(row=1, column=1, sticky="ew")
+
+        ctk.CTkLabel(smeta_form, text="Договор").grid(row=2, column=0, sticky="w", pady=(10, 4))
+        contract_entry = ctk.CTkEntry(smeta_form, textvariable=contract_var, width=420)
+        contract_entry.grid(row=3, column=0, sticky="ew", padx=(0, 12))
+        ctk.CTkLabel(smeta_form, text="Скидка (%)").grid(row=2, column=1, sticky="w", pady=(10, 4))
+        discount_entry = ctk.CTkEntry(smeta_form, textvariable=discount_var, width=120)
+        discount_entry.grid(row=3, column=1, sticky="w")
+        ctk.CTkCheckBox(smeta_form, text="Черновик (водяной знак)", variable=watermark_var).grid(row=4, column=0, sticky="w", pady=(12, 0))
+        smeta_form.grid_columnconfigure(0, weight=1)
+        smeta_form.grid_columnconfigure(1, weight=1)
+
+        def save_smeta_header():
+            object_name = object_var.get().strip()
+            customer_name = customer_var.get().strip()
+            if not object_name:
+                return messagebox.showwarning("Смета", "Укажите объект сметы перед сохранением.")
+            if not customer_name:
+                return messagebox.showwarning("Смета", "Укажите заказчика сметы перед сохранением.")
+            payload = dict(smeta_overview["payload"] or {})
+            payload["project_id"] = project_id
+            payload["object"] = object_name
+            payload["customer"] = customer_name
+            payload["contract"] = contract_var.get().strip()
+            payload["discount"] = discount_var.get().strip() or "0"
+            payload["watermark"] = bool(watermark_var.get())
+            payload["saved_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+            payload.setdefault("company", "ООО Декорартстрой")
+            payload.setdefault("items", [])
+            draft_path = self.save_project_smeta_payload(project_id, row[1], payload, existing_doc=smeta_doc or {})
+            messagebox.showinfo("Смета", f"Основные поля сметы сохранены.\n{draft_path}")
+            win.destroy()
+            self.refresh_projects()
+            self.select_project(project_id, open_card=True)
+
+        smeta_edit_actions = ctk.CTkFrame(smeta_edit_card, fg_color="transparent")
+        smeta_edit_actions.pack(fill="x", padx=16, pady=(0, 14))
+        ctk.CTkButton(smeta_edit_actions, text="Сохранить шапку сметы", command=save_smeta_header, fg_color="#2f80ed").pack(side="left", padx=(0, 8))
+        ctk.CTkButton(smeta_edit_actions, text="Сохранить и к договору", command=lambda: open_contract_settings_from_smeta(), fg_color="#355c7d").pack(side="left", padx=(0, 8))
+        ctk.CTkButton(smeta_edit_actions, text="Открыть полный редактор", command=lambda: self.open_project_smeta(project_id, row[1]), fg_color="#1f8a43").pack(side="left")
+
+        preview_card = ctk.CTkFrame(smeta_tab, fg_color="#ffffff", corner_radius=18)
+        preview_card.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        ctk.CTkLabel(preview_card, text="Предпросмотр позиций сметы", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
+        ctk.CTkLabel(
+            preview_card,
+            text="CRM уже читает текущий черновик сметы: ниже показаны первые строки и разделы. Полное редактирование пока остается в сметном редакторе.",
+            font=("Segoe UI", 11),
+            text_color="#667b90",
+            wraplength=980,
+            justify="left",
+        ).pack(anchor="w", padx=16, pady=(0, 10))
+        smeta_tree = ttk.Treeview(preview_card, columns=("name", "unit", "qty", "price", "total"), show="headings", height=12)
+        for name, text, width in [
+            ("name", "Наименование", 520),
+            ("unit", "Ед.", 80),
+            ("qty", "Кол-во", 90),
+            ("price", "Цена", 110),
+            ("total", "Итого", 120),
+        ]:
+            smeta_tree.heading(name, text=text)
+            smeta_tree.column(name, width=width, anchor="w" if name == "name" else "center")
+        smeta_tree_actions = ctk.CTkFrame(preview_card, fg_color="transparent")
+        smeta_tree_actions.pack(fill="x", padx=16, pady=(0, 10))
+        smeta_totals_var = ctk.StringVar(value="Итого: 0 руб. | Со скидкой: 0 руб.")
+        ctk.CTkLabel(preview_card, textvariable=smeta_totals_var, font=("Segoe UI Semibold", 13), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(0, 10))
+        smeta_tree.pack(fill="both", expand=True, padx=16, pady=(0, 16))
+        smeta_tree.tag_configure("section", background="#eef3f9")
+
+        def build_current_smeta_payload():
+            payload = dict(smeta_overview["payload"] or {})
+            payload["project_id"] = project_id
+            payload["object"] = object_var.get().strip()
+            payload["customer"] = customer_var.get().strip()
+            payload["contract"] = contract_var.get().strip()
+            payload["discount"] = discount_var.get().strip() or "0"
+            payload["watermark"] = bool(watermark_var.get())
+            payload["saved_at"] = datetime.datetime.now().isoformat(timespec="seconds")
+            payload.setdefault("company", "ООО Декорартстрой")
+            payload.setdefault("items", [])
+            return payload
+
+        def tree_rows_to_payload_items():
+            payload_items = []
+            discount_value = self.parse_money_value(discount_var.get())
+            discount_percent = discount_value if discount_value is not None else 0.0
+            for item_id in smeta_tree.get_children():
+                values = list(smeta_tree.item(item_id, "values"))
+                tags = list(smeta_tree.item(item_id, "tags"))
+                if "section" in tags:
+                    payload_items.append({"values": [values[0], "", "", "", "", ""], "tags": ["room"]})
+                    continue
+                name = str(values[0] if len(values) > 0 else "").strip()
+                unit = str(values[1] if len(values) > 1 else "").strip()
+                qty_text = str(values[2] if len(values) > 2 else "").strip()
+                price_text = str(values[3] if len(values) > 3 else "").strip()
+                qty_value = self.parse_money_value(qty_text)
+                price_value = self.parse_money_value(price_text)
+                total_value = round((qty_value or 0.0) * (price_value or 0.0), 2)
+                total_disc_value = round(total_value * (1 - discount_percent / 100), 2)
+                payload_items.append(
+                    {
+                        "values": [
+                            name,
+                            unit,
+                            qty_text,
+                            price_text,
+                            self.format_money_value(total_value),
+                            self.format_money_value(total_disc_value),
+                        ],
+                        "tags": [],
+                    }
+                )
+            return payload_items
+
+        def collect_smeta_tree_rows():
+            rows = []
+            for item_id in smeta_tree.get_children():
+                values = list(smeta_tree.item(item_id, "values"))
+                tags = set(smeta_tree.item(item_id, "tags"))
+                if "section" in tags:
+                    rows.append({"type": "section", "name": values[0] if values else "Раздел"})
+                else:
+                    rows.append(
+                        {
+                            "type": "item",
+                            "name": values[0] if len(values) > 0 else "",
+                            "unit": values[1] if len(values) > 1 else "",
+                            "qty": values[2] if len(values) > 2 else "",
+                            "price": values[3] if len(values) > 3 else "",
+                        }
+                    )
+            return rows
+
+        def recalculate_smeta_tree_totals():
+            discount_value = self.parse_money_value(discount_var.get())
+            discount_percent = discount_value if discount_value is not None else 0.0
+            total_sum = 0.0
+            total_disc = 0.0
+            for item_id in smeta_tree.get_children():
+                tags = set(smeta_tree.item(item_id, "tags"))
+                if "section" in tags:
+                    continue
+                values = list(smeta_tree.item(item_id, "values"))
+                qty_value = self.parse_money_value(values[2] if len(values) > 2 else "")
+                price_value = self.parse_money_value(values[3] if len(values) > 3 else "")
+                total_value = round((qty_value or 0.0) * (price_value or 0.0), 2)
+                total_sum += total_value
+                total_disc += round(total_value * (1 - discount_percent / 100), 2)
+                if len(values) >= 5:
+                    values[4] = self.format_money_value(total_value)
+                    smeta_tree.item(item_id, values=values)
+            smeta_totals_var.set(
+                f"Итого: {self.format_money_value(total_sum)} руб. | Со скидкой: {self.format_money_value(total_disc)} руб."
+            )
+
+        def open_smeta_row_editor(mode="item"):
+            selected = smeta_tree.selection()
+            edit_item_id = selected[0] if selected and mode == "selected" else None
+            current_values = ["", "", "", "", ""]
+            row_mode = mode
+            if edit_item_id:
+                tags = set(smeta_tree.item(edit_item_id, "tags"))
+                current_values = list(smeta_tree.item(edit_item_id, "values"))
+                row_mode = "section" if "section" in tags else "item"
+
+            editor = ctk.CTkToplevel(win)
+            editor.title("Раздел сметы" if row_mode == "section" else "Позиция сметы")
+            editor.geometry("520x340" if row_mode == "section" else "520x420")
+            editor.attributes("-topmost", True)
+            self.present_window(editor, win)
+
+            ctk.CTkLabel(editor, text="Название", font=("Segoe UI Semibold", 12)).pack(anchor="w", padx=18, pady=(18, 4))
+            name_entry = ctk.CTkEntry(editor, width=460)
+            name_entry.pack(padx=18, fill="x")
+            name_entry.insert(0, current_values[0] if current_values else "")
+
+            unit_entry = qty_entry = price_entry = None
+            if row_mode != "section":
+                ctk.CTkLabel(editor, text="Ед. измерения", font=("Segoe UI Semibold", 12)).pack(anchor="w", padx=18, pady=(12, 4))
+                unit_entry = ctk.CTkEntry(editor, width=180)
+                unit_entry.pack(anchor="w", padx=18)
+                unit_entry.insert(0, current_values[1] if len(current_values) > 1 else "")
+
+                ctk.CTkLabel(editor, text="Количество", font=("Segoe UI Semibold", 12)).pack(anchor="w", padx=18, pady=(12, 4))
+                qty_entry = ctk.CTkEntry(editor, width=180)
+                qty_entry.pack(anchor="w", padx=18)
+                qty_entry.insert(0, current_values[2] if len(current_values) > 2 else "")
+
+                ctk.CTkLabel(editor, text="Цена", font=("Segoe UI Semibold", 12)).pack(anchor="w", padx=18, pady=(12, 4))
+                price_entry = ctk.CTkEntry(editor, width=180)
+                price_entry.pack(anchor="w", padx=18)
+                price_entry.insert(0, current_values[3] if len(current_values) > 3 else "")
+
+            def save_row():
+                name_value = name_entry.get().strip()
+                if not name_value:
+                    return messagebox.showwarning("Смета", "Укажите название строки.")
+                if row_mode == "section":
+                    values = (name_value, "", "", "", "")
+                    if edit_item_id:
+                        smeta_tree.item(edit_item_id, values=values, tags=("section",))
+                    else:
+                        smeta_tree.insert("", "end", values=values, tags=("section",))
+                else:
+                    qty_value = self.parse_money_value(qty_entry.get())
+                    price_value = self.parse_money_value(price_entry.get())
+                    if qty_value is None:
+                        return messagebox.showwarning("Смета", "Количество должно быть числом.")
+                    if price_value is None:
+                        return messagebox.showwarning("Смета", "Цена должна быть числом.")
+                    total_value = round(qty_value * price_value, 2)
+                    values = (
+                        name_value,
+                        unit_entry.get().strip(),
+                        self.format_money_value(qty_value),
+                        self.format_money_value(price_value),
+                        self.format_money_value(total_value),
+                    )
+                    if edit_item_id:
+                        smeta_tree.item(edit_item_id, values=values, tags=())
+                    else:
+                        smeta_tree.insert("", "end", values=values)
+                recalculate_smeta_tree_totals()
+                editor.destroy()
+
+            actions = ctk.CTkFrame(editor, fg_color="transparent")
+            actions.pack(fill="x", padx=18, pady=18)
+            ctk.CTkButton(actions, text="Отмена", command=editor.destroy, fg_color="#5a5a5a").pack(side="left")
+            ctk.CTkButton(actions, text="Сохранить", command=save_row, fg_color="#2f80ed").pack(side="right")
+
+        def delete_smeta_selected_rows():
+            selected_items = smeta_tree.selection()
+            if not selected_items:
+                return messagebox.showinfo("Смета", "Выберите строки сметы для удаления.")
+            for item_id in selected_items:
+                smeta_tree.delete(item_id)
+            recalculate_smeta_tree_totals()
+
+        def save_smeta_rows_to_draft():
+            object_name = object_var.get().strip()
+            customer_name = customer_var.get().strip()
+            if not object_name:
+                return messagebox.showwarning("Смета", "Укажите объект сметы перед сохранением.")
+            if not customer_name:
+                return messagebox.showwarning("Смета", "Укажите заказчика сметы перед сохранением.")
+            payload = build_current_smeta_payload()
+            payload["items"] = tree_rows_to_payload_items()
+            draft_path = self.save_project_smeta_payload(project_id, row[1], payload, existing_doc=smeta_doc or {})
+            messagebox.showinfo("Смета", f"Строки сметы сохранены в черновик.\n{draft_path}")
+            win.destroy()
+            self.refresh_projects()
+            self.select_project(project_id, open_card=True)
+
+        def open_contract_settings_from_smeta():
+            object_name = object_var.get().strip()
+            customer_name = customer_var.get().strip()
+            contract_name = contract_var.get().strip()
+            if not object_name:
+                return messagebox.showwarning("Смета", "Укажите объект сметы перед переходом к договору.")
+            if not customer_name:
+                return messagebox.showwarning("Смета", "Укажите заказчика сметы перед переходом к договору.")
+            if not contract_name:
+                return messagebox.showwarning("Смета", "Укажите номер договора в шапке сметы перед переходом к договору.")
+            payload = build_current_smeta_payload()
+            payload["items"] = tree_rows_to_payload_items()
+            self.save_project_smeta_payload(project_id, row[1], payload, existing_doc=smeta_doc or {})
+            self.refresh_projects()
+            self.open_contract_settings_window(project_id, win)
+
+        def export_smeta_pdf_from_crm():
+            payload = build_current_smeta_payload()
+            payload["items"] = tree_rows_to_payload_items()
+            rows = collect_smeta_tree_rows()
+            if not any(row_info.get("type") == "item" for row_info in rows):
+                return messagebox.showwarning("Смета", "Добавьте хотя бы одну работу перед сохранением PDF.")
+            pdf_path = self.export_project_smeta_pdf(
+                project_id,
+                row[1],
+                payload,
+                rows,
+                watermark=bool(watermark_var.get()),
+                company_name=payload.get("company") or "ООО Декорартстрой",
+            )
+            if pdf_path:
+                win.destroy()
+                self.refresh_projects()
+                self.select_project(project_id, open_card=True)
+
+        ctk.CTkButton(smeta_tree_actions, text="+ Раздел", command=lambda: open_smeta_row_editor("section"), fg_color="#34495e").pack(side="left", padx=(0, 8))
+        ctk.CTkButton(smeta_tree_actions, text="+ Позиция", command=lambda: open_smeta_row_editor("item"), fg_color="#2f80ed").pack(side="left", padx=8)
+        ctk.CTkButton(smeta_tree_actions, text="Изменить", command=lambda: open_smeta_row_editor("selected"), fg_color="#d9a11d", text_color="#233042").pack(side="left", padx=8)
+        ctk.CTkButton(smeta_tree_actions, text="Удалить", command=delete_smeta_selected_rows, fg_color="#d9534f").pack(side="left", padx=8)
+        ctk.CTkButton(smeta_tree_actions, text="Сохранить PDF", command=export_smeta_pdf_from_crm, fg_color="#355c7d").pack(side="right", padx=(8, 0))
+        ctk.CTkButton(smeta_tree_actions, text="Сохранить строки", command=save_smeta_rows_to_draft, fg_color="#1f8a43").pack(side="right")
+
+        if smeta_preview_rows:
+            for row_kind, item_name, unit, qty, price, total in smeta_preview_rows:
+                if row_kind == "section":
+                    smeta_tree.insert("", "end", values=(item_name, "", "", "", ""), tags=("section",))
+                else:
+                    smeta_tree.insert("", "end", values=(item_name, unit, qty, price, total))
+        else:
+            smeta_tree.insert("", "end", values=("Черновик сметы пока пустой", "", "", "", ""))
+
+        discount_var.trace_add("write", lambda *_: recalculate_smeta_tree_totals())
+        recalculate_smeta_tree_totals()
+
+        contract_context = self.get_project_contract_context(row)
+        missing_counterparty_labels = self.validate_counterparty_row_for_contract(row) if row[7] else ["Контрагент проекта не выбран"]
+        contract_blockers = []
+        if not contract_context["payload"]:
+            contract_blockers.append("Не сохранен черновик сметы")
+        if not contract_context["object_name"]:
+            contract_blockers.append("Не указан объект в смете")
+        if not contract_context["customer_name"]:
+            contract_blockers.append("Не указан заказчик в смете или проекте")
+        if not contract_context["contract_number"] and not str(row[3] or "").strip():
+            contract_blockers.append("Не указан номер договора в смете или проекте")
+        contract_ready = not missing_counterparty_labels and not contract_blockers
+
         docs_top = ctk.CTkFrame(documents_tab)
         docs_top.pack(fill="x", padx=12, pady=12)
         ctk.CTkButton(
@@ -2573,12 +3819,13 @@ finally {
             command=lambda: self.open_contract_settings_window(project_id, win),
             fg_color="#355c7d",
         ).pack(side="left", padx=6)
-        ctk.CTkButton(
+        generate_contract_button = ctk.CTkButton(
             docs_top,
             text="Сформировать договор",
             command=lambda: self.generate_contract_for_project(project_id, win),
             fg_color="#1f8a43",
-        ).pack(side="left", padx=6)
+        )
+        generate_contract_button.pack(side="left", padx=6)
         ctk.CTkButton(
             docs_top,
             text="+ Добавить документ",
@@ -2598,6 +3845,63 @@ finally {
             fg_color="#b8860b",
             hover_color="#8b6508",
         ).pack(side="left", padx=6)
+        if not contract_ready:
+            generate_contract_button.configure(state="disabled", fg_color="#9aa7b4", hover=False)
+
+        contract_status_card = ctk.CTkFrame(documents_tab, fg_color="#ffffff", corner_radius=18)
+        contract_status_card.pack(fill="x", padx=12, pady=(0, 12))
+        contract_status_top = ctk.CTkFrame(contract_status_card, fg_color="transparent")
+        contract_status_top.pack(fill="x", padx=16, pady=(14, 6))
+        ctk.CTkLabel(contract_status_top, text="Готовность договора", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(side="left")
+        ctk.CTkLabel(
+            contract_status_top,
+            text="Можно формировать" if contract_ready else "Нужно заполнить еще несколько пунктов",
+            font=("Segoe UI Semibold", 12),
+            text_color="#1f8a43" if contract_ready else "#b45f06",
+        ).pack(side="right")
+        contract_summary = (
+            f"Смета: {'есть' if contract_context['payload'] else 'нет'} | "
+            f"Объект: {contract_context['object_name'] or 'не указан'} | "
+            f"Заказчик: {contract_context['customer_name'] or 'не указан'} | "
+            f"Договор: {contract_context['contract_number'] or (row[3] or 'не указан')}"
+        )
+        ctk.CTkLabel(
+            contract_status_card,
+            text=contract_summary,
+            font=("Segoe UI", 11),
+            text_color="#667b90",
+            justify="left",
+            wraplength=980,
+        ).pack(anchor="w", padx=16, pady=(0, 8))
+
+        if missing_counterparty_labels:
+            ctk.CTkLabel(contract_status_card, text="Контрагент", font=("Segoe UI Semibold", 12), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(4, 2))
+            for label in missing_counterparty_labels:
+                ctk.CTkLabel(contract_status_card, text=f"- {label}", font=("Segoe UI", 11), text_color="#8a5a00", justify="left").pack(anchor="w", padx=22, pady=1)
+
+        if contract_blockers:
+            ctk.CTkLabel(contract_status_card, text="Смета и проект", font=("Segoe UI Semibold", 12), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(8, 2))
+            for label in contract_blockers:
+                ctk.CTkLabel(contract_status_card, text=f"- {label}", font=("Segoe UI", 11), text_color="#8a5a00", justify="left").pack(anchor="w", padx=22, pady=1)
+
+        if contract_ready:
+            ctk.CTkLabel(
+                contract_status_card,
+                text="Все минимальные данные для договора уже собраны. Можно открывать настройки или сразу формировать документ.",
+                font=("Segoe UI", 11),
+                text_color="#4f6b52",
+                justify="left",
+                wraplength=980,
+            ).pack(anchor="w", padx=16, pady=(8, 14))
+        else:
+            ctk.CTkLabel(
+                contract_status_card,
+                text="Сначала сохраните смету и заполните карточку контрагента, затем кнопка формирования договора станет доступной.",
+                font=("Segoe UI", 11),
+                text_color="#667b90",
+                justify="left",
+                wraplength=980,
+            ).pack(anchor="w", padx=16, pady=(8, 14))
 
         docs_tree = ttk.Treeview(documents_tab, columns=("id", "type", "title", "status", "version", "draft", "pdf", "path"), show="headings")
         for name, text, width in [
@@ -2996,5 +4300,8 @@ finally {
 
 
 if __name__ == "__main__":
-    app = CRMApp()
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--project-id", type=int)
+    args, _ = parser.parse_known_args(sys.argv[1:])
+    app = CRMApp(initial_project_id=args.project_id)
     app.mainloop()

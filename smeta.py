@@ -192,6 +192,8 @@ class SmetaApp(ctk.CTk):
         self.watermark_cb.pack(side="right", padx=10, pady=10)
         self.export_btn = ctk.CTkButton(self.bottom_right, text="Сохранить PDF", fg_color="#35a66f", hover_color="#2a885a", command=self.export_to_pdf, corner_radius=12)
         self.export_btn.pack(side="right", padx=10, pady=10)
+        self.project_btn = ctk.CTkButton(self.bottom_right, text="Оформить в проект", fg_color="#6c63ff", hover_color="#544ed1", command=self.ensure_project_from_estimate, corner_radius=12)
+        self.project_btn.pack(side="right", padx=10, pady=10)
         self.save_btn = ctk.CTkButton(self.bottom_right, text="Сохранить смету", fg_color="#2f80ed", hover_color="#2567bd", command=self.save_draft_manually, corner_radius=12)
         self.save_btn.pack(side="right", padx=10, pady=10)
 
@@ -511,6 +513,65 @@ class SmetaApp(ctk.CTk):
         self.save_draft()
         saved_file = self.current_draft_file or self.build_draft_file_path()
         messagebox.showinfo("Сохранено", f"Смета сохранена.\n{saved_file}")
+
+    def ensure_project_from_estimate(self):
+        if self.current_project_id:
+            self.save_draft()
+            return messagebox.showinfo("Проект уже создан", f"Эта смета уже привязана к проекту №{self.current_project_id}.")
+
+        object_name = self.object_entry.get().strip()
+        customer_name = self.customer_entry.get().strip()
+        if not object_name:
+            return messagebox.showwarning("Внимание", "Укажите объект или адрес перед оформлением сметы в проект.")
+        if not customer_name:
+            return messagebox.showwarning("Внимание", "Укажите имя заказчика перед оформлением сметы в проект.")
+
+        timestamp = datetime.datetime.now().isoformat(timespec='seconds')
+        conn = sqlite3.connect(self.state_db_path)
+        c = conn.cursor()
+        c.execute(
+            """INSERT INTO projects
+               (project_name, address, customer, contract, date, counterparty_id, status, notes, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                object_name,
+                object_name,
+                customer_name,
+                self.contract_entry.get().strip(),
+                "",
+                None,
+                "В работе",
+                "Создано из сметы",
+                timestamp,
+                timestamp,
+            ),
+        )
+        self.current_project_id = c.lastrowid
+        c.execute(
+            """INSERT INTO project_events (project_id, event_type, event_text, author, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (
+                self.current_project_id,
+                "project",
+                f"Проект создан из сметы: {object_name}",
+                self.current_user,
+                timestamp,
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        self.save_draft()
+        should_open_crm = messagebox.askyesno(
+            "Проект создан",
+            f"Смета оформлена в проект №{self.current_project_id}.\n\nОткрыть этот проект в CRM сейчас?",
+        )
+        if should_open_crm:
+            crm_path = os.path.join(self.get_workspace_dir(), "CRM.py")
+            try:
+                subprocess.Popen([sys.executable, crm_path, "--project-id", str(self.current_project_id)])
+            except OSError as exc:
+                messagebox.showerror("Ошибка", f"Не удалось открыть CRM:\n{exc}")
 
     def get_workspace_dir(self):
         return os.path.dirname(os.path.abspath(__file__))
