@@ -2502,6 +2502,7 @@ finally {
             self._text_context_menu.add_command(label="Вырезать", command=lambda: self._run_text_edit_action("cut", self._context_text_widget))
             self._text_context_menu.add_command(label="Копировать", command=lambda: self._run_text_edit_action("copy", self._context_text_widget))
             self._text_context_menu.add_command(label="Вставить", command=lambda: self._run_text_edit_action("paste", self._context_text_widget))
+            self._text_context_menu.add_command(label="Удалить", command=lambda: self._run_text_edit_action("delete", self._context_text_widget))
             self._text_context_menu.add_separator()
             self._text_context_menu.add_command(label="Выделить все", command=lambda: self._run_text_edit_action("select_all", self._context_text_widget))
         bindings = {
@@ -2516,6 +2517,8 @@ finally {
             "<Control-Insert>": "copy",
             "<Shift-Insert>": "paste",
             "<Shift-Delete>": "cut",
+            "<Delete>": "delete",
+            "<KP_Delete>": "delete",
         }
         for sequence, action in bindings.items():
             self.bind_all(sequence, lambda event, action=action: self._run_text_edit_action(action, getattr(event, "widget", None)), add="+")
@@ -2545,18 +2548,71 @@ finally {
         except Exception:
             return "normal"
 
-    def _select_all_text(self, widget):
+    def _get_text_widget_kind(self, widget):
         try:
             class_name = widget.winfo_class().lower()
         except Exception:
             class_name = ""
-        if class_name == "text":
+        return "text" if class_name == "text" else "entry"
+
+    def _get_selected_text(self, widget):
+        kind = self._get_text_widget_kind(widget)
+        try:
+            if kind == "text":
+                if widget.tag_ranges("sel"):
+                    return widget.get("sel.first", "sel.last")
+                return ""
+            if widget.selection_present():
+                return widget.selection_get()
+        except Exception:
+            return ""
+        return ""
+
+    def _replace_selection_or_insert(self, widget, text_to_insert):
+        kind = self._get_text_widget_kind(widget)
+        if kind == "text":
+            if widget.tag_ranges("sel"):
+                widget.delete("sel.first", "sel.last")
+            widget.insert("insert", text_to_insert)
+            return
+        try:
+            if widget.selection_present():
+                widget.delete("sel.first", "sel.last")
+        except Exception:
+            pass
+        widget.insert("insert", text_to_insert)
+
+    def _delete_from_widget(self, widget):
+        kind = self._get_text_widget_kind(widget)
+        if kind == "text":
+            if widget.tag_ranges("sel"):
+                widget.delete("sel.first", "sel.last")
+            else:
+                widget.delete("insert")
+            return
+        try:
+            if widget.selection_present():
+                widget.delete("sel.first", "sel.last")
+            else:
+                insert_index = widget.index("insert")
+                if insert_index < len(widget.get()):
+                    widget.delete(insert_index)
+        except Exception:
+            pass
+
+    def _select_all_text(self, widget):
+        if self._get_text_widget_kind(widget) == "text":
             widget.tag_add("sel", "1.0", "end-1c")
             widget.mark_set("insert", "1.0")
             widget.see("insert")
         else:
             widget.select_range(0, "end")
             widget.icursor("end")
+
+    def _copy_text_to_clipboard(self, value):
+        self.clipboard_clear()
+        self.clipboard_append(value)
+        self.update_idletasks()
 
     def _run_text_edit_action(self, action, widget=None):
         target = self._resolve_text_widget(widget)
@@ -2571,15 +2627,29 @@ finally {
             if action == "select_all":
                 self._select_all_text(target)
             elif action == "copy":
-                target.event_generate("<<Copy>>")
+                selected = self._get_selected_text(target)
+                if selected:
+                    self._copy_text_to_clipboard(selected)
             elif action == "cut":
                 if not editable:
                     return "break"
-                target.event_generate("<<Cut>>")
+                selected = self._get_selected_text(target)
+                if selected:
+                    self._copy_text_to_clipboard(selected)
+                    self._delete_from_widget(target)
             elif action == "paste":
                 if not editable:
                     return "break"
-                target.event_generate("<<Paste>>")
+                try:
+                    clipboard_text = self.clipboard_get()
+                except Exception:
+                    clipboard_text = ""
+                if clipboard_text:
+                    self._replace_selection_or_insert(target, clipboard_text)
+            elif action == "delete":
+                if not editable:
+                    return "break"
+                self._delete_from_widget(target)
         except Exception:
             return "break"
         return "break"
@@ -2593,7 +2663,8 @@ finally {
         self._text_context_menu.entryconfigure(0, state="normal" if editable else "disabled")
         self._text_context_menu.entryconfigure(1, state="normal")
         self._text_context_menu.entryconfigure(2, state="normal" if editable else "disabled")
-        self._text_context_menu.entryconfigure(4, state="normal")
+        self._text_context_menu.entryconfigure(3, state="normal" if editable else "disabled")
+        self._text_context_menu.entryconfigure(5, state="normal")
         try:
             self._text_context_menu.tk_popup(event.x_root, event.y_root)
         finally:
