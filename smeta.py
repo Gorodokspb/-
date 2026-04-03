@@ -44,6 +44,8 @@ class SmetaApp(ctk.CTk):
         self.health_text = ctk.StringVar(value="\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f: \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430...")
         self.repaired_document_paths_count = 0
         self.startup_health_checked = False
+        self._text_context_menu = None
+        self.setup_text_editing_support()
         self.setup_state_db()
         self.get_drafts_dir()
         self.current_user = self.prompt_user_login()
@@ -677,6 +679,111 @@ class SmetaApp(ctk.CTk):
         if owns_connection:
             conn.close()
         return repaired
+
+    def setup_text_editing_support(self):
+        self._context_text_widget = None
+        if self._text_context_menu is None:
+            self._text_context_menu = tk.Menu(self, tearoff=0)
+            self._text_context_menu.add_command(label="Вырезать", command=lambda: self._run_text_edit_action("cut", self._context_text_widget))
+            self._text_context_menu.add_command(label="Копировать", command=lambda: self._run_text_edit_action("copy", self._context_text_widget))
+            self._text_context_menu.add_command(label="Вставить", command=lambda: self._run_text_edit_action("paste", self._context_text_widget))
+            self._text_context_menu.add_separator()
+            self._text_context_menu.add_command(label="Выделить все", command=lambda: self._run_text_edit_action("select_all", self._context_text_widget))
+        bindings = {
+            "<Control-a>": "select_all",
+            "<Control-A>": "select_all",
+            "<Control-c>": "copy",
+            "<Control-C>": "copy",
+            "<Control-v>": "paste",
+            "<Control-V>": "paste",
+            "<Control-x>": "cut",
+            "<Control-X>": "cut",
+            "<Control-Insert>": "copy",
+            "<Shift-Insert>": "paste",
+            "<Shift-Delete>": "cut",
+        }
+        for sequence, action in bindings.items():
+            self.bind_all(sequence, lambda event, action=action: self._run_text_edit_action(action, getattr(event, "widget", None)), add="+")
+        self.bind_all("<Button-3>", self.show_text_context_menu, add="+")
+
+    def _resolve_text_widget(self, widget=None):
+        current = widget or self.focus_get()
+        seen = set()
+        while current is not None and current not in seen:
+            seen.add(current)
+            if isinstance(current, ctk.CTkEntry):
+                return getattr(current, "_entry", current)
+            if isinstance(current, ctk.CTkTextbox):
+                return getattr(current, "_textbox", current)
+            try:
+                class_name = current.winfo_class().lower()
+            except Exception:
+                class_name = ""
+            if class_name in {"entry", "text", "tentry"}:
+                return current
+            current = getattr(current, "master", None)
+        return None
+
+    def _get_text_widget_state(self, widget):
+        try:
+            return str(widget.cget("state"))
+        except Exception:
+            return "normal"
+
+    def _select_all_text(self, widget):
+        try:
+            class_name = widget.winfo_class().lower()
+        except Exception:
+            class_name = ""
+        if class_name == "text":
+            widget.tag_add("sel", "1.0", "end-1c")
+            widget.mark_set("insert", "1.0")
+            widget.see("insert")
+        else:
+            widget.select_range(0, "end")
+            widget.icursor("end")
+
+    def _run_text_edit_action(self, action, widget=None):
+        target = self._resolve_text_widget(widget)
+        if target is None:
+            return None
+        try:
+            target.focus_force()
+        except Exception:
+            pass
+        editable = self._get_text_widget_state(target) not in {"disabled", "readonly"}
+        try:
+            if action == "select_all":
+                self._select_all_text(target)
+            elif action == "copy":
+                target.event_generate("<<Copy>>")
+            elif action == "cut":
+                if not editable:
+                    return "break"
+                target.event_generate("<<Cut>>")
+            elif action == "paste":
+                if not editable:
+                    return "break"
+                target.event_generate("<<Paste>>")
+        except Exception:
+            return "break"
+        return "break"
+
+    def show_text_context_menu(self, event):
+        target = self._resolve_text_widget(getattr(event, "widget", None))
+        if target is None:
+            return None
+        self._context_text_widget = target
+        editable = self._get_text_widget_state(target) not in {"disabled", "readonly"}
+        self._text_context_menu.entryconfigure(0, state="normal" if editable else "disabled")
+        self._text_context_menu.entryconfigure(1, state="normal")
+        self._text_context_menu.entryconfigure(2, state="normal" if editable else "disabled")
+        self._text_context_menu.entryconfigure(4, state="normal")
+        try:
+            self._text_context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self._text_context_menu.grab_release()
+        return "break"
 
     def set_sync_health_status(self, text, tone="info"):
         if hasattr(self, "health_text"):
