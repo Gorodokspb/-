@@ -101,12 +101,16 @@ class CRMApp(ctk.CTk):
         self.current_module = "projects"
         self.current_user = AUTH_USERS[0]
         self.initial_project_id = initial_project_id
+        self.sync_health_var = ctk.StringVar(value="\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f: \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u043f\u0440\u0438 \u0437\u0430\u043f\u0443\u0441\u043a\u0435...")
+        self.repaired_document_paths_count = 0
+        self.startup_health_checked = False
 
         self.setup_database()
         self.configure_styles()
         self.build_ui()
         self.prompt_user_login()
         self.refresh_all()
+        self.after(700, self.run_startup_health_check)
         if self.initial_project_id:
             self.after(250, lambda: self.show_project_from_cli(self.initial_project_id))
 
@@ -213,6 +217,81 @@ class CRMApp(ctk.CTk):
         if owns_connection:
             conn.close()
         return repaired
+
+    def set_sync_health_status(self, text, tone="info"):
+        if hasattr(self, "sync_health_var"):
+            self.sync_health_var.set(text)
+        if hasattr(self, "sync_health_label"):
+            palette = {
+                "info": "#9faec0",
+                "ok": "#7ddc94",
+                "warning": "#f2c879",
+                "error": "#ff8b8b",
+            }
+            self.sync_health_label.configure(text_color=palette.get(tone, "#9faec0"))
+
+    def collect_startup_health_issues(self):
+        workspace_dir = self.get_workspace_dir()
+        issues = []
+        critical_files = [
+            ("\u0411\u0430\u0437\u0430 CRM", DB_PATH),
+            ("\u0411\u0430\u0437\u0430 \u0446\u0435\u043d", os.path.join(workspace_dir, "dekorart_prices.db")),
+            ("\u0428\u0430\u0431\u043b\u043e\u043d \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430", CONTRACT_TEMPLATE_PATH),
+        ]
+        for label, path in critical_files:
+            if not os.path.exists(path):
+                issues.append(f"{label}: {path}")
+
+        for dirname in ("\u0421\u043c\u0435\u0442\u044b", "\u0414\u043e\u0433\u043e\u0432\u043e\u0440\u044b", "_contract_tmp"):
+            os.makedirs(os.path.join(workspace_dir, dirname), exist_ok=True)
+
+        conn = self.get_connection()
+        try:
+            tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+            if "documents" in tables:
+                rows = conn.execute(
+                    "SELECT id, project_id, title, COALESCE(file_path, '') AS file_path, COALESCE(draft_path, '') AS draft_path, COALESCE(pdf_path, '') AS pdf_path FROM documents"
+                ).fetchall()
+                broken_docs = []
+                for row in rows:
+                    missing_parts = []
+                    for column, label in (("file_path", "\u0444\u0430\u0439\u043b"), ("draft_path", "\u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a"), ("pdf_path", "PDF")):
+                        stored_path = str(row[column] or "").strip()
+                        if stored_path and not os.path.exists(self.resolve_workspace_path(stored_path)):
+                            missing_parts.append(f"{label}: {stored_path}")
+                    if missing_parts:
+                        title = str(row["title"] or f"\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 #{row['id']}")
+                        project_id = row["project_id"] if row["project_id"] is not None else "-"
+                        broken_docs.append(f"{title} (\u043f\u0440\u043e\u0435\u043a\u0442 {project_id}) -> {'; '.join(missing_parts)}")
+                if broken_docs:
+                    issues.append(f"\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u044b \u0444\u0430\u0439\u043b\u044b \u0443 {len(broken_docs)} \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u043e\u0432.")
+                    issues.extend(broken_docs[:5])
+                    if len(broken_docs) > 5:
+                        issues.append(f"\u0415\u0449\u0435 \u043f\u0440\u043e\u0431\u043b\u0435\u043c\u043d\u044b\u0445 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u043e\u0432: {len(broken_docs) - 5}.")
+        finally:
+            conn.close()
+
+        return issues
+
+    def run_startup_health_check(self):
+        if self.startup_health_checked:
+            return
+        self.startup_health_checked = True
+
+        issues = self.collect_startup_health_issues()
+        repaired = getattr(self, "repaired_document_paths_count", 0)
+        if issues:
+            self.set_sync_health_status("\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f: \u0435\u0441\u0442\u044c \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f", "warning")
+            details = []
+            if repaired:
+                details.append(f"\u0410\u0432\u0442\u043e\u043f\u043e\u0447\u0438\u043d\u043a\u0430 \u043f\u0443\u0442\u0435\u0439: {repaired}.")
+            details.append("\u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044e \u0434\u0430\u043d\u043d\u044b\u0445:")
+            details.extend(f"- {item}" for item in issues)
+            messagebox.showwarning("\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0434\u0430\u043d\u043d\u044b\u0445 CRM", "\n".join(details))
+            return
+
+        suffix = f" \u0410\u0432\u0442\u043e\u043f\u043e\u0447\u0438\u043d\u043a\u0430 \u043f\u0443\u0442\u0435\u0439: {repaired}." if repaired else ""
+        self.set_sync_health_status(f"\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f: OK.{suffix}", "ok")
 
     def split_object_lines(self, value):
         text = " ".join((value or "").split())
@@ -2215,7 +2294,7 @@ finally {
         )
 
         conn.commit()
-        self.repair_document_paths(conn)
+        self.repaired_document_paths_count = self.repair_document_paths(conn)
         conn.close()
 
     def build_ui(self):
@@ -2230,6 +2309,16 @@ finally {
         brand.pack(fill="x", padx=18, pady=(20, 12))
         ctk.CTkLabel(brand, text="Dekorartstroy", font=("Segoe UI Semibold", 21), text_color="#f8fbff").pack(anchor="w")
         ctk.CTkLabel(brand, text="Объекты и сметы", font=("Segoe UI", 12), text_color="#9faec0").pack(anchor="w", pady=(4, 0))
+
+        self.sync_health_label = ctk.CTkLabel(
+            self.sidebar,
+            textvariable=self.sync_health_var,
+            font=("Segoe UI", 11),
+            text_color="#9faec0",
+            wraplength=236,
+            justify="left",
+        )
+        self.sync_health_label.pack(fill="x", padx=18, pady=(0, 12))
 
         object_header = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         object_header.pack(fill="x", padx=14, pady=(4, 8))

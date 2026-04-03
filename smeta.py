@@ -9,6 +9,7 @@ import warnings
 import json
 import re
 import sys
+import subprocess
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -40,6 +41,9 @@ class SmetaApp(ctk.CTk):
         self.geometry("1240x860")
         self.minsize(1160, 780)
         self.configure(fg_color="#cfd4da")
+        self.health_text = ctk.StringVar(value="\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f: \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430...")
+        self.repaired_document_paths_count = 0
+        self.startup_health_checked = False
         self.setup_state_db()
         self.get_drafts_dir()
         self.current_user = self.prompt_user_login()
@@ -191,6 +195,9 @@ class SmetaApp(ctk.CTk):
         self.audit_label = ctk.CTkLabel(self.bottom_meta, textvariable=self.audit_text, font=("Segoe UI", 12), text_color="#5f7288")
         self.audit_label.pack(side="left", padx=20, pady=(0, 8))
 
+        self.health_label = ctk.CTkLabel(self.bottom_meta, textvariable=self.health_text, font=("Segoe UI", 12), text_color="#5f7288")
+        self.health_label.pack(side="right", padx=10, pady=(0, 8))
+
         self.watermark_var = ctk.BooleanVar(value=True)
         self.watermark_cb = ctk.CTkCheckBox(self.bottom_right, text="Черновик (водяной знак)", variable=self.watermark_var)
         self.watermark_cb.pack(side="right", padx=10, pady=10)
@@ -217,6 +224,7 @@ class SmetaApp(ctk.CTk):
             self.restore_last_draft_for_user()
         self.suspend_autosave = False
         self.schedule_autosave()
+        self.after(700, self.run_startup_health_check)
 
     def get_category_weight(self, name):
         n = name.lower()
@@ -289,7 +297,7 @@ class SmetaApp(ctk.CTk):
         if "updated_by" not in existing_columns:
             c.execute("ALTER TABLE smeta_drafts ADD COLUMN updated_by TEXT")
         conn.commit()
-        self.repair_document_paths(conn)
+        self.repaired_document_paths_count = self.repair_document_paths(conn)
         conn.close()
 
     def prompt_user_login(self):
@@ -669,6 +677,82 @@ class SmetaApp(ctk.CTk):
         if owns_connection:
             conn.close()
         return repaired
+
+    def set_sync_health_status(self, text, tone="info"):
+        if hasattr(self, "health_text"):
+            self.health_text.set(text)
+        if hasattr(self, "health_label"):
+            palette = {
+                "info": "#5f7288",
+                "ok": "#2a885a",
+                "warning": "#bb8910",
+                "error": "#b63f3b",
+            }
+            self.health_label.configure(text_color=palette.get(tone, "#5f7288"))
+
+    def collect_startup_health_issues(self):
+        workspace_dir = self.get_workspace_dir()
+        issues = []
+        critical_files = [
+            ("\u0411\u0430\u0437\u0430 CRM", self.state_db_path),
+            ("\u0411\u0430\u0437\u0430 \u0446\u0435\u043d", PRICE_DB_PATH),
+            ("\u0424\u0430\u0439\u043b CRM", os.path.join(workspace_dir, "CRM.py")),
+        ]
+        for label, path in critical_files:
+            if not os.path.exists(path):
+                issues.append(f"{label}: {path}")
+
+        for dirname in ("\u0421\u043c\u0435\u0442\u044b", "\u0414\u043e\u0433\u043e\u0432\u043e\u0440\u044b", "_contract_tmp"):
+            os.makedirs(os.path.join(workspace_dir, dirname), exist_ok=True)
+
+        conn = sqlite3.connect(self.state_db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            tables = {row["name"] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+            if "documents" in tables:
+                rows = conn.execute(
+                    "SELECT id, project_id, title, COALESCE(file_path, '') AS file_path, COALESCE(draft_path, '') AS draft_path, COALESCE(pdf_path, '') AS pdf_path FROM documents"
+                ).fetchall()
+                broken_docs = []
+                for row in rows:
+                    missing_parts = []
+                    for column, label in (("file_path", "\u0444\u0430\u0439\u043b"), ("draft_path", "\u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a"), ("pdf_path", "PDF")):
+                        stored_path = str(row[column] or "").strip()
+                        if stored_path and not os.path.exists(self.resolve_workspace_path(stored_path)):
+                            missing_parts.append(f"{label}: {stored_path}")
+                    if missing_parts:
+                        title = str(row["title"] or f"\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 #{row['id']}")
+                        project_id = row["project_id"] if row["project_id"] is not None else "-"
+                        broken_docs.append(f"{title} (\u043f\u0440\u043e\u0435\u043a\u0442 {project_id}) -> {'; '.join(missing_parts)}")
+                if broken_docs:
+                    issues.append(f"\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u044b \u0444\u0430\u0439\u043b\u044b \u0443 {len(broken_docs)} \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u043e\u0432.")
+                    issues.extend(broken_docs[:5])
+                    if len(broken_docs) > 5:
+                        issues.append(f"\u0415\u0449\u0435 \u043f\u0440\u043e\u0431\u043b\u0435\u043c\u043d\u044b\u0445 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u043e\u0432: {len(broken_docs) - 5}.")
+        finally:
+            conn.close()
+
+        return issues
+
+    def run_startup_health_check(self):
+        if self.startup_health_checked:
+            return
+        self.startup_health_checked = True
+
+        issues = self.collect_startup_health_issues()
+        repaired = getattr(self, "repaired_document_paths_count", 0)
+        if issues:
+            self.set_sync_health_status("\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f: \u0435\u0441\u0442\u044c \u0437\u0430\u043c\u0435\u0447\u0430\u043d\u0438\u044f", "warning")
+            details = []
+            if repaired:
+                details.append(f"\u0410\u0432\u0442\u043e\u043f\u043e\u0447\u0438\u043d\u043a\u0430 \u043f\u0443\u0442\u0435\u0439: {repaired}.")
+            details.append("\u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044e \u0434\u0430\u043d\u043d\u044b\u0445 \u0441\u043c\u0435\u0442\u044b:")
+            details.extend(f"- {item}" for item in issues)
+            messagebox.showwarning("\u041f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u0434\u0430\u043d\u043d\u044b\u0445 \u0441\u043c\u0435\u0442\u044b", "\n".join(details))
+            return
+
+        suffix = f" \u0410\u0432\u0442\u043e\u043f\u043e\u0447\u0438\u043d\u043a\u0430 \u043f\u0443\u0442\u0435\u0439: {repaired}." if repaired else ""
+        self.set_sync_health_status(f"\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f: OK.{suffix}", "ok")
 
     def get_estimates_dir(self):
         estimates_dir = os.path.join(self.get_workspace_dir(), "Сметы")
