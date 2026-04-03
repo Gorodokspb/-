@@ -2722,6 +2722,32 @@ finally {
             return text
         return text[: limit - 1].rstrip() + "…"
 
+    def normalize_project_text(self, value):
+        return " ".join((value or "").lower().split())
+
+    def get_project_counterparty_label(self, project_name, counterparty):
+        project_norm = self.normalize_project_text(project_name)
+        counterparty_text = (counterparty or "").strip()
+        counterparty_norm = self.normalize_project_text(counterparty_text)
+        if not counterparty_norm or counterparty_norm == project_norm:
+            return ""
+        return counterparty_text
+
+    def build_project_secondary_line(self, project_name, counterparty, contract, date_value):
+        counterparty_label = self.get_project_counterparty_label(project_name, counterparty)
+        if counterparty_label:
+            return counterparty_label
+        parts = []
+        contract_text = (contract or "").strip()
+        date_text = (date_value or "").strip()
+        if contract_text:
+            parts.append(contract_text)
+        if date_text:
+            parts.append(date_text)
+        if parts:
+            return " • ".join(parts)
+        return "Карточка проекта"
+
     def update_project_focus_panel(self, row):
         if not hasattr(self, "project_focus_title_var"):
             return
@@ -2731,12 +2757,16 @@ finally {
             self.project_focus_status_var.set("Статус: —")
             return
         project_name = row[1] or "Без названия"
-        counterparty = row[2] or "Контрагент не указан"
+        counterparty_label = self.get_project_counterparty_label(project_name, row[2])
         contract = row[3] or "Договор не указан"
         date_value = row[4] or "Дата не указана"
         status = row[5] or "Без статуса"
         self.project_focus_title_var.set(project_name)
-        self.project_focus_meta_var.set(f"{counterparty}\n{contract} • {date_value}")
+        meta_parts = []
+        if counterparty_label:
+            meta_parts.append(counterparty_label)
+        meta_parts.append(f"{contract} • {date_value}")
+        self.project_focus_meta_var.set("\n".join(meta_parts))
         self.project_focus_status_var.set(f"Статус: {status}")
 
     def update_project_sidebar_selection(self):
@@ -2761,8 +2791,8 @@ finally {
                     break
         row = self.project_map.get(str(project_id))
         if row:
-            counterparty = row[2] or "контрагент не указан"
-            self.sidebar_project_caption.set(f"{row[1]}\n{counterparty}\nСтатус: {row[5]}")
+            secondary_line = self.build_project_secondary_line(row[1], row[2], row[3], row[4])
+            self.sidebar_project_caption.set(f"{row[1]}\n{secondary_line}\nСтатус: {row[5]}")
             self.update_project_focus_panel(row)
         self.update_project_sidebar_selection()
         if open_card:
@@ -2776,8 +2806,8 @@ finally {
         self.selected_project_id = str(project_id)
         row = self.project_map.get(str(project_id))
         if row:
-            counterparty = row[2] or "контрагент не указан"
-            self.sidebar_project_caption.set(f"{row[1]}\n{counterparty}\nСтатус: {row[5]}")
+            secondary_line = self.build_project_secondary_line(row[1], row[2], row[3], row[4])
+            self.sidebar_project_caption.set(f"{row[1]}\n{secondary_line}\nСтатус: {row[5]}")
             self.update_project_focus_panel(row)
         self.update_project_sidebar_selection()
 
@@ -2805,17 +2835,14 @@ finally {
         for row in rows:
             project_id, project_name, counterparty, contract, date_value, status = row
             status_line = status or "Без статуса"
-            sub_line = counterparty or "Контрагент не указан"
-            compact_date = date_value or ""
-            compact_contract = contract or "Без договора"
+            secondary_line = self.build_project_secondary_line(project_name, counterparty, contract, date_value)
             title_line = self.truncate_text(project_name, 26)
-            sub_line = self.truncate_text(sub_line, 25)
-            meta = " • ".join(part for part in [status_line, compact_contract, compact_date] if part)
-            meta = self.truncate_text(meta, 31)
+            secondary_line = self.truncate_text(secondary_line, 29)
+            meta = self.truncate_text(f"Статус: {status_line}", 29)
             normal_color, text_color = self.get_project_status_colors(status_line)
             button = ctk.CTkButton(
                 self.sidebar_project_list,
-                text=f"{title_line}\n{sub_line}\n{meta}",
+                text=f"{title_line}\n{secondary_line}\n{meta}",
                 anchor="w",
                 height=86,
                 corner_radius=16,
@@ -3792,16 +3819,6 @@ finally {
         ctk.CTkLabel(summary_right, text="Смета и баланс объекта", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
         ctk.CTkLabel(
             summary_right,
-            text=f"Черновик сметы: {metrics['has_smeta']}  •  Файлов: {len(project_files)}",
-            font=("Segoe UI", 11),
-            text_color="#667b90",
-        ).pack(anchor="w", padx=16)
-        quick_total = ctk.CTkFrame(summary_right, fg_color="#f5f8fc", corner_radius=14)
-        quick_total.pack(fill="x", padx=16, pady=14)
-        ctk.CTkLabel(quick_total, text="Текущая сумма по смете", font=("Segoe UI", 11), text_color="#5f7288").pack(anchor="w", padx=14, pady=(12, 2))
-        ctk.CTkLabel(quick_total, text=f"{metrics['smeta_total']:,.0f} руб.".replace(",", " "), font=("Segoe UI Semibold", 26), text_color="#1d2b3a").pack(anchor="w", padx=14, pady=(0, 10))
-        ctk.CTkLabel(
-            summary_right,
             text=f"Баланс по объекту: {metrics['balance_total']:,.0f} руб.".replace(",", " "),
             font=("Segoe UI Semibold", 12),
             text_color="#1f8fff" if metrics["balance_total"] >= 0 else "#d9534f",
@@ -3821,16 +3838,19 @@ finally {
         notes_box.insert("1.0", row[6] or "Здесь можно хранить заметки по объекту, договоренностям и следующему шагу.")
         notes_box.configure(state="disabled")
 
-        smeta_header = ctk.CTkFrame(smeta_tab, fg_color="#f5f8fc", corner_radius=18)
-        smeta_header.pack(fill="x", padx=12, pady=12)
+        smeta_scroll = ctk.CTkScrollableFrame(smeta_tab, fg_color="transparent")
+        smeta_scroll.pack(fill="both", expand=True, padx=12, pady=12)
+
+        smeta_header = ctk.CTkFrame(smeta_scroll, fg_color="#f5f8fc", corner_radius=18)
+        smeta_header.pack(fill="x", pady=(0, 12))
         ctk.CTkLabel(smeta_header, text="Смета проекта", font=("Segoe UI Semibold", 18), text_color="#1d2b3a").pack(anchor="w", padx=14, pady=(12, 2))
         ctk.CTkLabel(smeta_header, text=f"Сумма по смете: {metrics['smeta_total']:,.0f} руб.".replace(",", " "), font=("Segoe UI", 12), text_color="#516274").pack(anchor="w", padx=14, pady=(0, 12))
-        smeta_actions = ctk.CTkFrame(smeta_tab, fg_color="transparent")
-        smeta_actions.pack(fill="x", padx=12, pady=(0, 12))
+        smeta_actions = ctk.CTkFrame(smeta_scroll, fg_color="transparent")
+        smeta_actions.pack(fill="x", pady=(0, 12))
         ctk.CTkButton(smeta_actions, text="Открыть смету", command=lambda: self.open_project_smeta(project_id, row[1]), fg_color="#1f8a43").pack(side="left", padx=6)
         ctk.CTkButton(smeta_actions, text="Открыть черновик", command=lambda: self.open_document_file({"draft_path": metrics["draft_path"], "pdf_path": "", "file_path": ""}), fg_color="#1f538d").pack(side="left", padx=6)
-        smeta_info = ctk.CTkTextbox(smeta_tab, height=260)
-        smeta_info.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+        smeta_info = ctk.CTkTextbox(smeta_scroll, height=220)
+        smeta_info.pack(fill="x", pady=(0, 12))
         smeta_info.insert(
             "1.0",
             f"Объект: {row[1]}\n"
@@ -3841,8 +3861,9 @@ finally {
         )
         smeta_info.configure(state="disabled")
 
-        smeta_summary_row = ctk.CTkFrame(smeta_tab, fg_color="transparent")
-        smeta_summary_row.pack(fill="x", padx=12, pady=(0, 12))
+
+        smeta_summary_row = ctk.CTkFrame(smeta_scroll, fg_color="transparent")
+        smeta_summary_row.pack(fill="x", pady=(0, 12))
 
         smeta_card = ctk.CTkFrame(smeta_summary_row, fg_color="#ffffff", corner_radius=18)
         smeta_card.pack(side="left", fill="both", expand=True, padx=(0, 6))
@@ -3862,8 +3883,8 @@ finally {
         self.build_info_row(files_card, "Черновик", smeta_doc.get("draft_path", "") or "нет файла")
         self.build_info_row(files_card, "PDF", smeta_doc.get("pdf_path", "") or "нет файла")
 
-        smeta_edit_card = ctk.CTkFrame(smeta_tab, fg_color="#ffffff", corner_radius=18)
-        smeta_edit_card.pack(fill="x", padx=12, pady=(0, 12))
+        smeta_edit_card = ctk.CTkFrame(smeta_scroll, fg_color="#ffffff", corner_radius=18)
+        smeta_edit_card.pack(fill="x", pady=(0, 12))
         ctk.CTkLabel(smeta_edit_card, text="Основные поля сметы", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").pack(anchor="w", padx=16, pady=(14, 8))
         ctk.CTkLabel(
             smeta_edit_card,
