@@ -24,9 +24,9 @@ ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
 
-DB_PATH = "dekorart_base.db"
-CONTRACT_TEMPLATE_SOURCE_PATH = r"C:\Users\Алексей\OneDrive\Рабочий стол\ОБРАЗЕЦ ДОГОВОРА.doc"
-CONTRACT_TEMPLATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contract_template_physical.docx")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "dekorart_base.db")
+CONTRACT_TEMPLATE_PATH = os.path.join(BASE_DIR, "contract_template_physical.docx")
 
 COUNTERPARTY_TYPES = ["Физическое лицо", "Юридическое лицо ООО", "Юридическое лицо ИП"]
 PROJECT_STATUSES = ["В работе", "Пауза", "Завершен"]
@@ -128,7 +128,91 @@ class CRMApp(ctk.CTk):
         return conn
 
     def get_workspace_dir(self):
-        return os.path.dirname(os.path.abspath(__file__))
+        return BASE_DIR
+
+    def resolve_workspace_path(self, path):
+        raw_path = str(path or "").strip()
+        if not raw_path:
+            return ""
+        if os.path.exists(raw_path):
+            return raw_path
+
+        workspace_dir = self.get_workspace_dir()
+        normalized = os.path.normpath(raw_path)
+        if not os.path.isabs(normalized):
+            candidate = os.path.normpath(os.path.join(workspace_dir, normalized))
+            if os.path.exists(candidate):
+                return candidate
+
+        parts = [part for part in re.split(r"[\\/]+", raw_path) if part]
+        workspace_name = os.path.basename(workspace_dir)
+        for anchor in (workspace_name, "CRM_OLD_BAD"):
+            if anchor in parts:
+                anchor_index = parts.index(anchor)
+                candidate = os.path.join(workspace_dir, *parts[anchor_index + 1 :])
+                if os.path.exists(candidate):
+                    return candidate
+
+        for marker in ("Сметы", "Договоры", "_contract_tmp"):
+            if marker in parts:
+                marker_index = parts.index(marker)
+                candidate = os.path.join(workspace_dir, *parts[marker_index:])
+                if os.path.exists(candidate):
+                    return candidate
+
+        return raw_path
+
+    def to_workspace_storage_path(self, path):
+        raw_path = str(path or "").strip()
+        if not raw_path:
+            return ""
+        candidate = self.resolve_workspace_path(raw_path) or raw_path
+        if not os.path.isabs(candidate):
+            return os.path.normpath(candidate)
+        workspace_dir = os.path.abspath(self.get_workspace_dir())
+        candidate_abs = os.path.abspath(candidate)
+        try:
+            if os.path.commonpath([candidate_abs, workspace_dir]) == workspace_dir:
+                return os.path.normpath(os.path.relpath(candidate_abs, workspace_dir))
+        except ValueError:
+            pass
+        return candidate
+
+    def repair_document_paths(self, conn=None):
+        owns_connection = conn is None
+        if owns_connection:
+            conn = self.get_connection()
+        c = conn.cursor()
+        tables = {row["name"] for row in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if "documents" not in tables:
+            if owns_connection:
+                conn.close()
+            return 0
+        rows = c.execute(
+            "SELECT id, COALESCE(file_path, '') AS file_path, COALESCE(draft_path, '') AS draft_path, COALESCE(pdf_path, '') AS pdf_path FROM documents"
+        ).fetchall()
+        repaired = 0
+        for row in rows:
+            updates = {}
+            for column in ("file_path", "draft_path", "pdf_path"):
+                current_path = row[column]
+                resolved_path = self.resolve_workspace_path(current_path)
+                if current_path and resolved_path and os.path.exists(resolved_path):
+                    stored_path = self.to_workspace_storage_path(resolved_path)
+                    if stored_path != current_path:
+                        updates[column] = stored_path
+            if updates:
+                assignments = ", ".join(f"{column}=?" for column in updates)
+                c.execute(
+                    f"UPDATE documents SET {assignments}, updated_at=? WHERE id=?",
+                    [*updates.values(), datetime.datetime.now().isoformat(timespec="seconds"), row["id"]],
+                )
+                repaired += 1
+        if repaired:
+            conn.commit()
+        if owns_connection:
+            conn.close()
+        return repaired
 
     def split_object_lines(self, value):
         text = " ".join((value or "").split())
@@ -516,7 +600,7 @@ class CRMApp(ctk.CTk):
         draft_path = self.get_project_smeta_draft_path(project_id, project_name)
         if draft_path:
             try:
-                with open(draft_path, "r", encoding="utf-8") as f:
+                with open(self.resolve_workspace_path(draft_path), "r", encoding="utf-8") as f:
                     return json.load(f)
             except (OSError, json.JSONDecodeError):
                 return None
@@ -536,7 +620,7 @@ class CRMApp(ctk.CTk):
             ).fetchone()
             conn.close()
             if row:
-                draft_path = row["draft_path"] or ""
+                draft_path = self.resolve_workspace_path(row["draft_path"] or "")
                 if draft_path and os.path.exists(draft_path):
                     return draft_path
 
@@ -544,6 +628,23 @@ class CRMApp(ctk.CTk):
         if project_name:
             search_names.add(f"{self.sanitize_filename(project_name, 'Черновик сметы')}.json")
             search_names.add(f"{project_name}.json")
+
+        estimates_dir = os.path.join(self.get_workspace_dir(), "Сметы")
+        if project_id and os.path.isdir(estimates_dir):
+            prefix = f"{int(project_id):04d}_"
+            for entry in sorted(os.listdir(estimates_dir)):
+                if not entry.startswith(prefix):
+                    continue
+                project_drafts_dir = os.path.join(estimates_dir, entry, "Черновики")
+                if not os.path.isdir(project_drafts_dir):
+                    continue
+                for candidate in search_names:
+                    candidate_path = os.path.join(project_drafts_dir, candidate)
+                    if os.path.exists(candidate_path):
+                        return candidate_path
+                json_files = sorted(name for name in os.listdir(project_drafts_dir) if name.lower().endswith(".json"))
+                if len(json_files) == 1:
+                    return os.path.join(project_drafts_dir, json_files[0])
 
         drafts_dir = os.path.join(self.get_workspace_dir(), "Сметы", "Черновики")
         if os.path.isdir(drafts_dir):
@@ -625,7 +726,7 @@ class CRMApp(ctk.CTk):
         contract_number, contract_date = self.parse_contract_label(contract_label)
         draft_path = ""
         if existing_doc:
-            draft_path = existing_doc.get("draft_path", "") or ""
+            draft_path = self.resolve_workspace_path(existing_doc.get("draft_path", "") or "")
         if not draft_path:
             draft_path = self.get_project_smeta_managed_draft_path(project_id, project_name, payload.get("object") or project_name)
 
@@ -647,22 +748,24 @@ class CRMApp(ctk.CTk):
         title = f"Смета - {title_object}" if title_object else "Смета"
         pdf_path = ""
         if existing_doc:
-            pdf_path = existing_doc.get("pdf_path", "") or ""
+            pdf_path = self.resolve_workspace_path(existing_doc.get("pdf_path", "") or "")
         if current and current["pdf_path"]:
-            pdf_path = current["pdf_path"]
-        preferred_file_path = pdf_path or draft_path
+            pdf_path = self.resolve_workspace_path(current["pdf_path"])
+        draft_path_db = self.to_workspace_storage_path(draft_path)
+        pdf_path_db = self.to_workspace_storage_path(pdf_path)
+        preferred_file_path = pdf_path_db or draft_path_db
         if current:
             c.execute(
                 """UPDATE documents
                    SET title=?, status=?, file_path=?, draft_path=?, pdf_path=?, updated_at=?
                    WHERE id=?""",
-                (title, "Черновик", preferred_file_path, draft_path, pdf_path, timestamp, current["id"]),
+                (title, "Черновик", preferred_file_path, draft_path_db, pdf_path_db, timestamp, current["id"]),
             )
         else:
             c.execute(
                 """INSERT INTO documents (project_id, doc_type, title, status, file_path, draft_path, pdf_path, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (project_id, "Смета (приложение № 1)", title, "Черновик", preferred_file_path, draft_path, pdf_path, timestamp, timestamp),
+                (project_id, "Смета (приложение № 1)", title, "Черновик", preferred_file_path, draft_path_db, pdf_path_db, timestamp, timestamp),
             )
         c.execute(
             "UPDATE projects SET project_name=?, address=?, customer=?, contract=?, date=?, updated_at=? WHERE id=?",
@@ -1249,6 +1352,7 @@ class CRMApp(ctk.CTk):
 
     def upsert_project_document(self, project_id, doc_type, title, file_path, status="Черновик"):
         now = datetime.datetime.now().isoformat(timespec="seconds")
+        file_path_db = self.to_workspace_storage_path(file_path)
         conn = self.get_connection()
         c = conn.cursor()
         existing = c.execute(
@@ -1262,14 +1366,14 @@ class CRMApp(ctk.CTk):
         if existing:
             c.execute(
                 "UPDATE documents SET title=?, status=?, file_path=?, updated_at=? WHERE id=?",
-                (title, status, file_path, now, existing["id"]),
+                (title, status, file_path_db, now, existing["id"]),
             )
         else:
             c.execute(
                 """INSERT INTO documents
                    (project_id, doc_type, title, status, file_path, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (project_id, doc_type, title, status, file_path, now, now),
+                (project_id, doc_type, title, status, file_path_db, now, now),
             )
         conn.commit()
         conn.close()
@@ -2111,6 +2215,7 @@ finally {
         )
 
         conn.commit()
+        self.repair_document_paths(conn)
         conn.close()
 
     def build_ui(self):
@@ -3025,6 +3130,7 @@ finally {
         if not doc_row:
             return messagebox.showinfo("Документ", "Выберите документ из списка.")
         candidate_path = doc_row.get("pdf_path") or doc_row.get("draft_path") or doc_row.get("file_path") or ""
+        candidate_path = self.resolve_workspace_path(candidate_path)
         if not candidate_path:
             return messagebox.showinfo("Документ", "У этого документа пока нет сохраненного файла.")
         if not os.path.exists(candidate_path):
@@ -3113,10 +3219,11 @@ finally {
         seen_paths = set()
         for doc in raw_documents:
             for kind, path in (("PDF", doc["pdf_path"] or ""), ("Черновик", doc["draft_path"] or ""), ("Файл", doc["file_path"] or "")):
-                if not path or path in seen_paths:
+                resolved_path = self.resolve_workspace_path(path)
+                if not resolved_path or resolved_path in seen_paths:
                     continue
-                seen_paths.add(path)
-                rows.append((doc["title"] or doc["doc_type"] or "Документ", kind, path, "Да" if os.path.exists(path) else "Нет"))
+                seen_paths.add(resolved_path)
+                rows.append((doc["title"] or doc["doc_type"] or "Документ", kind, resolved_path, "Да" if os.path.exists(resolved_path) else "Нет"))
 
         contracts_dir = self.get_contracts_dir(project_name)
         if os.path.isdir(contracts_dir):

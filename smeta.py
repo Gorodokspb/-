@@ -21,10 +21,14 @@ from reportlab.pdfbase.ttfonts import TTFont
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE_DB_PATH = os.path.join(BASE_DIR, "dekorart_base.db")
+PRICE_DB_PATH = os.path.join(BASE_DIR, "dekorart_prices.db")
+
 class SmetaApp(ctk.CTk):
     def __init__(self, project_context=None):
         super().__init__()
-        self.state_db_path = 'dekorart_base.db'
+        self.state_db_path = STATE_DB_PATH
         self.project_context = project_context or {}
         self.current_project_id = self.project_context.get("project_id")
         self.current_user = None
@@ -246,7 +250,7 @@ class SmetaApp(ctk.CTk):
         self.recalculate_total()
 
     def setup_price_db(self):
-        conn = sqlite3.connect('dekorart_prices.db')
+        conn = sqlite3.connect(PRICE_DB_PATH)
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS prices (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, unit TEXT, price REAL)''')
         c.execute('''DELETE FROM prices WHERE id NOT IN (SELECT MIN(id) FROM prices GROUP BY name)''')
@@ -285,6 +289,7 @@ class SmetaApp(ctk.CTk):
         if "updated_by" not in existing_columns:
             c.execute("ALTER TABLE smeta_drafts ADD COLUMN updated_by TEXT")
         conn.commit()
+        self.repair_document_paths(conn)
         conn.close()
 
     def prompt_user_login(self):
@@ -402,24 +407,26 @@ class SmetaApp(ctk.CTk):
         next_pdf_path = pdf_path
         if row:
             if next_draft_path is None:
-                next_draft_path = row[1] or ""
+                next_draft_path = self.resolve_workspace_path(row[1] or "")
             if next_pdf_path is None:
-                next_pdf_path = row[2] or ""
-            preferred_file_path = next_pdf_path or next_draft_path or ""
+                next_pdf_path = self.resolve_workspace_path(row[2] or "")
+        next_draft_path = self.resolve_workspace_path(next_draft_path or "")
+        next_pdf_path = self.resolve_workspace_path(next_pdf_path or "")
+        draft_path_db = self.to_workspace_storage_path(next_draft_path)
+        pdf_path_db = self.to_workspace_storage_path(next_pdf_path)
+        preferred_file_path = pdf_path_db or draft_path_db or ""
+        if row:
             c.execute(
                 """UPDATE documents
                    SET title=?, status=?, file_path=?, draft_path=?, pdf_path=?, updated_at=?
                    WHERE id=?""",
-                (title, "Черновик", preferred_file_path, next_draft_path, next_pdf_path, timestamp, row[0]),
+                (title, "Черновик", preferred_file_path, draft_path_db, pdf_path_db, timestamp, row[0]),
             )
         else:
-            next_draft_path = next_draft_path or ""
-            next_pdf_path = next_pdf_path or ""
-            preferred_file_path = next_pdf_path or next_draft_path
             c.execute(
                 """INSERT INTO documents (project_id, doc_type, title, status, file_path, draft_path, pdf_path, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (self.current_project_id, "Смета (приложение № 1)", title, "Черновик", preferred_file_path, next_draft_path, next_pdf_path, timestamp, timestamp),
+                (self.current_project_id, "Смета (приложение № 1)", title, "Черновик", preferred_file_path, draft_path_db, pdf_path_db, timestamp, timestamp),
             )
         conn.commit()
         conn.close()
@@ -574,7 +581,94 @@ class SmetaApp(ctk.CTk):
                 messagebox.showerror("Ошибка", f"Не удалось открыть CRM:\n{exc}")
 
     def get_workspace_dir(self):
-        return os.path.dirname(os.path.abspath(__file__))
+        return BASE_DIR
+
+    def resolve_workspace_path(self, path):
+        raw_path = str(path or "").strip()
+        if not raw_path:
+            return ""
+        if os.path.exists(raw_path):
+            return raw_path
+
+        workspace_dir = self.get_workspace_dir()
+        normalized = os.path.normpath(raw_path)
+        if not os.path.isabs(normalized):
+            candidate = os.path.normpath(os.path.join(workspace_dir, normalized))
+            if os.path.exists(candidate):
+                return candidate
+
+        parts = [part for part in re.split(r"[\\/]+", raw_path) if part]
+        workspace_name = os.path.basename(workspace_dir)
+        for anchor in (workspace_name, "CRM_OLD_BAD"):
+            if anchor in parts:
+                anchor_index = parts.index(anchor)
+                candidate = os.path.join(workspace_dir, *parts[anchor_index + 1 :])
+                if os.path.exists(candidate):
+                    return candidate
+
+        for marker in ("Сметы", "Договоры", "_contract_tmp"):
+            if marker in parts:
+                marker_index = parts.index(marker)
+                candidate = os.path.join(workspace_dir, *parts[marker_index:])
+                if os.path.exists(candidate):
+                    return candidate
+
+        return raw_path
+
+    def to_workspace_storage_path(self, path):
+        raw_path = str(path or "").strip()
+        if not raw_path:
+            return ""
+        candidate = self.resolve_workspace_path(raw_path) or raw_path
+        if not os.path.isabs(candidate):
+            return os.path.normpath(candidate)
+        workspace_dir = os.path.abspath(self.get_workspace_dir())
+        candidate_abs = os.path.abspath(candidate)
+        try:
+            if os.path.commonpath([candidate_abs, workspace_dir]) == workspace_dir:
+                return os.path.normpath(os.path.relpath(candidate_abs, workspace_dir))
+        except ValueError:
+            pass
+        return candidate
+
+    def repair_document_paths(self, conn=None):
+        owns_connection = conn is None
+        if owns_connection:
+            conn = sqlite3.connect(self.state_db_path)
+            conn.row_factory = sqlite3.Row
+        elif conn.row_factory is None:
+            conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        tables = {row['name'] for row in c.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if 'documents' not in tables:
+            if owns_connection:
+                conn.close()
+            return 0
+        rows = c.execute(
+            "SELECT id, COALESCE(file_path, '') AS file_path, COALESCE(draft_path, '') AS draft_path, COALESCE(pdf_path, '') AS pdf_path FROM documents"
+        ).fetchall()
+        repaired = 0
+        for row in rows:
+            updates = {}
+            for column in ('file_path', 'draft_path', 'pdf_path'):
+                current_path = row[column]
+                resolved_path = self.resolve_workspace_path(current_path)
+                if current_path and resolved_path and os.path.exists(resolved_path):
+                    stored_path = self.to_workspace_storage_path(resolved_path)
+                    if stored_path != current_path:
+                        updates[column] = stored_path
+            if updates:
+                assignments = ', '.join(f"{column}=?" for column in updates)
+                c.execute(
+                    f"UPDATE documents SET {assignments}, updated_at=? WHERE id=?",
+                    [*updates.values(), datetime.datetime.now().isoformat(timespec='seconds'), row['id']],
+                )
+                repaired += 1
+        if repaired:
+            conn.commit()
+        if owns_connection:
+            conn.close()
+        return repaired
 
     def get_estimates_dir(self):
         estimates_dir = os.path.join(self.get_workspace_dir(), "Сметы")
@@ -881,7 +975,7 @@ class SmetaApp(ctk.CTk):
             warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
             wb = openpyxl.load_workbook(filepath, data_only=True)
             sheet = wb.active
-            conn = sqlite3.connect('dekorart_prices.db')
+            conn = sqlite3.connect(PRICE_DB_PATH)
             c = conn.cursor()
             c.execute("SELECT name FROM prices")
             existing_names = {row[0].lower().strip() for row in c.fetchall()}
@@ -937,7 +1031,7 @@ class SmetaApp(ctk.CTk):
 
     def pm_refresh_list(self):
         for item in self.pm_tree.get_children(): self.pm_tree.delete(item)
-        conn = sqlite3.connect('dekorart_prices.db')
+        conn = sqlite3.connect(PRICE_DB_PATH)
         rows = conn.cursor().execute("SELECT id, name, unit, price FROM prices").fetchall()
         conn.close()
         rows.sort(key=lambda x: (self.get_category_weight(x[1]), x[1]))
@@ -960,7 +1054,7 @@ class SmetaApp(ctk.CTk):
         except ValueError as exc:
             return messagebox.showwarning("Ошибка", str(exc))
 
-        conn = sqlite3.connect('dekorart_prices.db')
+        conn = sqlite3.connect(PRICE_DB_PATH)
         conn.cursor().execute("INSERT INTO prices (name, unit, price) VALUES (?, ?, ?)", (name, unit, price_float))
         conn.commit(); conn.close()
         self.pm_refresh_list()
@@ -975,7 +1069,7 @@ class SmetaApp(ctk.CTk):
         except ValueError as exc:
             return messagebox.showwarning("Ошибка", str(exc))
             
-        conn = sqlite3.connect('dekorart_prices.db')
+        conn = sqlite3.connect(PRICE_DB_PATH)
         conn.cursor().execute("UPDATE prices SET name=?, unit=?, price=? WHERE id=?", (name, unit, price_float, item_id))
         conn.commit(); conn.close()
         self.pm_refresh_list()
@@ -984,7 +1078,7 @@ class SmetaApp(ctk.CTk):
 
     def pm_delete(self):
         if not self.pm_id_var.get(): return
-        conn = sqlite3.connect('dekorart_prices.db')
+        conn = sqlite3.connect(PRICE_DB_PATH)
         conn.cursor().execute("DELETE FROM prices WHERE id=?", (self.pm_id_var.get(),))
         conn.commit(); conn.close()
         self.pm_refresh_list()
@@ -1020,7 +1114,7 @@ class SmetaApp(ctk.CTk):
         ctk.CTkButton(bot, text="Добавить", command=self.add_to_main, fg_color="green").pack(side="right", padx=5)
 
     def fetch_price_rows(self):
-        conn = sqlite3.connect('dekorart_prices.db')
+        conn = sqlite3.connect(PRICE_DB_PATH)
         rows = conn.cursor().execute("SELECT id, name, unit, price FROM prices").fetchall()
         conn.close()
         rows.sort(key=lambda x: (self.get_category_weight(x[1]), x[1]))
@@ -1378,7 +1472,7 @@ if __name__ == "__main__":
     args, _ = parser.parse_known_args(sys.argv[1:])
     project_context = None
     if args.project_id:
-        conn = sqlite3.connect('dekorart_base.db')
+        conn = sqlite3.connect(STATE_DB_PATH)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         row = c.execute(
