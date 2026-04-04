@@ -27,10 +27,11 @@ STATE_DB_PATH = os.path.join(BASE_DIR, "dekorart_base.db")
 PRICE_DB_PATH = os.path.join(BASE_DIR, "dekorart_prices.db")
 
 class SmetaApp(ctk.CTk):
-    def __init__(self, project_context=None):
+    def __init__(self, project_context=None, open_price_manager_on_start=False):
         super().__init__()
         self.state_db_path = STATE_DB_PATH
         self.project_context = project_context or {}
+        self.open_price_manager_on_start = bool(open_price_manager_on_start)
         self.current_project_id = self.project_context.get("project_id")
         self.current_user = None
         self.current_draft_id = None
@@ -112,10 +113,12 @@ class SmetaApp(ctk.CTk):
         self.quick_add_frame.pack(pady=(0, 8), padx=14, fill="x")
         ctk.CTkLabel(self.quick_add_frame, text="Быстрое добавление работ", font=("Segoe UI Semibold", 14), text_color="#1d2b3a").pack(side="left", padx=(16, 12), pady=14)
         ctk.CTkLabel(self.quick_add_frame, text="Поиск", font=("Segoe UI Semibold", 12), text_color="#516274").pack(side="left", padx=(0, 5), pady=8)
-        self.inline_search_entry = ctk.CTkEntry(self.quick_add_frame, width=420, height=36, corner_radius=12, placeholder_text="Начните вводить название работы...")
+        self.inline_search_var = tk.StringVar()
+        self.inline_search_entry = ctk.CTkEntry(self.quick_add_frame, width=420, height=36, corner_radius=12, textvariable=self.inline_search_var, placeholder_text="Начните вводить название работы...")
         self.inline_search_entry.pack(side="left", padx=5, pady=8)
-        self.inline_search_entry.bind("<KeyRelease>", self.filter_inline_prices)
+        self.inline_search_var.trace_add("write", lambda *_: self.filter_inline_prices())
         self.inline_search_entry.bind("<Return>", self.inline_add_to_main)
+        self.bind_search_shortcuts(self.inline_search_entry, self.filter_inline_prices)
         ctk.CTkLabel(self.quick_add_frame, text="Кол-во", font=("Segoe UI Semibold", 12), text_color="#516274").pack(side="left", padx=(15, 5), pady=8)
         self.inline_qty_entry = ctk.CTkEntry(self.quick_add_frame, width=80, height=36, corner_radius=12)
         self.inline_qty_entry.pack(side="left", padx=5, pady=8)
@@ -144,14 +147,21 @@ class SmetaApp(ctk.CTk):
         style.configure("Treeview", rowheight=22, font=('Segoe UI', 9), background="#f0f2f5", fieldbackground="#f0f2f5")
         style.configure("Treeview.Heading", font=('Segoe UI Semibold', 9), background="#c8d1dc", foreground="#233042")
 
-        columns = ("name", "unit", "qty", "price", "total", "total_disc")
-        self.tree = ttk.Treeview(self.main_frame, columns=columns, show="headings", selectmode="extended")
+        columns = ("name", "unit", "qty", "price", "total", "total_disc", "price_ref")
+        self.tree = ttk.Treeview(
+            self.main_frame,
+            columns=columns,
+            displaycolumns=("name", "unit", "qty", "price", "total", "total_disc"),
+            show="headings",
+            selectmode="extended",
+        )
         self.tree.heading("name", text="Наименование работ"); self.tree.heading("unit", text="Ед.")
         self.tree.heading("qty", text="Кол-во"); self.tree.heading("price", text="Цена")
         self.tree.heading("total", text="Итого"); self.tree.heading("total_disc", text="Со скидкой")
         self.tree.column("name", width=350, anchor="w"); self.tree.column("unit", width=60, anchor="center")
         self.tree.column("qty", width=60, anchor="center"); self.tree.column("price", width=90, anchor="center")
         self.tree.column("total", width=90, anchor="center"); self.tree.column("total_disc", width=100, anchor="center")
+        self.tree.column("price_ref", width=0, stretch=False)
         self.tree.pack(fill="both", expand=True, padx=12, pady=12)
         self.tree.tag_configure("room", background="#d2d7dd")
         
@@ -164,19 +174,20 @@ class SmetaApp(ctk.CTk):
         self.context_menu.add_separator()
         self.context_menu.add_command(label="⬇ Растянуть объем на выделенные", command=self.fill_down)
 
-        self.bottom_frame = ctk.CTkFrame(self, height=124, fg_color="#d9dde2", corner_radius=22)
+        self.bottom_frame = ctk.CTkFrame(self, height=156, fg_color="#d9dde2", corner_radius=22)
         self.bottom_frame.pack_propagate(False)
         self.bottom_frame.place(relx=0.5, rely=1.0, anchor="s", relwidth=0.978, y=-14)
 
         self.bottom_top = ctk.CTkFrame(self.bottom_frame, fg_color="transparent")
-        self.bottom_top.pack(fill="x", pady=(10, 0))
+        self.bottom_top.pack(fill="x", padx=10, pady=(10, 0))
+        self.bottom_top.grid_columnconfigure(0, weight=1)
         self.bottom_meta = ctk.CTkFrame(self.bottom_frame, fg_color="transparent")
         self.bottom_meta.pack(fill="x", pady=(6, 10))
 
         self.bottom_left = ctk.CTkFrame(self.bottom_top, fg_color="transparent")
-        self.bottom_left.pack(side="left", fill="x", expand=True)
+        self.bottom_left.grid(row=0, column=0, sticky="w")
         self.bottom_right = ctk.CTkFrame(self.bottom_top, fg_color="transparent")
-        self.bottom_right.pack(side="right", padx=10)
+        self.bottom_right.grid(row=1, column=0, sticky="e", pady=(4, 0))
 
         self.disc_label = ctk.CTkLabel(self.bottom_left, text="Скидка (%)", font=("Segoe UI Semibold", 12), text_color="#516274")
         self.disc_label.pack(side="left", padx=(10, 5), pady=10)
@@ -186,8 +197,8 @@ class SmetaApp(ctk.CTk):
         self.disc_entry.pack(side="left", padx=5, pady=10)
 
         self.totals_text = ctk.StringVar(value="ИТОГО: 0 руб.   |   Со скидкой: 0 руб.")
-        self.total_label = ctk.CTkLabel(self.bottom_left, textvariable=self.totals_text, font=("Segoe UI Semibold", 18), text_color="#1d2b3a")
-        self.total_label.pack(side="left", padx=20, pady=10)
+        self.total_label = ctk.CTkLabel(self.bottom_left, textvariable=self.totals_text, font=("Segoe UI Semibold", 16), text_color="#1d2b3a")
+        self.total_label.pack(side="left", padx=(18, 6), pady=10)
 
         self.user_text = ctk.StringVar(value=f"Пользователь: {self.current_user}")
         self.user_label = ctk.CTkLabel(self.bottom_meta, textvariable=self.user_text, font=("Segoe UI", 12), text_color="#5f7288")
@@ -201,14 +212,14 @@ class SmetaApp(ctk.CTk):
         self.health_label.pack(side="right", padx=10, pady=(0, 8))
 
         self.watermark_var = ctk.BooleanVar(value=True)
-        self.watermark_cb = ctk.CTkCheckBox(self.bottom_right, text="Черновик (водяной знак)", variable=self.watermark_var)
-        self.watermark_cb.pack(side="right", padx=10, pady=10)
-        self.export_btn = ctk.CTkButton(self.bottom_right, text="Сохранить PDF", fg_color="#35a66f", hover_color="#2a885a", command=self.export_to_pdf, corner_radius=12)
-        self.export_btn.pack(side="right", padx=10, pady=10)
-        self.project_btn = ctk.CTkButton(self.bottom_right, text="Оформить в проект", fg_color="#6c63ff", hover_color="#544ed1", command=self.ensure_project_from_estimate, corner_radius=12)
-        self.project_btn.pack(side="right", padx=10, pady=10)
-        self.save_btn = ctk.CTkButton(self.bottom_right, text="Сохранить смету", fg_color="#2f80ed", hover_color="#2567bd", command=self.save_draft_manually, corner_radius=12)
-        self.save_btn.pack(side="right", padx=10, pady=10)
+        self.watermark_cb = ctk.CTkCheckBox(self.bottom_right, text="Черновик (водяной знак)", variable=self.watermark_var, width=210)
+        self.watermark_cb.pack(side="right", padx=8, pady=10)
+        self.export_btn = ctk.CTkButton(self.bottom_right, text="Сохранить PDF", width=138, fg_color="#35a66f", hover_color="#2a885a", command=self.export_to_pdf, corner_radius=12)
+        self.export_btn.pack(side="right", padx=8, pady=10)
+        self.project_btn = ctk.CTkButton(self.bottom_right, text="Оформить в проект", width=148, fg_color="#6c63ff", hover_color="#544ed1", command=self.ensure_project_from_estimate, corner_radius=12)
+        self.project_btn.pack(side="right", padx=8, pady=10)
+        self.save_btn = ctk.CTkButton(self.bottom_right, text="Сохранить смету", width=146, fg_color="#2f80ed", hover_color="#2567bd", command=self.save_draft_manually, corner_radius=12)
+        self.save_btn.pack(side="right", padx=8, pady=10)
 
         self.company_var.trace_add("write", self.on_form_change)
         self.doc_type_var.trace_add("write", self.on_form_change)
@@ -222,10 +233,12 @@ class SmetaApp(ctk.CTk):
         if self.project_context:
             self.apply_project_context()
             self.restore_project_draft_if_available()
-        else:
+        elif not self.open_price_manager_on_start:
             self.restore_last_draft_for_user()
         self.suspend_autosave = False
         self.schedule_autosave()
+        if self.open_price_manager_on_start:
+            self.after(220, self.open_price_manager)
         self.after(700, self.run_startup_health_check)
 
     def get_category_weight(self, name):
@@ -246,24 +259,28 @@ class SmetaApp(ctk.CTk):
 
     def fill_down(self):
         selected = self.tree.selection()
-        if len(selected) < 2: return messagebox.showinfo("Подсказка", "Выделите несколько строк для копирования.")
+        if len(selected) < 2:
+            return messagebox.showinfo("?????????", "???????? ????????? ????? ??? ???????????.")
         first_item = selected[0]
-        if "room" in self.tree.item(first_item, "tags"): return messagebox.showwarning("Внимание", "Нельзя растягивать раздел!")
-        v = list(self.tree.item(first_item, "values")); unit, qty = v[1], float(v[2])
+        if "room" in self.tree.item(first_item, "tags"):
+            return messagebox.showwarning("????????", "?????? ??????????? ??????!")
+        v = list(self.tree.item(first_item, "values"))
+        unit, qty = v[1], self.parse_tree_number(v[2])
         for item in selected[1:]:
-            if "room" in self.tree.item(item, "tags"): continue
+            if "room" in self.tree.item(item, "tags"):
+                continue
             tv = list(self.tree.item(item, "values"))
-            tv[1], tv[2] = unit, qty
-            total = float(tv[3]) * qty
-            tv[4], tv[5] = total, total
-            self.tree.item(item, values=tv)
+            price = self.parse_tree_number(tv[3])
+            price_ref = tv[6] if len(tv) > 6 else ""
+            total = round(price * qty, 2)
+            self.tree.item(item, values=self.normalize_tree_values((tv[0], unit, qty, price, total, total, price_ref)))
         self.recalculate_total()
 
     def setup_price_db(self):
         conn = sqlite3.connect(PRICE_DB_PATH)
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS prices (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, unit TEXT, price REAL)''')
-        c.execute('''DELETE FROM prices WHERE id NOT IN (SELECT MIN(id) FROM prices GROUP BY name)''')
+        c.execute('''DELETE FROM prices WHERE id NOT IN (SELECT MIN(id) FROM prices GROUP BY LOWER(TRIM(name)))''')
         c.execute("SELECT COUNT(*) FROM prices")
         if c.fetchone()[0] == 0:
             c.executemany("INSERT INTO prices (name, unit, price) VALUES (?, ?, ?)", 
@@ -337,12 +354,75 @@ class SmetaApp(ctk.CTk):
             self.after_cancel(self.autosave_job)
         self.autosave_job = self.after(700, self.save_draft)
 
+    def normalize_price_key(self, name):
+        return str(name or "").strip().lower()
+
+    def parse_tree_number(self, value):
+        raw = str(value or "").strip().replace(" ", "").replace(",", ".")
+        if not raw:
+            return 0.0
+        try:
+            return float(raw)
+        except ValueError:
+            return 0.0
+
+    def format_tree_number(self, value, decimals=2):
+        number = round(float(value), decimals)
+        if abs(number - round(number)) < 1e-9:
+            return str(int(round(number)))
+        return f"{number:.{decimals}f}".rstrip("0").rstrip(".")
+
+    def bind_search_shortcuts(self, widget, callback):
+        target = getattr(widget, "_entry", widget)
+        bindings = {
+            "<Control-v>": "paste",
+            "<Control-V>": "paste",
+            "<Control-x>": "cut",
+            "<Control-X>": "cut",
+            "<Delete>": "delete",
+            "<KP_Delete>": "delete",
+        }
+        for sequence, action in bindings.items():
+            target.bind(sequence, lambda event, action=action: self._run_text_edit_action(action, getattr(event, "widget", target)), add="+")
+        for sequence in ("<KeyRelease>", "<BackSpace>", "<Delete>", "<<Paste>>", "<<Cut>>"):
+            target.bind(sequence, lambda event, callback=callback: self.after_idle(callback), add="+")
+
+    def normalize_tree_values(self, values, tags=()):
+        normalized_tags = set(tags or ())
+        raw_values = list(values or [])
+        if "room" in normalized_tags:
+            room_title = str(raw_values[0]).strip() if raw_values else ""
+            return (room_title, "", "", "", "", "", "")
+        if len(raw_values) < 7:
+            raw_values.extend([""] * (7 - len(raw_values)))
+        elif len(raw_values) > 7:
+            raw_values = raw_values[:7]
+        raw_values[0] = str(raw_values[0]).strip()
+        raw_values[1] = str(raw_values[1]).strip()
+        for index in (2, 3, 4, 5):
+            raw_values[index] = self.format_tree_number(self.parse_tree_number(raw_values[index]), 2) if raw_values[index] not in ("", None) else ""
+        raw_values[6] = str(raw_values[6]).strip() if raw_values[6] not in (None, "") else ""
+        return tuple(raw_values)
+
+    def insert_estimate_row(self, name, unit, qty, price, price_ref=""):
+        qty_value = self.parse_tree_number(qty)
+        price_value = self.parse_tree_number(price)
+        total_value = round(price_value * qty_value, 2)
+        self.tree.insert(
+            "",
+            "end",
+            values=self.normalize_tree_values(
+                (name, unit, qty_value, price_value, total_value, total_value, price_ref)
+            ),
+        )
+
     def collect_tree_items(self):
         items = []
         for child in self.tree.get_children():
+            tags = tuple(self.tree.item(child, "tags"))
             items.append({
-                "values": list(self.tree.item(child, "values")),
-                "tags": list(self.tree.item(child, "tags")),
+                "values": list(self.normalize_tree_values(self.tree.item(child, "values"), tags=tags)),
+                "tags": list(tags),
             })
         return items
 
@@ -477,7 +557,9 @@ class SmetaApp(ctk.CTk):
         for item in self.tree.get_children():
             self.tree.delete(item)
         for item in payload.get("items", []):
-            self.tree.insert("", "end", values=item.get("values", ()), tags=tuple(item.get("tags", ())))
+            tags = tuple(item.get("tags", ()))
+            values = self.normalize_tree_values(item.get("values", ()), tags=tags)
+            self.tree.insert("", "end", values=values, tags=tags)
 
         self.suspend_autosave = False
         self.recalculate_total()
@@ -799,6 +881,20 @@ class SmetaApp(ctk.CTk):
         self.clipboard_append(value)
         self.update_idletasks()
 
+    def _on_text_widget_edited(self, widget):
+        owner_pairs = (
+            ("inline_search_entry", self.filter_inline_prices),
+            ("search_entry", self.filter_prices_list),
+        )
+        for attr, callback in owner_pairs:
+            owner = getattr(self, attr, None)
+            if owner is None:
+                continue
+            internal = getattr(owner, "_entry", None)
+            if widget is owner or widget is internal:
+                self.after_idle(callback)
+                return
+
     def _run_text_edit_action(self, action, widget=None):
         target = self._resolve_text_widget(widget)
         if target is None:
@@ -822,6 +918,7 @@ class SmetaApp(ctk.CTk):
                 if selected:
                     self._copy_text_to_clipboard(selected)
                     self._delete_from_widget(target)
+                    self._on_text_widget_edited(target)
             elif action == "paste":
                 if not editable:
                     return "break"
@@ -831,10 +928,12 @@ class SmetaApp(ctk.CTk):
                     clipboard_text = ""
                 if clipboard_text:
                     self._replace_selection_or_insert(target, clipboard_text)
+                    self._on_text_widget_edited(target)
             elif action == "delete":
                 if not editable:
                     return "break"
                 self._delete_from_widget(target)
+                self._on_text_widget_edited(target)
         except Exception:
             return "break"
         return "break"
@@ -1192,14 +1291,31 @@ class SmetaApp(ctk.CTk):
         return self.parse_float_input(price_raw, "Цена", allow_zero=False)
 
     def open_price_manager(self):
+        existing = getattr(self, "pm_win", None)
+        if existing is not None:
+            try:
+                if existing.winfo_exists():
+                    existing.deiconify()
+                    existing.lift()
+                    existing.focus_force()
+                    return
+            except Exception:
+                pass
+
         self.pm_win = ctk.CTkToplevel(self)
-        self.pm_win.title("Управление прайс-листом")
+        self.pm_win.title("?????????? ?????-??????")
         self.pm_win.geometry("850x550")
+        try:
+            self.pm_win.transient(self)
+        except Exception:
+            pass
         self.pm_win.attributes('-topmost', True)
+        self.pm_win.lift()
+        self.pm_win.focus_force()
 
         self.pm_tree = ttk.Treeview(self.pm_win, columns=("num", "name", "unit", "price", "db_id"), show="headings", displaycolumns=("num", "name", "unit", "price"))
-        self.pm_tree.heading("num", text="№"); self.pm_tree.heading("name", text="Наименование")
-        self.pm_tree.heading("unit", text="Ед."); self.pm_tree.heading("price", text="Цена")
+        self.pm_tree.heading("num", text="?"); self.pm_tree.heading("name", text="????????????")
+        self.pm_tree.heading("unit", text="??."); self.pm_tree.heading("price", text="????")
         self.pm_tree.column("num", width=40, anchor="center"); self.pm_tree.column("name", width=400, anchor="w")
         self.pm_tree.column("unit", width=80, anchor="center"); self.pm_tree.column("price", width=100, anchor="center")
         self.pm_tree.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1208,24 +1324,41 @@ class SmetaApp(ctk.CTk):
         edit_frame = ctk.CTkFrame(self.pm_win)
         edit_frame.pack(fill="x", padx=10, pady=10)
         self.pm_id_var = ctk.StringVar()
-        
-        ctk.CTkLabel(edit_frame, text="Название:").grid(row=0, column=0, padx=5, pady=5)
+
+        ctk.CTkLabel(edit_frame, text="????????:").grid(row=0, column=0, padx=5, pady=5)
         self.pm_name = ctk.CTkEntry(edit_frame, width=300); self.pm_name.grid(row=0, column=1, padx=5, pady=5)
-        ctk.CTkLabel(edit_frame, text="Ед:").grid(row=0, column=2, padx=5, pady=5)
+        ctk.CTkLabel(edit_frame, text="??:").grid(row=0, column=2, padx=5, pady=5)
         self.pm_unit = ctk.CTkEntry(edit_frame, width=60); self.pm_unit.grid(row=0, column=3, padx=5, pady=5)
-        ctk.CTkLabel(edit_frame, text="Цена:").grid(row=0, column=4, padx=5, pady=5)
+        ctk.CTkLabel(edit_frame, text="????:").grid(row=0, column=4, padx=5, pady=5)
         self.pm_price = ctk.CTkEntry(edit_frame, width=80); self.pm_price.grid(row=0, column=5, padx=5, pady=5)
 
         btn_frame = ctk.CTkFrame(self.pm_win, fg_color="transparent")
         btn_frame.pack(fill="x", padx=10, pady=(0, 10))
-        ctk.CTkButton(btn_frame, text="Добавить", command=self.pm_add, fg_color="green").pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="Сохранить", command=self.pm_update, fg_color="#b8860b").pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="Удалить", command=self.pm_delete, fg_color="#8b0000").pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="📥 Импорт из Excel", command=self.import_from_excel, fg_color="#1f538d").pack(side="right", padx=5)
+        ctk.CTkButton(btn_frame, text="????????", command=self.pm_add, fg_color="green").pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="?????????", command=self.pm_update, fg_color="#b8860b").pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="???????", command=self.pm_delete, fg_color="#8b0000").pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="?? ?????? ?? Excel", command=self.import_from_excel, fg_color="#1f538d").pack(side="right", padx=5)
         self.pm_refresh_list()
 
     def import_from_excel(self):
-        filepath = filedialog.askopenfilename(title="Выберите файл Excel", filetypes=[("Excel files", "*.xlsx")])
+        parent_win = getattr(self, "pm_win", None)
+        try:
+            if parent_win is not None and parent_win.winfo_exists():
+                parent_win.attributes('-topmost', False)
+            filepath = filedialog.askopenfilename(
+                parent=parent_win if parent_win is not None and parent_win.winfo_exists() else self,
+                title="???????? ???? Excel",
+                filetypes=[("Excel files", "*.xlsx")],
+            )
+        finally:
+            if parent_win is not None:
+                try:
+                    if parent_win.winfo_exists():
+                        parent_win.attributes('-topmost', True)
+                        parent_win.lift()
+                        parent_win.focus_force()
+                except Exception:
+                    pass
         if not filepath:
             return
         try:
@@ -1239,11 +1372,15 @@ class SmetaApp(ctk.CTk):
             sheet = wb.active
             conn = sqlite3.connect(PRICE_DB_PATH)
             c = conn.cursor()
-            c.execute("SELECT name FROM prices")
-            existing_names = {row[0].lower().strip() for row in c.fetchall()}
+            existing_rows = {}
+            for row in c.execute("SELECT id, name, unit, price FROM prices ORDER BY id").fetchall():
+                key = self.normalize_price_key(row[1])
+                if key and key not in existing_rows:
+                    existing_rows[key] = row
 
             inserted_count = 0
-            duplicate_count = 0
+            updated_count = 0
+            unchanged_count = 0
             skipped_count = 0
             header_values = {'наименование', 'имя', 'работа', 'наименование работ'}
             for row in sheet.iter_rows(min_row=1, values_only=True):
@@ -1256,13 +1393,9 @@ class SmetaApp(ctk.CTk):
                     continue
 
                 name_str = str(name).strip()
-                name_key = name_str.lower()
+                name_key = self.normalize_price_key(name_str)
                 if not name_str or name_key in header_values:
                     skipped_count += 1
-                    continue
-
-                if name_key in existing_names:
-                    duplicate_count += 1
                     continue
 
                 try:
@@ -1271,25 +1404,52 @@ class SmetaApp(ctk.CTk):
                     skipped_count += 1
                     continue
 
+                unit_str = str(unit).strip() if unit else "шт."
+                existing_row = existing_rows.get(name_key)
+                if existing_row:
+                    existing_id, existing_name, existing_unit, existing_price = existing_row
+                    same_name = str(existing_name).strip() == name_str
+                    same_unit = str(existing_unit or "").strip() == unit_str
+                    same_price = abs(float(existing_price or 0) - float(price)) < 0.0001
+                    if same_name and same_unit and same_price:
+                        unchanged_count += 1
+                        continue
+                    c.execute(
+                        "UPDATE prices SET name=?, unit=?, price=? WHERE id=?",
+                        (name_str, unit_str, price, existing_id),
+                    )
+                    existing_rows[name_key] = (existing_id, name_str, unit_str, price)
+                    updated_count += 1
+                    continue
+
                 c.execute(
                     "INSERT INTO prices (name, unit, price) VALUES (?, ?, ?)",
-                    (name_str, str(unit).strip() if unit else "шт.", price),
+                    (name_str, unit_str, price),
                 )
-                existing_names.add(name_key)
+                existing_rows[name_key] = (c.lastrowid, name_str, unit_str, price)
                 inserted_count += 1
 
             conn.commit()
             conn.close()
-            self.pm_refresh_list()
+            self.refresh_price_views()
             messagebox.showinfo(
                 "Успешно",
                 "Импорт завершен!\n"
                 f"Добавлено: {inserted_count}\n"
-                f"Дубликатов пропущено: {duplicate_count}\n"
+                f"Обновлено существующих: {updated_count}\n"
+                f"Уже актуальных пропущено: {unchanged_count}\n"
                 f"Некорректных строк пропущено: {skipped_count}",
             )
         except Exception as e:
             messagebox.showerror("Ошибка", f"Техническая ошибка: {e}")
+
+    def refresh_price_views(self):
+        if hasattr(self, "pm_tree") and self.pm_tree.winfo_exists():
+            self.pm_refresh_list()
+        if hasattr(self, "inline_db_tree") and self.inline_db_tree.winfo_exists():
+            self.filter_inline_prices()
+        if hasattr(self, "db_tree") and self.db_tree.winfo_exists():
+            self.filter_prices_list()
 
     def pm_refresh_list(self):
         for item in self.pm_tree.get_children(): self.pm_tree.delete(item)
@@ -1319,9 +1479,9 @@ class SmetaApp(ctk.CTk):
         conn = sqlite3.connect(PRICE_DB_PATH)
         conn.cursor().execute("INSERT INTO prices (name, unit, price) VALUES (?, ?, ?)", (name, unit, price_float))
         conn.commit(); conn.close()
-        self.pm_refresh_list()
+        self.refresh_price_views()
         self.pm_name.delete(0, 'end'); self.pm_unit.delete(0, 'end'); self.pm_price.delete(0, 'end')
-        messagebox.showinfo("Успешно", f"Работа «{name}» добавлена в базу!")
+        messagebox.showinfo("Успешно", f"Работа {name} добавлена в базу!")
 
     def pm_update(self):
         item_id, name, unit, price = self.pm_id_var.get(), self.pm_name.get().strip(), self.pm_unit.get().strip(), self.pm_price.get().strip()
@@ -1334,7 +1494,7 @@ class SmetaApp(ctk.CTk):
         conn = sqlite3.connect(PRICE_DB_PATH)
         conn.cursor().execute("UPDATE prices SET name=?, unit=?, price=? WHERE id=?", (name, unit, price_float, item_id))
         conn.commit(); conn.close()
-        self.pm_refresh_list()
+        self.refresh_price_views()
         self.pm_name.delete(0, 'end'); self.pm_unit.delete(0, 'end'); self.pm_price.delete(0, 'end'); self.pm_id_var.set("")
         messagebox.showinfo("Успешно", "Изменения сохранены!")
 
@@ -1343,7 +1503,7 @@ class SmetaApp(ctk.CTk):
         conn = sqlite3.connect(PRICE_DB_PATH)
         conn.cursor().execute("DELETE FROM prices WHERE id=?", (self.pm_id_var.get(),))
         conn.commit(); conn.close()
-        self.pm_refresh_list()
+        self.refresh_price_views()
         self.pm_name.delete(0, 'end'); self.pm_unit.delete(0, 'end'); self.pm_price.delete(0, 'end')
 
     # --- ОКНО ДОБАВЛЕНИЯ И ПОИСК БЕЗ УЧЕТА РЕГИСТРА ---
@@ -1356,9 +1516,11 @@ class SmetaApp(ctk.CTk):
         sf = ctk.CTkFrame(self.add_window, fg_color="transparent")
         sf.pack(fill="x", padx=10, pady=10)
         ctk.CTkLabel(sf, text="Поиск:").pack(side="left", padx=5)
-        self.search_entry = ctk.CTkEntry(sf, width=400)
+        self.search_var = tk.StringVar()
+        self.search_entry = ctk.CTkEntry(sf, width=400, textvariable=self.search_var)
         self.search_entry.pack(side="left", padx=5)
-        self.search_entry.bind("<KeyRelease>", self.filter_prices_list)
+        self.search_var.trace_add("write", lambda *_: self.filter_prices_list())
+        self.bind_search_shortcuts(self.search_entry, self.filter_prices_list)
 
         self.db_tree = ttk.Treeview(self.add_window, columns=("id", "name", "unit", "price"), show="headings")
         self.db_tree.heading("id", text="ID"); self.db_tree.heading("name", text="Наименование")
@@ -1406,7 +1568,7 @@ class SmetaApp(ctk.CTk):
             qty = self.parse_float_input(self.qty_entry.get(), "Количество", allow_zero=False)
         except ValueError as exc:
             return messagebox.showwarning("Ошибка", str(exc))
-        self.tree.insert("", "end", values=(v[1], v[2], qty, float(v[3]), float(v[3])*qty, float(v[3])*qty))
+        self.insert_estimate_row(v[1], v[2], qty, v[3], v[0])
         self.recalculate_total()
         self.add_window.destroy()
 
@@ -1423,7 +1585,7 @@ class SmetaApp(ctk.CTk):
             qty = self.parse_float_input(self.inline_qty_entry.get(), "Количество", allow_zero=False)
         except ValueError as exc:
             return messagebox.showwarning("Ошибка", str(exc))
-        self.tree.insert("", "end", values=(v[1], v[2], qty, float(v[3]), float(v[3]) * qty, float(v[3]) * qty))
+        self.insert_estimate_row(v[1], v[2], qty, v[3], v[0])
         self.recalculate_total()
         self.inline_search_entry.delete(0, 'end')
         self.inline_qty_entry.delete(0, 'end')
@@ -1558,7 +1720,7 @@ class SmetaApp(ctk.CTk):
         d = ctk.CTkInputDialog(text="Название раздела:", title="Раздел")
         r = d.get_input()
         if r:
-            self.tree.insert("", "end", values=(r, "", "", "", "", ""), tags=("room",))
+            self.tree.insert("", "end", values=self.normalize_tree_values((r,), tags=("room",)), tags=("room",))
             self.schedule_autosave()
 
     def delete_row(self):
@@ -1574,17 +1736,32 @@ class SmetaApp(ctk.CTk):
             d = ctk.CTkInputDialog(text="Изменить название:", title="Редактирование")
             n = d.get_input()
             if n:
-                self.tree.item(self.edit_item_id, values=(n, "", "", "", "", ""))
+                self.tree.item(self.edit_item_id, values=self.normalize_tree_values((n,), tags=("room",)))
                 self.schedule_autosave()
         else:
+            price_ref = str(v[6]).strip() if len(v) > 6 else ""
+            self.edit_price_ref = price_ref
             self.edit_win = ctk.CTkToplevel(self)
-            self.edit_win.geometry("400x250"); self.edit_win.attributes('-topmost', True)
+            self.edit_win.geometry("430x320"); self.edit_win.attributes('-topmost', True)
             ctk.CTkLabel(self.edit_win, text="Наименование:").pack()
-            self.ed_name = ctk.CTkEntry(self.edit_win, width=350); self.ed_name.pack(); self.ed_name.insert(0, v[0])
+            self.ed_name = ctk.CTkEntry(self.edit_win, width=360); self.ed_name.pack(); self.ed_name.insert(0, v[0])
             f = ctk.CTkFrame(self.edit_win, fg_color="transparent"); f.pack(pady=10)
             self.ed_unit = ctk.CTkEntry(f, width=60); self.ed_unit.grid(row=0, column=0, padx=5); self.ed_unit.insert(0, v[1])
             self.ed_qty = ctk.CTkEntry(f, width=60); self.ed_qty.grid(row=0, column=1, padx=5); self.ed_qty.insert(0, v[2])
             self.ed_price = ctk.CTkEntry(f, width=80); self.ed_price.grid(row=0, column=2, padx=5); self.ed_price.insert(0, v[3])
+            self.save_price_var = None
+            if price_ref:
+                hint = ctk.CTkFrame(self.edit_win, fg_color="#eef4fb", corner_radius=12)
+                hint.pack(fill="x", padx=20, pady=(0, 10))
+                ctk.CTkLabel(hint, text="Позиция добавлена из прайс-листа.", anchor="w").pack(anchor="w", padx=12, pady=(8, 2))
+                self.save_price_var = tk.BooleanVar(value=True)
+                ctk.CTkCheckBox(
+                    hint,
+                    text="Сохранить изменения в прайс-лист",
+                    variable=self.save_price_var,
+                    onvalue=True,
+                    offvalue=False,
+                ).pack(anchor="w", padx=12, pady=(0, 8))
             ctk.CTkButton(self.edit_win, text="Сохранить", command=self.save_edit).pack(pady=10)
 
     def save_edit(self):
@@ -1600,7 +1777,19 @@ class SmetaApp(ctk.CTk):
         except ValueError as exc:
             messagebox.showwarning("Ошибка", str(exc))
             return
-        self.tree.item(self.edit_item_id, values=(name, unit, q, p, q*p, q*p))
+        price_ref = getattr(self, "edit_price_ref", "")
+        self.tree.item(
+            self.edit_item_id,
+            values=self.normalize_tree_values((name, unit, q, p, q * p, q * p, price_ref)),
+        )
+        if price_ref and getattr(self, "save_price_var", None) and self.save_price_var.get():
+            conn = sqlite3.connect(PRICE_DB_PATH)
+            conn.cursor().execute(
+                "UPDATE prices SET name=?, unit=?, price=? WHERE id=?",
+                (name, unit, p, price_ref),
+            )
+            conn.commit(); conn.close()
+            self.refresh_price_views()
         self.recalculate_total()
         self.edit_win.destroy()
 
@@ -1608,14 +1797,21 @@ class SmetaApp(ctk.CTk):
 
     def recalculate_total(self):
         d_pct = self.get_discount_percent()
-        t_sum = t_disc = 0
+        t_sum = 0.0
+        t_disc = 0.0
         for child in self.tree.get_children():
-            if "room" in self.tree.item(child, "tags"): continue
+            if "room" in self.tree.item(child, "tags"):
+                continue
             v = list(self.tree.item(child, "values"))
-            v[5] = float(v[4]) * (1 - d_pct / 100)
-            self.tree.item(child, values=v)
-            t_sum += float(v[4]); t_disc += v[5]
-        self.totals_text.set(f"ИТОГО: {t_sum:,.0f} руб.   |   Со скидкой: {t_disc:,.0f} руб.".replace(',', ' '))
+            qty = self.parse_tree_number(v[2])
+            price = self.parse_tree_number(v[3])
+            total = round(qty * price, 2)
+            total_disc = round(total * (1 - d_pct / 100), 2)
+            price_ref = v[6] if len(v) > 6 else ""
+            self.tree.item(child, values=self.normalize_tree_values((v[0], v[1], qty, price, total, total_disc, price_ref)))
+            t_sum += total
+            t_disc += total_disc
+        self.totals_text.set(f"?????: {t_sum:,.0f} ???.   |   ?? ???????: {t_disc:,.0f} ???.".replace(',', ' '))
         self.schedule_autosave()
 
     def export_to_pdf(self):
@@ -1731,6 +1927,7 @@ class SmetaApp(ctk.CTk):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--project-id", type=int)
+    parser.add_argument("--price-manager", action="store_true")
     args, _ = parser.parse_known_args(sys.argv[1:])
     project_context = None
     if args.project_id:
@@ -1756,4 +1953,4 @@ if __name__ == "__main__":
         conn.close()
         if row:
             project_context = dict(row)
-    SmetaApp(project_context=project_context).mainloop()
+    SmetaApp(project_context=project_context, open_price_manager_on_start=args.price_manager).mainloop()

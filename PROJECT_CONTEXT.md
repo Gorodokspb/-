@@ -1,252 +1,205 @@
-﻿# PROJECT_CONTEXT
+# PROJECT_CONTEXT
 
-## Проект
+## Project
 
-Рабочее название:
-- CRM и сметная программа для `Декорартстрой`
+Working title:
+- CRM and estimate workflow for Dekorartstroy.
 
-Основные файлы:
-- `CRM.py` - основная программа. Здесь теперь сосредоточены CRM, карточка проекта, встроенная смета и договорный сценарий.
-- `smeta.py` - старый отдельный сметный редактор. Пока оставлен как резервный вариант и как донор логики, но целевая архитектура уже смещена в `CRM.py`.
-- `dekorart_base.db` - основная база SQLite.
-- `dekorart_prices.db` - база прайс-листа.
-- `contract_template_physical.docx` - текущий шаблон договора.
+Core files:
+- `CRM.py` - main CRM app: projects, counterparties, documents, finance screens, and entry points into estimate work.
+- `smeta.py` - active estimate editor and price list manager. This is still a working tool, not a dead legacy file.
+- `dekorart_base.db` - main SQLite database for projects, documents, counterparties, and related records.
+- `dekorart_prices.db` - separate SQLite database for the price list.
+- `contract_template_physical.docx` - current contract template.
 
 GitHub:
 - `https://github.com/Gorodokspb/-.git`
 
-Рабочая ветка:
+Branch:
 - `master`
 
 
-## Где сейчас правда
+## Source Of Truth
 
-Актуальный рабочий код сейчас находится:
-- локально в папке проекта на Яндекс Диске
-- в git-репозитории этой же папки
+Current working model:
+- code lives in GitHub;
+- working databases, estimates, contracts, PDFs, and office files live in the project folder on Yandex Disk;
+- the app must work both at home and in the office even if the Yandex Disk path is different on each PC.
 
-Что важно:
-- локальные изменения уже есть и еще не отправлены в GitHub
-- основные доработки этой сессии сделаны в `CRM.py`
-- `smeta.py` менялся ранее, но текущий фокус уже на переносе сметного сценария внутрь CRM
+Important conclusion from recent work:
+- the main failure was not missing saves;
+- the real problem was stale absolute paths stored inside the local data layer;
+- code has been moved toward path handling relative to the project folder, with repair logic for older saved paths.
 
-
-## Главная продуктовая идея
-
-Целевая программа теперь одна:
-- `CRM.py`
-
-Целевой бизнес-процесс зафиксирован так:
-1. Сначала создается смета.
-2. После согласования сметы оформляется проект.
-3. Затем создается или привязывается контрагент.
-4. После этого формируется договор.
-
-Важно:
-- вход в работу начинается от сметы, а не от контрагента
-- проект является рабочим контейнером объекта, документов, сметы, договора, истории и финансов
-- контрагент может появляться позже, только на этапе оформления договора
+Current truth:
+- `CRM.py` is the main CRM shell and project workflow;
+- `smeta.py` is still the real estimate and price list tool used in daily work.
 
 
-## Что уже сделано
+## Product Flow
 
-### Общая архитектура
+The agreed business flow is:
+1. Create estimate.
+2. Create project from the estimate.
+3. Create or attach counterparty.
+4. Generate contract.
+5. Continue project execution through documents and finance.
 
-- Подтверждено, что целевая программа теперь одна: `CRM.py`.
-- `smeta.py` больше не рассматривается как конечная архитектура, а остается временным отдельным инструментом.
-- Основной сценарий проекта переориентирован под цепочку `смета -> проект -> контрагент -> договор`.
-
-### Смета внутри CRM
-
-- В карточке проекта есть полноценная вкладка `Смета`.
-- CRM уже умеет:
-  - читать текущий draft сметы
-  - показывать сводку по смете
-  - показывать превью строк сметы
-  - редактировать шапку сметы
-  - добавлять разделы и позиции
-  - редактировать и удалять строки
-  - пересчитывать итог и сумму со скидкой
-  - сохранять черновик сметы прямо из CRM
-  - сохранять PDF сметы прямо из CRM
-- Во вкладке сметы есть быстрый переход:
-  - `Сохранить и к договору`
-- При сохранении сметы данные синхронизируются в проект:
-  - объект
-  - заказчик
-  - договор
-  - дата договора, если она распознана из строки договора
-
-### Проекты и контрагенты
-
-- Проект теперь можно создать без контрагента.
-- В карточке проекта добавлены действия:
-  - открыть контрагента
-  - привязать существующего контрагента
-  - создать нового контрагента из проекта
-- При создании контрагента из проекта автоподставляются стартовые данные из сметы и проекта:
-  - заказчик
-  - объект
-- После сохранения новый контрагент автоматически привязывается к проекту.
-
-### Валидация контрагента для договора
-
-Для физлица перед договором обязательны:
-- ФИО
-- серия и номер паспорта
-- кем выдан паспорт
-- дата выдачи паспорта
-- код подразделения
-- адрес регистрации
-- адрес выполнения работ
-- телефон
-- email
-
-Для ООО обязательны:
-- наименование
-- ИНН
-- КПП
-- ОГРН
-- расчетный счет
-- корреспондентский счет
-- банк
-- БИК
-- юридический адрес
-- телефон
-- email
-- ФИО директора
-- основание действия
-
-Для ИП обязательны:
-- ФИО или наименование
-- ИНН
-- ОГРНИП
-- расчетный счет
-- корреспондентский счет
-- банк
-- БИК
-- адрес
-- телефон
-- email
-
-- Сохранение контрагента и генерация договора теперь блокируются, если обязательные поля не заполнены.
-
-### Договорный сценарий
-
-- В карточке проекта добавлен явный маршрут:
-  1. Смета
-  2. Контрагент
-  3. Договор
-- Во вкладке документов есть блок `Готовность договора`.
-- Договорный блок теперь надежнее подтягивает данные из сметы, проекта и контрагента:
-  - заказчик
-  - объект
-  - сумма сметы
-  - номер договора
-  - дата договора
-  - адрес объекта
-  - контакты
-  - паспортные данные или реквизиты
-- В окне договора есть кнопка:
-  - `Подтянуть из сметы и проекта`
-- В окне договора добавлен блок `Откуда берутся данные`, чтобы было понятно, где менять исходные значения правильно.
-
-### Автоматизация и ручной ввод в договоре
-
-- Автоподставляемые поля в договоре по умолчанию заблокированы для случайного редактирования.
-- Для редких случаев можно включить ручное редактирование автоподставленных данных.
-- Для текстовых блоков договора добавлены шаблонные заполнения:
-  - вводный абзац
-  - блок платежей
-  - блок коммуникаций / условий
-- Эти блоки лучше связаны с итоговой генерацией договора.
-
-### Платежный блок договора
-
-- Платежный график теперь можно задавать вручную в любом количестве строк.
-- Аванс задается отдельно.
-- Промежуточные платежи идут отдельными строками:
-  - `Платеж 2`
-  - `Платеж 3`
-  - `Платеж 4`
-  - и так далее
-- Финальный платеж по умолчанию рассчитывается автоматически.
-- Для редких случаев есть режим ручного задания финального платежа.
-- Если сумма платежей меньше суммы сметы:
-  - показывается остаток
-- Если сумма платежей ровно равна сумме сметы:
-  - показывается, что график закрывает смету полностью
-- Если сумма платежей превышает сумму сметы:
-  - показывается переплата
-  - сохранение договорных настроек блокируется
-
-### Предпросмотр перед генерацией
-
-- В окне договора есть живой блок `Ключевые данные перед генерацией`.
-- Он показывает:
-  - номер договора
-  - заказчика
-  - объект
-  - сумму сметы
-  - аванс
-  - количество промежуточных платежей
-  - финальный платеж
-  - остаток или переплату
-
-### Быстрые переходы внутри договорного сценария
-
-- В окне договора есть блок проверки перед генерацией.
-- Он подсказывает, чего именно не хватает.
-- Из него можно быстро:
-  - открыть смету проекта
-  - открыть контрагента
-  - создать контрагента
+Key rule:
+- work starts from the estimate, not from the counterparty.
 
 
-## Что требует проверки на реальном кейсе
+## Architecture Decisions
 
-### Генерация договора по шаблону Word
+### Estimate First
 
-Нужно обязательно проверить на реальном `.docx` шаблоне:
-- все ли плейсхолдеры совпадают с тем, что сейчас подставляет код
-- как именно вставляются ручные текстовые блоки
-- нет ли расхождений в названиях плейсхолдеров
-- не ломается ли форматирование шаблона после генерации
+The estimate is the first-class entry point of the deal.
+It is not a side utility.
+It is the starting state that later feeds the project, counterparty, and contract steps.
 
-Особенно важно проверить плейсхолдеры, связанные с:
-- вводным абзацем
-- блоком платежей
-- блоком коммуникаций / условий
-- реквизитами и паспортными данными
+### CRM + Estimate Split
 
-### Визуальная полировка
+Current split is intentional:
+- `CRM.py` owns the CRM shell and project lifecycle;
+- `smeta.py` owns estimate editing and price list operations.
 
-Пользователь уже запускал CRM вручную и начал находить визуальные ошибки.
-Следующий практический этап после текущего обновления контекста:
-- пройтись по визуальным багам
-- поправить верстку экранов
-- проверить удобство окна договора на реальном размере окна
+### Storage Model
 
+Current storage model is:
+- GitHub for code and templates;
+- Yandex Disk for working data and generated files.
 
-## Что не надо делать прямо сейчас
+Do not try to put all working data into plain Git.
+SQLite files, Office files, PDFs, and other binaries should stay outside normal Git history.
 
-Пока не расползаться на:
-- большой рефакторинг всего `CRM.py`
-- полную переработку финансового блока
-- перенос актов
-- глубокую миграцию сметных данных в новые отдельные таблицы
-- косметическую переделку всего меню без необходимости
+### Path Strategy
 
-Сейчас важнее:
-- довести договорный сценарий до практической устойчивости
-- проверить генерацию договора на реальном шаблоне
-- исправить визуальные ошибки, найденные при ручном запуске
+The app should avoid hard dependency on absolute machine-specific paths.
+Saved paths should be relative or repairable from the current workspace root.
 
 
-## Ближайший следующий шаг
+## Confirmed Product Rules
 
-Следующий рабочий шаг после этого файла:
-1. Собрать и исправить найденные пользователем визуальные ошибки.
-2. Прогнать договорный сценарий на реальном проекте.
-3. Проверить соответствие Word-шаблона текущим плейсхолдерам.
-4. Только после этого переходить к следующим крупным разделам.
+### Project And Contract Order
+
+The correct order is:
+- estimate;
+- project;
+- counterparty;
+- contract.
+
+Counterparty creation can happen after estimate work.
+Contract generation depends on valid project, estimate, and counterparty data.
+
+### Price List
+
+Current expected behavior:
+- Excel import must not create duplicate rows for the same work name;
+- if a work already exists and price or unit changed, the existing row should be updated;
+- if the existing row is already current, it should be skipped;
+- an estimate row added from the price list should keep a reference to the source price row;
+- when editing that estimate row, the user can choose to push the changed price back into the price list.
+
+### Finance / Cash Desk Direction
+
+The planned finance model is:
+- one shared cash desk as the source of truth;
+- every income or expense can optionally be linked to a project at creation time;
+- project finance screens should show filtered views of the same shared operations;
+- no duplicate finance entries should be created inside project tabs.
+
+This direction is accepted, but not fully implemented yet.
+
+
+## Recent Technical Work
+
+### Home / Office Reliability
+
+- path handling was improved to be more portable across different PCs;
+- old saved document paths can be repaired against the current project workspace;
+- the app should be more stable when the same folder is opened from different Yandex Disk root paths.
+
+### UI And Windowing
+
+- window positioning and sizing were adjusted for real user screens;
+- some forms were made more scrollable and screen-friendly;
+- duplicated labels in the sidebar and project cards were reduced.
+
+### Copy / Paste Support
+
+Text fields now need to support:
+- `Ctrl+C`
+- `Ctrl+V`
+- `Ctrl+X`
+- `Ctrl+A`
+- `Delete`
+- right-click context menu actions
+
+This especially matters in estimate search fields and project forms.
+
+### Estimate UX Fixes
+
+Recent fixes focused on:
+- quick search reacting immediately after paste;
+- proper clipboard behavior in estimate search fields;
+- better bottom action bar layout in the estimate window;
+- rounding and normalization of totals to avoid floating-point artifacts.
+
+### Price List Access
+
+The price list should be reachable:
+- from inside the estimate editor;
+- directly from the CRM sidebar.
+
+The user should not need to enter a project and then enter estimate mode just to update prices.
+
+### Excel Import Window
+
+The Excel file picker for price import must open as a proper child flow of the price manager window.
+It should not hide behind the price manager and block interaction.
+
+
+## Things That Still Need Real Manual Testing
+
+These must be checked on live UI runs:
+- CRM opening on the user screen size;
+- project card opening and fit on screen;
+- estimate editor opening from a project;
+- direct price list opening from CRM;
+- Excel import into the price list;
+- `Ctrl+V` in estimate search fields;
+- immediate search refresh after paste;
+- bottom estimate buttons staying visible;
+- contract generation against the real Word template.
+
+Also validate with a real workflow:
+- office save -> home reopen;
+- price update import -> estimate add/edit -> save back to price list;
+- estimate -> project -> counterparty -> contract end-to-end flow.
+
+
+## What Not To Do Right Now
+
+Do not spend time on:
+- large refactor of all `CRM.py`;
+- rebuilding the whole estimate architecture from scratch;
+- moving all working data into GitHub;
+- deep database migration without real need;
+- broad cosmetic redesign unrelated to active workflow pain.
+
+
+## Current Priority
+
+Current priority is:
+1. keep the live workflow stable;
+2. finish manual bug fixes found from real user screenshots;
+3. validate the full path from estimate to contract;
+4. then move to the shared cash desk implementation.
+
+
+## Next Step
+
+Next practical step:
+1. finish remaining UI bugs found in manual testing;
+2. run a full real-object flow: estimate -> project -> counterparty -> contract;
+3. then implement the shared cash desk model without duplicated project finance entries.

@@ -91,9 +91,8 @@ class CRMApp(ctk.CTk):
     def __init__(self, initial_project_id=None):
         super().__init__()
         self.title("CRM Декорартстрой")
-        self.geometry("1440x900")
-        self.minsize(1280, 780)
         self.configure(fg_color="#eef2f7")
+        self.configure_main_window_geometry()
         self.selected_project_id = None
         self.counterparty_map = {}
         self.project_map = {}
@@ -112,10 +111,96 @@ class CRMApp(ctk.CTk):
         self.configure_styles()
         self.build_ui()
         self.prompt_user_login()
+        self.maximize_main_window()
         self.refresh_all()
+        self.after(80, self.maximize_main_window)
+        self.after(260, self.maximize_main_window)
+        self.after(700, self.maximize_main_window)
         self.after(700, self.run_startup_health_check)
         if self.initial_project_id:
             self.after(250, lambda: self.show_project_from_cli(self.initial_project_id))
+
+    def get_screen_work_area(self):
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            rect = wintypes.RECT()
+            if ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(rect), 0):
+                return rect.left, rect.top, rect.right, rect.bottom
+        except Exception:
+            pass
+        return 0, 0, max(self.winfo_screenwidth(), 800), max(self.winfo_screenheight(), 600)
+
+    def configure_main_window_geometry(self):
+        left, top, right, bottom = self.get_screen_work_area()
+        area_w = max(right - left, 960)
+        area_h = max(bottom - top, 640)
+        width = min(1440, max(960, area_w - 48))
+        height = min(900, max(640, area_h - 48))
+        min_width = min(1280, width)
+        min_height = min(780, height)
+        self.geometry(f"{int(width)}x{int(height)}")
+        self.minsize(int(min_width), int(min_height))
+        if self.should_start_zoomed(area_w, area_h):
+            self.after(40, self.maximize_main_window)
+            self.after(220, self.maximize_main_window)
+            self.after(500, self.maximize_main_window)
+        else:
+            self.after(30, self.center_main_window)
+            self.after(180, self.center_main_window)
+
+    def should_start_zoomed(self, area_w, area_h):
+        return area_w <= 1450 or area_h <= 900
+
+    def maximize_main_window(self):
+        try:
+            self.update_idletasks()
+            self.deiconify()
+            left, top, right, bottom = self.get_screen_work_area()
+            width = max(right - left, 960)
+            height = max(bottom - top, 640)
+            self.geometry(f"{int(width)}x{int(height)}+{int(left)}+{int(top)}")
+            try:
+                import ctypes
+                hwnd = self.winfo_id()
+                ctypes.windll.user32.ShowWindow(hwnd, 3)
+            except Exception:
+                pass
+            try:
+                self.state("zoomed")
+            except Exception:
+                pass
+            try:
+                self.wm_state("zoomed")
+            except Exception:
+                pass
+            try:
+                self.attributes("-zoomed", True)
+            except Exception:
+                pass
+            try:
+                self.lift()
+            except Exception:
+                pass
+        except Exception:
+            self.center_main_window()
+
+    def center_main_window(self):
+        try:
+            self.update_idletasks()
+            left, top, right, bottom = self.get_screen_work_area()
+            area_w = max(right - left, 960)
+            area_h = max(bottom - top, 640)
+            max_w = max(960, area_w - 16)
+            max_h = max(640, area_h - 16)
+            width = min(max(self.winfo_width(), self.winfo_reqwidth(), 960), max_w)
+            height = min(max(self.winfo_height(), self.winfo_reqheight(), 640), max_h)
+            x = left + max((area_w - width) // 2, 8)
+            y = top + max((area_h - height) // 2, 8)
+            self.geometry(f"{int(width)}x{int(height)}+{int(x)}+{int(y)}")
+        except Exception:
+            pass
 
     def configure_styles(self):
         style = ttk.Style()
@@ -2349,11 +2434,12 @@ finally {
 
         sidebar_actions = ctk.CTkFrame(self.sidebar, fg_color="#202733", corner_radius=18)
         sidebar_actions.pack(fill="x", padx=14, pady=(0, 10))
-        ctk.CTkLabel(sidebar_actions, text="Быстрые действия", font=("Segoe UI Semibold", 14), text_color="#f8fbff").pack(anchor="w", padx=14, pady=(14, 4))
-        ctk.CTkButton(sidebar_actions, text="+ Новый проект", height=38, fg_color="#1f8fff", hover_color="#1873cf", command=self.open_add_project_window).pack(fill="x", padx=12, pady=6)
-        ctk.CTkButton(sidebar_actions, text="+ Новый контрагент", height=38, fg_color="#35a66f", hover_color="#2a885a", command=self.open_add_counterparty_window).pack(fill="x", padx=12, pady=6)
-        ctk.CTkButton(sidebar_actions, text="Открыть проект", height=38, fg_color="#f0b429", text_color="#233042", hover_color="#d99a11", command=self.open_project_card).pack(fill="x", padx=12, pady=6)
-        ctk.CTkButton(sidebar_actions, text="Удалить проект", height=38, fg_color="#d9534f", hover_color="#b63f3b", command=self.delete_project).pack(fill="x", padx=12, pady=(6, 14))
+        ctk.CTkLabel(sidebar_actions, text="??????? ????????", font=("Segoe UI Semibold", 14), text_color="#f8fbff").pack(anchor="w", padx=14, pady=(14, 4))
+        ctk.CTkButton(sidebar_actions, text="+ ????? ??????", height=38, fg_color="#1f8fff", hover_color="#1873cf", command=self.open_add_project_window).pack(fill="x", padx=12, pady=6)
+        ctk.CTkButton(sidebar_actions, text="+ ????? ??????????", height=38, fg_color="#35a66f", hover_color="#2a885a", command=self.open_add_counterparty_window).pack(fill="x", padx=12, pady=6)
+        ctk.CTkButton(sidebar_actions, text="??????? ??????", height=38, fg_color="#f0b429", text_color="#233042", hover_color="#d99a11", command=self.open_project_card).pack(fill="x", padx=12, pady=6)
+        ctk.CTkButton(sidebar_actions, text="Прайс-лист", height=38, fg_color="#183153", hover_color="#12243d", command=self.open_price_manager_window).pack(fill="x", padx=12, pady=6)
+        ctk.CTkButton(sidebar_actions, text="??????? ??????", height=38, fg_color="#d9534f", hover_color="#b63f3b", command=self.delete_project).pack(fill="x", padx=12, pady=(6, 14))
 
         info_block = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         info_block.pack(fill="x", padx=18, pady=(0, 18))
@@ -2467,12 +2553,13 @@ finally {
             pass
         try:
             win.update_idletasks()
-            screen_w = max(win.winfo_screenwidth(), 800)
-            screen_h = max(win.winfo_screenheight(), 600)
+            left, top, right, bottom = self.get_screen_work_area()
+            area_w = max(right - left, 800)
+            area_h = max(bottom - top, 600)
             width = max(win.winfo_width(), win.winfo_reqwidth(), 420)
             height = max(win.winfo_height(), win.winfo_reqheight(), 240)
-            max_w = max(420, screen_w - 80)
-            max_h = max(240, screen_h - 120)
+            max_w = max(420, area_w - 48)
+            max_h = max(240, area_h - 48)
             width = min(width, max_w)
             height = min(height, max_h)
             if parent is not None and parent.winfo_exists():
@@ -2480,11 +2567,11 @@ finally {
                 x = parent.winfo_rootx() + max((parent.winfo_width() - width) // 2, 0)
                 y = parent.winfo_rooty() + max((parent.winfo_height() - height) // 2, 0)
             else:
-                x = (screen_w - width) // 2
-                y = (screen_h - height) // 2
-            x = max(16, min(x, screen_w - width - 16))
-            y = max(16, min(y, screen_h - height - 48))
-            win.geometry(f"{width}x{height}+{x}+{y}")
+                x = left + (area_w - width) // 2
+                y = top + (area_h - height) // 2
+            x = max(left + 16, min(x, right - width - 16))
+            y = max(top + 16, min(y, bottom - height - 16))
+            win.geometry(f"{int(width)}x{int(height)}+{int(x)}+{int(y)}")
         except Exception:
             pass
         try:
@@ -3443,6 +3530,13 @@ finally {
             subprocess.Popen([sys.executable, smeta_path, "--project-id", str(project_id)])
         except Exception as exc:
             messagebox.showerror("Ошибка", f"Не удалось открыть смету проекта:\n{exc}")
+
+    def open_price_manager_window(self):
+        smeta_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "smeta.py")
+        try:
+            subprocess.Popen([sys.executable, smeta_path, "--price-manager"])
+        except Exception as exc:
+            messagebox.showerror("Ошибка", f"Не удалось открыть прайс-лист:\n{exc}")
 
     def open_document_file(self, doc_row):
         if not doc_row:
