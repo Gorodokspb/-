@@ -2434,12 +2434,12 @@ finally {
 
         sidebar_actions = ctk.CTkFrame(self.sidebar, fg_color="#202733", corner_radius=18)
         sidebar_actions.pack(fill="x", padx=14, pady=(0, 10))
-        ctk.CTkLabel(sidebar_actions, text="??????? ????????", font=("Segoe UI Semibold", 14), text_color="#f8fbff").pack(anchor="w", padx=14, pady=(14, 4))
-        ctk.CTkButton(sidebar_actions, text="+ ????? ??????", height=38, fg_color="#1f8fff", hover_color="#1873cf", command=self.open_add_project_window).pack(fill="x", padx=12, pady=6)
-        ctk.CTkButton(sidebar_actions, text="+ ????? ??????????", height=38, fg_color="#35a66f", hover_color="#2a885a", command=self.open_add_counterparty_window).pack(fill="x", padx=12, pady=6)
-        ctk.CTkButton(sidebar_actions, text="??????? ??????", height=38, fg_color="#f0b429", text_color="#233042", hover_color="#d99a11", command=self.open_project_card).pack(fill="x", padx=12, pady=6)
+        ctk.CTkLabel(sidebar_actions, text="Быстрые действия", font=("Segoe UI Semibold", 14), text_color="#f8fbff").pack(anchor="w", padx=14, pady=(14, 4))
+        ctk.CTkButton(sidebar_actions, text="+ Новый проект", height=38, fg_color="#1f8fff", hover_color="#1873cf", command=self.open_add_project_window).pack(fill="x", padx=12, pady=6)
+        ctk.CTkButton(sidebar_actions, text="+ Новый контрагент", height=38, fg_color="#35a66f", hover_color="#2a885a", command=self.open_add_counterparty_window).pack(fill="x", padx=12, pady=6)
+        ctk.CTkButton(sidebar_actions, text="Открыть проект", height=38, fg_color="#f0b429", text_color="#233042", hover_color="#d99a11", command=self.open_project_card).pack(fill="x", padx=12, pady=6)
         ctk.CTkButton(sidebar_actions, text="Прайс-лист", height=38, fg_color="#183153", hover_color="#12243d", command=self.open_price_manager_window).pack(fill="x", padx=12, pady=6)
-        ctk.CTkButton(sidebar_actions, text="??????? ??????", height=38, fg_color="#d9534f", hover_color="#b63f3b", command=self.delete_project).pack(fill="x", padx=12, pady=(6, 14))
+        ctk.CTkButton(sidebar_actions, text="Удалить проект", height=38, fg_color="#d9534f", hover_color="#b63f3b", command=self.delete_project).pack(fill="x", padx=12, pady=(6, 14))
 
         info_block = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         info_block.pack(fill="x", padx=18, pady=(0, 18))
