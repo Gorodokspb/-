@@ -20,6 +20,7 @@ File map:
 - `10_TESTING_AND_QA.md` - manual test matrix and verification notes.
 - `11_ENVIRONMENT_AND_PATHS.md` - machine, repo, and storage-path realities.
 - `12_CONVERSATION_RULES.md` - how to preserve chat decisions in project memory.
+- `13_WEB_DEPLOYMENT_PLAN.md` - staged path from desktop CRM to browser-based access on a rented server.
 
 Quick rule:
 - if something must still matter next week, it should live in one of these files.

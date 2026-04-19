@@ -31,12 +31,14 @@ Current product priority:
 1. Keep the live workflow stable.
 2. Fix bugs found from real use and screenshots.
 3. Validate the full estimate -> project -> counterparty -> contract path.
-4. After stability, move into the shared cash desk implementation.
+4. Prepare the future browser-based deployment path so testing can happen through login/password on a server.
+5. After stability, move into the shared cash desk implementation.
 
 What is already known:
 - `smeta.py` is not dead legacy code; it is still a live daily-use tool.
 - The biggest portability problem was stale absolute paths, not missing saves.
 - Path handling should be relative to the project folder or repairable when older data contains machine-specific paths.
+- The current application is a desktop `customtkinter` app with local SQLite and file-based document storage, so browser access will require a web layer or a staged migration rather than a simple hosting switch.
 
 What not to do casually:
 - do not refactor all of `CRM.py` just for cleanliness;

@@ -30,7 +30,7 @@ DB_PATH = os.path.join(BASE_DIR, "dekorart_base.db")
 CONTRACT_TEMPLATE_PATH = os.path.join(BASE_DIR, "contract_template_physical.docx")
 
 COUNTERPARTY_TYPES = ["Физическое лицо", "Юридическое лицо ООО", "Юридическое лицо ИП"]
-PROJECT_STATUSES = ["В работе", "Пауза", "Завершен"]
+PROJECT_STATUSES = ["Черновик", "В работе", "Пауза", "Завершён"]
 DOCUMENT_TYPES = [
     "Договор",
     "Смета (приложение № 1)",
@@ -652,11 +652,27 @@ class CRMApp(ctk.CTk):
     def validate_counterparty_row_for_contract(self, counterparty_row):
         if not counterparty_row:
             return ["Контрагент проекта не выбран"]
-        if "counterparty_id" in counterparty_row.keys() and not counterparty_row["counterparty_id"]:
+        row_keys = counterparty_row.keys() if hasattr(counterparty_row, "keys") else []
+        if "counterparty_id" in row_keys and not counterparty_row["counterparty_id"]:
             return ["Контрагент проекта не выбран"]
-        if not str(counterparty_row["type"] or "").strip():
+
+        # Some CRM flows pass a project row that only contains counterparty_id.
+        # Load the full counterparty before validating required contract fields.
+        if "type" not in row_keys and "counterparty_id" in row_keys and counterparty_row["counterparty_id"]:
+            conn = self.get_connection()
+            c = conn.cursor()
+            counterparty_row = c.execute(
+                "SELECT * FROM counterparties WHERE id=?",
+                (counterparty_row["counterparty_id"],),
+            ).fetchone()
+            conn.close()
+            if not counterparty_row:
+                return ["Контрагент проекта не найден"]
+            row_keys = counterparty_row.keys() if hasattr(counterparty_row, "keys") else []
+
+        if "type" not in row_keys or not str(counterparty_row["type"] or "").strip():
             return ["Тип контрагента не указан"]
-        values = {key: counterparty_row[key] for key in counterparty_row.keys()}
+        values = {key: counterparty_row[key] for key in row_keys}
         return self.validate_counterparty_payload(counterparty_row["type"], values)
 
     def parse_date_value(self, raw_value):
@@ -1174,8 +1190,14 @@ class CRMApp(ctk.CTk):
         project_name = project_row["project_name"] if project_row and "project_name" in project_row.keys() else ""
         project_address = project_row["address"] if project_row and "address" in project_row.keys() else ""
         payload = self.get_project_smeta_payload(project_id, project_name or project_address) if project_id else None
-        contract_label = str((payload or {}).get("contract") or "").strip()
-        contract_number, contract_date = self.parse_contract_label(contract_label)
+        project_contract_raw = str((project_row["contract"] if project_row and "contract" in project_row.keys() else "") or "").strip()
+        project_contract_number, parsed_project_date = self.parse_contract_label(project_contract_raw)
+        project_contract_date = str((project_row["date"] if project_row and "date" in project_row.keys() else "") or "").strip() or parsed_project_date
+        project_contract_label = self.compose_smeta_contract_label(project_contract_number or project_contract_raw, project_contract_date)
+        payload_contract_label = str((payload or {}).get("contract") or "").strip()
+        contract_label = project_contract_label or payload_contract_label
+        contract_number, parsed_contract_date = self.parse_contract_label(contract_label)
+        contract_date = project_contract_date or parsed_contract_date
         return {
             "payload": payload or {},
             "object_name": str((payload or {}).get("object") or project_name or project_address or "").strip(),
@@ -1185,6 +1207,51 @@ class CRMApp(ctk.CTk):
             "contract_date": contract_date,
             "price_total": self.calculate_smeta_total_from_payload(payload) if payload else None,
         }
+
+    def sync_project_smeta_contract_label(self, project_id, contract_label, project_name=""):
+        if not project_id:
+            return False
+
+        payload = self.get_project_smeta_payload(project_id, project_name) or {}
+        if not payload:
+            return False
+
+        timestamp = datetime.datetime.now().isoformat(timespec="seconds")
+        payload["project_id"] = project_id
+        payload["contract"] = str(contract_label or "").strip()
+        payload["saved_at"] = timestamp
+        payload_json = json.dumps(payload, ensure_ascii=False)
+
+        conn = self.get_connection()
+        c = conn.cursor()
+        draft_rows = c.execute(
+            "SELECT id, data FROM smeta_drafts ORDER BY updated_at DESC, id DESC"
+        ).fetchall()
+        target_draft_id = None
+        for draft_row in draft_rows:
+            try:
+                draft_payload = json.loads(draft_row["data"])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if draft_payload.get("project_id") == project_id:
+                target_draft_id = draft_row["id"]
+                break
+        if target_draft_id is not None:
+            c.execute(
+                "UPDATE smeta_drafts SET data=?, updated_at=? WHERE id=?",
+                (payload_json, timestamp, target_draft_id),
+            )
+            conn.commit()
+        conn.close()
+
+        draft_path = self.get_project_smeta_draft_path(project_id, project_name)
+        if draft_path:
+            try:
+                with open(self.resolve_workspace_path(draft_path), "w", encoding="utf-8") as f:
+                    json.dump(payload, f, ensure_ascii=False, indent=2)
+            except OSError:
+                pass
+        return True
 
     def get_default_contract_settings(self, project_row=None, counterparty_row=None):
         project_name = ""
@@ -1293,6 +1360,7 @@ class CRMApp(ctk.CTk):
         )
         conn.commit()
         conn.close()
+        self.sync_project_smeta_contract_label(project_id, smeta_contract)
 
     def build_customer_intro(self, counterparty_row, settings):
         intro_override = str(settings.get("intro_override", "")).strip()
@@ -2280,7 +2348,7 @@ finally {
                    contract TEXT,
                    date TEXT,
                    counterparty_id INTEGER,
-                   status TEXT DEFAULT 'В работе',
+                   status TEXT DEFAULT 'Черновик',
                    contract_settings_json TEXT,
                    notes TEXT,
                    created_at TEXT,
@@ -2361,7 +2429,7 @@ finally {
         for name, ddl in [
             ("project_name", "ALTER TABLE projects ADD COLUMN project_name TEXT"),
             ("counterparty_id", "ALTER TABLE projects ADD COLUMN counterparty_id INTEGER"),
-            ("status", "ALTER TABLE projects ADD COLUMN status TEXT DEFAULT 'В работе'"),
+            ("status", "ALTER TABLE projects ADD COLUMN status TEXT DEFAULT 'Черновик'"),
             ("contract_settings_json", "ALTER TABLE projects ADD COLUMN contract_settings_json TEXT"),
             ("notes", "ALTER TABLE projects ADD COLUMN notes TEXT"),
             ("created_at", "ALTER TABLE projects ADD COLUMN created_at TEXT"),
@@ -2390,7 +2458,11 @@ finally {
         c.execute(
             """UPDATE projects
                SET project_name = COALESCE(NULLIF(project_name, ''), address),
-                   status = COALESCE(NULLIF(status, ''), 'В работе'),
+                   status = CASE
+                                WHEN COALESCE(NULLIF(status, ''), '') = '' THEN 'Черновик'
+                                WHEN status = 'Завершен' THEN 'Завершён'
+                                ELSE status
+                            END,
                    created_at = COALESCE(created_at, ?),
                    updated_at = COALESCE(updated_at, ?)""",
             (now, now),
@@ -2812,8 +2884,10 @@ finally {
 
     def get_project_status_colors(self, status):
         palette = {
+            "Черновик": ("#5f4b8b", "#efe4ff"),
             "В работе": ("#214a7a", "#d8ebff"),
             "Пауза": ("#6e5412", "#fff0c8"),
+            "Завершён": ("#2f5a41", "#d9f7e5"),
             "Завершен": ("#2f5a41", "#d9f7e5"),
         }
         return palette.get(status or "", ("#2d3440", "#d7dde6"))
@@ -3084,13 +3158,16 @@ finally {
                       ) AS counterparty_name,
                       COALESCE(p.contract, '') AS contract,
                       COALESCE(p.date, '') AS doc_date,
-                      COALESCE(p.status, 'В работе') AS status
+                      COALESCE(p.status, 'Черновик') AS status
                FROM projects p
                LEFT JOIN counterparties cp ON cp.id = p.counterparty_id
-               ORDER BY CASE COALESCE(p.status, 'В работе')
+               ORDER BY CASE COALESCE(p.status, 'Черновик')
                             WHEN 'В работе' THEN 0
-                            WHEN 'Пауза' THEN 1
-                            ELSE 2
+                            WHEN 'Черновик' THEN 1
+                            WHEN 'Пауза' THEN 2
+                            WHEN 'Завершён' THEN 3
+                            WHEN 'Завершен' THEN 3
+                            ELSE 4
                         END,
                         project_name"""
         ).fetchall()
@@ -3102,7 +3179,7 @@ finally {
                 row["counterparty_name"] or "",
                 row["contract"] or "",
                 row["doc_date"] or "",
-                row["status"] or "В работе",
+                row["status"] or "Черновик",
             )
             for row in raw_rows
         ]
@@ -3122,7 +3199,7 @@ finally {
                       ) AS counterparty_name,
                       COALESCE(p.contract, '') AS contract,
                       COALESCE(p.date, '') AS doc_date,
-                      COALESCE(p.status, 'В работе') AS status,
+                      COALESCE(p.status, 'Черновик') AS status,
                       COALESCE(p.notes, '') AS notes,
                       p.counterparty_id,
                       COALESCE(p.customer, '') AS customer
@@ -3185,7 +3262,7 @@ finally {
         conn = self.get_connection()
         c = conn.cursor()
         project_total = c.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
-        active_total = c.execute("SELECT COUNT(*) FROM projects WHERE COALESCE(status, 'В работе')='В работе'").fetchone()[0]
+        active_total = c.execute("SELECT COUNT(*) FROM projects WHERE COALESCE(status, 'Черновик')='В работе'").fetchone()[0]
         counterparties_total = c.execute("SELECT COUNT(*) FROM counterparties").fetchone()[0]
         docs_total = c.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
         conn.close()
@@ -3400,7 +3477,7 @@ finally {
                 (
                     project_name,
                     project_name,
-                    counterparty_name or project_name,
+                    counterparty_name,
                     contract_entry.get().strip(),
                     date_entry.get().strip(),
                     counterparty_id,
@@ -3442,12 +3519,17 @@ finally {
         project_id = self.get_selected_project_id()
         if not project_id:
             return messagebox.showinfo("Инфо", "Выберите проект для удаления.")
-        if not messagebox.askyesno("Подтверждение", "Удалить проект и связанные документы/финансы?"):
+        if not messagebox.askyesno(
+            "Подтверждение",
+            "Удалить проект?\n\n"
+            "Связанные документы будут удалены, а финансовые операции останутся в общей кассе без привязки к объекту."
+        ):
             return
         conn = self.get_connection()
         c = conn.cursor()
         c.execute("DELETE FROM documents WHERE project_id=?", (project_id,))
-        c.execute("DELETE FROM cash_transactions WHERE project_id=?", (project_id,))
+        c.execute("UPDATE cash_transactions SET project_id=NULL WHERE project_id=?", (project_id,))
+        c.execute("DELETE FROM project_events WHERE project_id=?", (project_id,))
         c.execute("DELETE FROM projects WHERE id=?", (project_id,))
         conn.commit()
         conn.close()
@@ -3763,7 +3845,10 @@ finally {
             """SELECT txn_date, txn_type, amount, COALESCE(category, ''), COALESCE(description, ''), COALESCE(created_by, '')
                FROM cash_transactions
                WHERE project_id=?
-               ORDER BY txn_date DESC, id DESC""",
+               ORDER BY substr(txn_date, 7, 4) DESC,
+                        substr(txn_date, 4, 2) DESC,
+                        substr(txn_date, 1, 2) DESC,
+                        id DESC""",
             (project_id,),
         ).fetchall()
         conn.close()
@@ -4017,7 +4102,7 @@ finally {
 
         object_var = ctk.StringVar(value=smeta_overview["object_name"] or row[1] or "")
         customer_var = ctk.StringVar(value=smeta_overview["customer"] or row[2] or "")
-        contract_var = ctk.StringVar(value=(smeta_overview["payload"] or {}).get("contract", row[3] or ""))
+        contract_var = ctk.StringVar(value=(row[3] or (smeta_overview["payload"] or {}).get("contract", "")))
         discount_var = ctk.StringVar(value=smeta_overview["discount"] or "0")
         watermark_var = ctk.BooleanVar(value=bool((smeta_overview["payload"] or {}).get("watermark", True)))
 
@@ -4582,13 +4667,15 @@ finally {
 
         def save():
             title = title_entry.get().strip() or doc_type_var.get()
+            file_path = path_entry.get().strip()
+            file_path_db = self.to_workspace_storage_path(file_path)
             now = datetime.datetime.now().isoformat(timespec="seconds")
             conn = self.get_connection()
             c = conn.cursor()
             c.execute(
                 """INSERT INTO documents (project_id, doc_type, title, status, file_path, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (project_id, doc_type_var.get(), title, status_var.get(), path_entry.get().strip(), now, now),
+                (project_id, doc_type_var.get(), title, status_var.get(), file_path_db, now, now),
             )
             conn.commit()
             conn.close()
@@ -4666,7 +4753,10 @@ finally {
                           COALESCE(t.created_by, '')
                    FROM cash_transactions t
                    LEFT JOIN projects p ON p.id = t.project_id
-                   ORDER BY t.txn_date DESC, t.id DESC"""
+                   ORDER BY substr(t.txn_date, 7, 4) DESC,
+                            substr(t.txn_date, 4, 2) DESC,
+                            substr(t.txn_date, 1, 2) DESC,
+                            t.id DESC"""
             ).fetchall()
         else:
             rows = c.execute(
@@ -4680,7 +4770,10 @@ finally {
                    FROM cash_transactions t
                    LEFT JOIN projects p ON p.id = t.project_id
                    WHERE t.project_id=?
-                   ORDER BY t.txn_date DESC, t.id DESC""",
+                   ORDER BY substr(t.txn_date, 7, 4) DESC,
+                            substr(t.txn_date, 4, 2) DESC,
+                            substr(t.txn_date, 1, 2) DESC,
+                            t.id DESC""",
                 (project_id,),
             ).fetchall()
         conn.close()

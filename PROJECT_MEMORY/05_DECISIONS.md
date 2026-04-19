@@ -54,3 +54,51 @@ Decision:
 
 Reason:
 - this avoids duplicating operations while still supporting project-level finance visibility.
+
+Implementation note:
+- deleting a project must not delete cash transactions themselves;
+- project-linked transactions should stay in the shared cash desk and lose only the project linkage.
+
+## D-006 Python Source With Russian UI Text Must Stay UTF-8
+
+Status:
+- accepted
+
+Decision:
+- Python source files that contain Russian UI strings must be stored and edited in UTF-8 without accidental single-byte recoding.
+
+Reason:
+- a stray save with the wrong encoding can turn static interface text into mojibake while leaving the code executable, which makes the app look broken and is expensive to clean up manually.
+
+## D-007 Project Statuses Must Reflect Real Workflow Stage
+
+Status:
+- accepted
+
+Decision:
+- project statuses are now:
+- `Черновик` for estimate preparation and client agreement;
+- `В работе` after agreement when the team moves into contract, execution, payments, and live delivery;
+- `Пауза` for temporarily stopped but still active work;
+- `Завершён` for closed finished projects.
+
+Reason:
+- the old three-status model mixed pre-sale estimate work with active execution and made CRM stages less informative.
+
+## D-008 Browser Access Is A Separate Delivery Target
+
+Status:
+- accepted
+
+Decision:
+- the project will move toward a real web version with browser login/password access on a rented server;
+- remote desktop on Linux or Windows is explicitly out of scope as a delivery model;
+- the current `customtkinter` desktop application remains the live working version until the web path is designed and delivered in stages.
+
+Reason:
+- the user wants a colleague to open the system through a browser, test the ready version, and send feedback without editing code;
+- this requires a web-facing layer with authentication and role control, which is meaningfully different from hosting a Windows desktop session.
+
+Implementation note:
+- do not promise "site access" by only moving the current app to a server;
+- first stabilize the live desktop workflow, then extract the data model and build a minimal browser-accessible surface.

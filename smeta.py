@@ -809,7 +809,7 @@ class SmetaApp(ctk.CTk):
                 self.contract_entry.get().strip(),
                 "",
                 None,
-                "В работе",
+                "Черновик",
                 "Создано из сметы",
                 timestamp,
                 timestamp,

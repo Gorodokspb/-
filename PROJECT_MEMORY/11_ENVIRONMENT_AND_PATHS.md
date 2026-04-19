@@ -14,7 +14,9 @@ Observed inconsistency:
 - the repository that does exist and contains the active code is `CRM_OLD_BAD`.
 
 Operational implication:
-- future sessions should verify the actual repo folder before assuming the environment path is correct.
+- future sessions should verify the actual repo folder before assuming the environment path is correct;
+- the user explicitly confirmed that work should happen only in `CRM_OLD_BAD`.
+- the future shared-access/server discussion must still be grounded in this repo as the source of truth.
 
 Path-handling reminder for the application:
 - prefer root-relative project paths;
