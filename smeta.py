@@ -690,17 +690,78 @@ class SmetaApp(ctk.CTk):
 
     def restore_project_draft_if_available(self):
         draft_path = self.build_draft_file_path()
-        if not os.path.exists(draft_path):
+        if os.path.exists(draft_path):
+            if not messagebox.askyesno(
+                "Черновик проекта найден",
+                f"Для объекта найден сохраненный черновик:\n{os.path.basename(draft_path)}\n\nОткрыть его?"
+            ):
+                return
+            try:
+                self.load_draft_from_file(draft_path)
+                return
+            except Exception as exc:
+                messagebox.showerror("Ошибка", f"Не удалось открыть черновик проекта:\n{exc}")
+
+        self.restore_project_draft_from_database()
+
+    def find_latest_project_draft(self):
+        if not self.current_project_id:
+            return None, None
+        conn = sqlite3.connect(self.state_db_path)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        rows = c.execute(
+            "SELECT id, created_by, created_at, updated_by, updated_at, data FROM smeta_drafts ORDER BY updated_at DESC, id DESC"
+        ).fetchall()
+        conn.close()
+        for row in rows:
+            try:
+                payload = json.loads(row["data"])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if payload.get("project_id") == self.current_project_id:
+                return row, payload
+        return None, None
+
+    def get_project_document_draft_path(self):
+        if not self.current_project_id:
+            return ""
+        conn = sqlite3.connect(self.state_db_path)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        row = c.execute(
+            """SELECT draft_path
+               FROM documents
+               WHERE project_id=? AND doc_type=?
+               ORDER BY updated_at DESC, id DESC
+               LIMIT 1""",
+            (self.current_project_id, "Смета (приложение № 1)"),
+        ).fetchone()
+        conn.close()
+        return self.resolve_workspace_path(row["draft_path"] or "") if row else ""
+
+    def restore_project_draft_from_database(self):
+        draft_row, payload = self.find_latest_project_draft()
+        if not draft_row or not payload:
             return
+        updated_at = str(draft_row["updated_at"] or "").replace("T", " ")
         if not messagebox.askyesno(
             "Черновик проекта найден",
-            f"Для объекта найден сохраненный черновик:\n{os.path.basename(draft_path)}\n\nОткрыть его?"
+            f"Для объекта найден сохраненный черновик в базе от {updated_at or 'неизвестного времени'}.\n\nОткрыть его?"
         ):
             return
-        try:
-            self.load_draft_from_file(draft_path)
-        except Exception as exc:
-            messagebox.showerror("Ошибка", f"Не удалось открыть черновик проекта:\n{exc}")
+        self.current_draft_id = draft_row["id"]
+        self.apply_draft_payload(payload)
+        document_draft_path = self.get_project_document_draft_path()
+        self.current_draft_file = document_draft_path or self.build_draft_file_path()
+        self.update_audit_text(
+            (
+                draft_row["created_by"],
+                draft_row["created_at"],
+                draft_row["updated_by"],
+                draft_row["updated_at"],
+            )
+        )
 
     def replace_entry_text(self, entry, value):
         entry.delete(0, 'end')

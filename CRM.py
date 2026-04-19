@@ -652,6 +652,10 @@ class CRMApp(ctk.CTk):
     def validate_counterparty_row_for_contract(self, counterparty_row):
         if not counterparty_row:
             return ["Контрагент проекта не выбран"]
+        if "counterparty_id" in counterparty_row.keys() and not counterparty_row["counterparty_id"]:
+            return ["Контрагент проекта не выбран"]
+        if not str(counterparty_row["type"] or "").strip():
+            return ["Тип контрагента не указан"]
         values = {key: counterparty_row[key] for key in counterparty_row.keys()}
         return self.validate_counterparty_payload(counterparty_row["type"], values)
 
@@ -1712,6 +1716,17 @@ finally {
 
         settings = self.load_contract_settings(project_row, project_row)
         contract_context = self.get_project_contract_context(project_row)
+        counterparty_type = str(project_row["type"] or "").strip()
+        if not project_row["counterparty_id"]:
+            contract_title = "Контрагент не привязан: настройки договора"
+        elif counterparty_type == "Физическое лицо":
+            contract_title = "Физическое лицо: настройки договора"
+        elif counterparty_type == "Юридическое лицо ООО":
+            contract_title = "ООО: настройки договора"
+        elif counterparty_type == "Юридическое лицо ИП":
+            contract_title = "ИП: настройки договора"
+        else:
+            contract_title = "Настройки договора"
         win = ctk.CTkToplevel(self)
         win.title("Настройки договора")
         win.geometry("920x900")
@@ -1721,7 +1736,7 @@ finally {
         scroll = ctk.CTkScrollableFrame(win, width=860, height=760)
         scroll.pack(fill="both", expand=True, padx=18, pady=(18, 0))
 
-        ctk.CTkLabel(scroll, text="Физическое лицо: настройки договора", font=("Segoe UI Semibold", 18)).pack(anchor="w", pady=(4, 10))
+        ctk.CTkLabel(scroll, text=contract_title, font=("Segoe UI Semibold", 18)).pack(anchor="w", pady=(4, 10))
         ctk.CTkLabel(
             scroll,
             text="Все ключевые поля можно исправить вручную. Если поле не менять, CRM подставит данные из карточки клиента и проекта.",
@@ -3109,7 +3124,8 @@ finally {
                       COALESCE(p.date, '') AS doc_date,
                       COALESCE(p.status, 'В работе') AS status,
                       COALESCE(p.notes, '') AS notes,
-                      p.counterparty_id
+                      p.counterparty_id,
+                      COALESCE(p.customer, '') AS customer
                FROM projects p
                LEFT JOIN counterparties cp ON cp.id = p.counterparty_id
                WHERE p.id=?""",
@@ -3502,7 +3518,14 @@ finally {
     def open_create_counterparty_for_project(self, project_id, project_window=None):
         project_row = self.get_project_details(project_id)
         smeta_payload = self.get_project_smeta_payload(project_id) or {}
-        customer_name = str((smeta_payload.get("customer") or (project_row["counterparty_name"] if project_row else "") or "")).strip()
+        customer_name = str(
+            (
+                smeta_payload.get("customer")
+                or (project_row["customer"] if project_row else "")
+                or (project_row["counterparty_name"] if project_row else "")
+                or ""
+            )
+        ).strip()
         object_name = str((smeta_payload.get("object") or (project_row["project_name"] if project_row else "") or "")).strip()
         preset_values = {
             "name": customer_name,
