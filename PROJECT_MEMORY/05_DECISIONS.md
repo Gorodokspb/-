@@ -88,7 +88,7 @@ Reason:
 ## D-008 Browser Access Is A Separate Delivery Target
 
 Status:
-- accepted
+- accepted and active as a staged MVP
 
 Decision:
 - the project will move toward a real web version with browser login/password access on a rented server;
@@ -102,3 +102,21 @@ Reason:
 Implementation note:
 - do not promise "site access" by only moving the current app to a server;
 - first stabilize the live desktop workflow, then extract the data model and build a minimal browser-accessible surface.
+- the first minimal browser-accessible surface now exists on the server using FastAPI templates, session auth, PostgreSQL, and Nginx.
+
+## D-009 Office And Home Continuity Takes Priority
+
+Status:
+- accepted
+
+Decision:
+- the immediate priority is reliable desktop work from both office and home using the shared Yandex Disk project folder;
+- portability, path safety, and durable session memory stay important even while the browser MVP is being developed.
+
+Reason:
+- the user needs to continue work across office and home without re-explaining prior work or losing access to saved estimates, PDFs, drafts, and related project documents.
+
+Implementation note:
+- save workflow files inside the project workspace whenever possible;
+- treat warnings about nonportable document paths as actionable blockers before switching machines;
+- keep session memory updated after each meaningful task so the next machine can resume without chat history.

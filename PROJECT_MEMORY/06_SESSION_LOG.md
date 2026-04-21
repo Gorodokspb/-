@@ -270,3 +270,154 @@ What changed:
 
 Next action:
 - define the first web architecture slice around authentication, projects, and a tester-safe browser workflow.
+
+## 2026-04-21 - Browser MVP Deployed On Server
+
+Task:
+- turn the server preparation into a real browser entry point instead of only a database/storage backend.
+
+What was done:
+- added the `webapp/` FastAPI browser layer with session-based login, project list, project detail, and document download routes;
+- added `run_web.py`, `.env.web.example`, and `WEB_SERVER_SETUP.md`;
+- extended `requirements.txt` with FastAPI, Uvicorn, Jinja2, multipart support, and `itsdangerous`;
+- uploaded the browser app to the Ubuntu server under `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- configured the runtime with `.env.web`, created the `dekorcrm-web` systemd service, and put Nginx in front of the app;
+- copied server-side document storage into `/opt/dekorcrm/storage` and aligned document lookup with the new storage root.
+
+Verification:
+- the server returned live browser pages at `/login` and `/projects`;
+- CSS and JS started loading correctly after fixing the Nginx/static handling;
+- authenticated browser checks confirmed the project list and project detail pages load successfully.
+
+Next action:
+- continue improving the browser UX and then move estimate editing into the web interface.
+
+## 2026-04-21 - Browser UI Redesigned
+
+Task:
+- replace the primitive browser MVP look with a more deliberate, cleaner interface that feels like a real operating dashboard.
+
+What was done:
+- redesigned `webapp/templates/projects.html` into a broader dashboard layout with a top operational bar, stronger hero section, cleaner metrics, and a more readable projects table;
+- redesigned `webapp/templates/login.html` into a more polished access screen with infrastructure/value framing;
+- redesigned `webapp/templates/project_detail.html` into a fuller project workspace with top controls, summary metrics, stronger document presentation, and a cleaner event timeline;
+- expanded `webapp/static/app.css` to support the new visual system across login, list, and detail screens;
+- redeployed the updated templates and styles to the server and restarted `dekorcrm-web`.
+
+Verification:
+- `python -m py_compile run_web.py webapp\\config.py webapp\\db.py webapp\\main.py webapp\\storage.py` passed;
+- live server checks confirmed the new HTML structure and CSS classes are being served after redeploy;
+- the new pages are available through the current browser URLs and may require a hard refresh in the client browser when cached.
+
+Next action:
+- continue with functional browser features, especially estimate editing and deeper project actions.
+
+## 2026-04-21 - Contract Generation Now Promotes Draft Projects To In Progress
+
+Task:
+- continue strengthening the live desktop workflow instead of moving into web work yet.
+
+What was found:
+- the agreed project-stage model already had `Черновик -> В работе`, but the desktop CRM did not automatically move a project forward when the contract was successfully generated;
+- this left the project in draft even after the workflow had already entered the contract/execution stage.
+
+What changed:
+- added `promote_project_to_in_progress_after_contract()` in `CRM.py`;
+- after successful contract generation, the project now automatically moves from `Черновик` to `В работе`;
+- manual statuses such as `Пауза` and `Завершён` are left untouched;
+- the project history now records the automatic status transition.
+
+Verification:
+- `python -m py_compile CRM.py smeta.py` passed after the change.
+
+Next action:
+- manually verify the live scenario where a draft project generates its first contract and immediately appears as `В работе` in CRM.
+
+## 2026-04-21 - Ubuntu Server Baseline Prepared And Data Imported To PostgreSQL
+
+Task:
+- begin real server preparation after the user rented an Ubuntu server and decided to centralize project storage there.
+
+What was found:
+- the rented server is Ubuntu 24.04 LTS with SSH access, about 8 GB RAM, and enough free disk space;
+- the current desktop CRM cannot run there unchanged because it depends on `customtkinter` desktop UI and Word COM automation;
+- however, the server is fully suitable as the central storage and database layer for the next architecture stage.
+
+What changed:
+- created and verified a non-root admin user `crmadmin`;
+- enabled and verified `PostgreSQL`, `Nginx`, and `UFW` with SSH and Nginx access rules;
+- uploaded `CRM_OLD_BAD` to `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- created a Python virtual environment in `/opt/dekorcrm/venv`;
+- installed the project Python dependencies on the server;
+- created a server-side backup archive of the uploaded project in `/opt/dekorcrm/backups/`;
+- created PostgreSQL database `dekorcrm` and role `dekorcrm`;
+- added `migrate_sqlite_to_postgres.py`;
+- imported current data from `dekorart_base.db` and `dekorart_prices.db` into PostgreSQL.
+
+Verification:
+- server-side `python -m py_compile CRM.py smeta.py` passed inside the uploaded project;
+- imported row counts in PostgreSQL match the SQLite source snapshot:
+- `users`: 9
+- `counterparties`: 2
+- `projects`: 2
+- `documents`: 1
+- `project_events`: 10
+- `smeta_drafts`: 35
+- `cash_transactions`: 1
+- `prices`: 138
+
+Next action:
+- decide how the desktop CRM should talk to centralized server data next: PostgreSQL adapter inside the app, or a dedicated server API layer.
+
+## 2026-04-20 - Office/Home Portability Audit And Memory Upgrade
+
+Task:
+- shift priority away from the paused web track and verify that office/home desktop work keeps saving portable document paths;
+- strengthen persistent memory so future office and home sessions can resume without retelling prior work.
+
+What was found:
+- the current office workspace is `D:\Yandex.Disk\СМЕТЫ НА ПРОВЕРКУ\CRM_OLD_BAD`;
+- the database currently stores document paths in `documents` as relative project paths, and the recent saved estimate document resolved correctly in the current workspace;
+- `smeta_drafts` and `project_events` did not contain explicit drive-letter or workspace-root path strings in the current data snapshot;
+- `CRM.py` already had repair logic for old document paths, but project-card PDF export still wrote the selected PDF path back to `documents` directly instead of normalizing it first;
+- both apps could still let a user save PDFs outside the project workspace, which is a portability risk when switching between office and home.
+
+What changed:
+- added `is_workspace_portable_path()` to both `CRM.py` and `smeta.py`;
+- upgraded startup health checks in both apps so they warn not only about missing files but also about nonportable document paths;
+- updated project-card estimate PDF export in `CRM.py` so the saved PDF path is normalized before writing back into `documents`;
+- updated estimate PDF export in `smeta.py` to warn when a PDF is saved outside the project workspace;
+- added `portability_audit.py` as a reusable database audit tool for office/home path checks;
+- updated project memory to reflect that the web track is paused and office/home continuity is now the active priority;
+- added `PROJECT_MEMORY/14_HOME_OFFICE_CONTINUITY.md` and updated the memory entry point, next steps, decisions, environment notes, and conversation rules.
+
+Verification:
+- `py portability_audit.py` reported zero absolute paths in the current `documents` rows and no explicit drive/workspace hints in `smeta_drafts` or `project_events`;
+- `py -m py_compile CRM.py smeta.py portability_audit.py` passed successfully.
+
+Next action:
+- manually test estimate PDF export from both CRM and the estimate editor, once saving inside the workspace and once outside it, and confirm that the warnings and saved document paths behave as expected.
+
+## 2026-04-21 - Server PostgreSQL Bridge For Desktop CRM
+
+Task:
+- prepare the rented Ubuntu server as the central data/storage side for the CRM project;
+- keep the desktop Windows workflow, but make the app able to switch from local SQLite to server PostgreSQL safely.
+
+What was done:
+- verified the Ubuntu server baseline under `crmadmin`: PostgreSQL active, Nginx active, UFW active, project files uploaded under `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- created and verified PostgreSQL database `dekorcrm`, then migrated current SQLite data into PostgreSQL tables (`users`, `counterparties`, `projects`, `documents`, `project_events`, `smeta_drafts`, `cash_transactions`, `prices`);
+- added `migrate_sqlite_to_postgres.py` as the repeatable migration script;
+- added `db_compat.py` as a compatibility bridge so the app can keep its current SQL flow but switch backend to PostgreSQL when `DEKORCRM_POSTGRES_DSN` or `POSTGRES_DSN` is set;
+- updated `CRM.py` and `smeta.py` to route their local `sqlite3.connect(...)` calls through the compatibility layer without rewriting the full application logic yet;
+- updated health checks so they stop requiring local `.db` files when the app is intentionally running against PostgreSQL;
+- added `launch_server_app.ps1` so Windows can launch `CRM.py` or `smeta.py` through a local SSH tunnel to the server database without exposing PostgreSQL directly to the public internet;
+- added `psycopg[binary]` to `requirements.txt`.
+
+Verification:
+- local compile passed: `python -m py_compile CRM.py smeta.py db_compat.py migrate_sqlite_to_postgres.py`;
+- server compile passed inside `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- live smoke test against server PostgreSQL passed through `db_compat.py`: translated `sqlite_master`, `PRAGMA table_info(projects)`, and `SELECT COUNT(*) FROM projects` all returned valid results.
+
+Important note:
+- at this stage PostgreSQL remains safely reachable through local/server-side access and SSH tunneling; direct public port exposure was not required.

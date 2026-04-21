@@ -31,7 +31,7 @@ Current product priority:
 1. Keep the live workflow stable.
 2. Fix bugs found from real use and screenshots.
 3. Validate the full estimate -> project -> counterparty -> contract path.
-4. Prepare the future browser-based deployment path so testing can happen through login/password on a server.
+4. Continue the browser MVP so the owner can work and review through the server.
 5. After stability, move into the shared cash desk implementation.
 
 What is already known:
@@ -39,6 +39,9 @@ What is already known:
 - The biggest portability problem was stale absolute paths, not missing saves.
 - Path handling should be relative to the project folder or repairable when older data contains machine-specific paths.
 - The current application is a desktop `customtkinter` app with local SQLite and file-based document storage, so browser access will require a web layer or a staged migration rather than a simple hosting switch.
+- A Linux server baseline now exists on Ubuntu 24.04 with PostgreSQL, Nginx, UFW, a dedicated `crmadmin` user, uploaded project files, and imported CRM data.
+- A browser MVP already exists under `webapp/`, is deployed on the server, and currently supports login, project list, project detail, and document download.
+- The web interface was recently redesigned to a more polished dashboard style, but further UX work is still expected around estimate editing and deeper project actions.
 
 What not to do casually:
 - do not refactor all of `CRM.py` just for cleanliness;

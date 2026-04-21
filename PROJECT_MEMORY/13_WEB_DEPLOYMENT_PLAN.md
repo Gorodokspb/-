@@ -1,5 +1,8 @@
 # Web Deployment Plan
 
+Current status:
+- active MVP deployed on the server; login, project list, project detail, and document download are already live.
+
 Goal:
 - move from the current single-user desktop workflow to a server-hosted system that the owner can use and a colleague can test through a browser with login and password.
 

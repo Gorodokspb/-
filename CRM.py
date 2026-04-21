@@ -9,8 +9,9 @@ import shutil
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import sqlite3
+import sqlite3 as sqlite3_module
 import datetime
+import types
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -20,9 +21,13 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+from db_compat import connect as compat_db_connect, is_postgres_enabled
+
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
+
+sqlite3 = types.SimpleNamespace(connect=compat_db_connect, Row=sqlite3_module.Row)
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -270,6 +275,10 @@ class CRMApp(ctk.CTk):
             pass
         return candidate
 
+    def is_workspace_portable_path(self, path):
+        stored_path = self.to_workspace_storage_path(path)
+        return bool(stored_path) and not os.path.isabs(stored_path)
+
     def repair_document_paths(self, conn=None):
         owns_connection = conn is None
         if owns_connection:
@@ -321,11 +330,10 @@ class CRMApp(ctk.CTk):
     def collect_startup_health_issues(self):
         workspace_dir = self.get_workspace_dir()
         issues = []
-        critical_files = [
-            ("\u0411\u0430\u0437\u0430 CRM", DB_PATH),
-            ("\u0411\u0430\u0437\u0430 \u0446\u0435\u043d", os.path.join(workspace_dir, "dekorart_prices.db")),
-            ("\u0428\u0430\u0431\u043b\u043e\u043d \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430", CONTRACT_TEMPLATE_PATH),
-        ]
+        critical_files = [("\u0428\u0430\u0431\u043b\u043e\u043d \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0430", CONTRACT_TEMPLATE_PATH)]
+        if not is_postgres_enabled():
+            critical_files.insert(0, ("\u0411\u0430\u0437\u0430 CRM", DB_PATH))
+            critical_files.insert(1, ("\u0411\u0430\u0437\u0430 \u0446\u0435\u043d", os.path.join(workspace_dir, "dekorart_prices.db")))
         for label, path in critical_files:
             if not os.path.exists(path):
                 issues.append(f"{label}: {path}")
@@ -343,10 +351,19 @@ class CRMApp(ctk.CTk):
                 broken_docs = []
                 for row in rows:
                     missing_parts = []
+                    nonportable_parts = []
                     for column, label in (("file_path", "\u0444\u0430\u0439\u043b"), ("draft_path", "\u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a"), ("pdf_path", "PDF")):
                         stored_path = str(row[column] or "").strip()
+                        if stored_path and not self.is_workspace_portable_path(stored_path):
+                            nonportable_parts.append(f"{label}: {stored_path}")
                         if stored_path and not os.path.exists(self.resolve_workspace_path(stored_path)):
                             missing_parts.append(f"{label}: {stored_path}")
+                    if nonportable_parts:
+                        title = str(row["title"] or f"\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 #{row['id']}")
+                        project_id = row["project_id"] if row["project_id"] is not None else "-"
+                        issues.append(
+                            f"\u041d\u0435\u043f\u0435\u0440\u0435\u043d\u043e\u0441\u0438\u043c\u044b\u0435 \u043f\u0443\u0442\u0438: {title} (\u043f\u0440\u043e\u0435\u043a\u0442 {project_id}) -> {'; '.join(nonportable_parts)}"
+                        )
                     if missing_parts:
                         title = str(row["title"] or f"\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 #{row['id']}")
                         project_id = row["project_id"] if row["project_id"] is not None else "-"
@@ -1127,16 +1144,27 @@ class CRMApp(ctk.CTk):
 
         conn = self.get_connection()
         c = conn.cursor()
+        file_path_db = self.to_workspace_storage_path(file_path)
         c.execute(
             """UPDATE documents
                SET status=?, file_path=?, pdf_path=?, updated_at=?
                WHERE project_id=? AND doc_type=?""",
-            ("Черновик", file_path, file_path, datetime.datetime.now().isoformat(timespec="seconds"), project_id, "Смета (приложение № 1)"),
+            ("\u0427\u0435\u0440\u043d\u043e\u0432\u0438\u043a", file_path_db, file_path_db, datetime.datetime.now().isoformat(timespec="seconds"), project_id, "\u0421\u043c\u0435\u0442\u0430 (\u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u2116 1)"),
         )
         conn.commit()
         conn.close()
-        self.log_project_event(project_id, "document", "Сохранен PDF сметы из карточки проекта")
-        messagebox.showinfo("Смета", f"PDF сметы сохранен:\n{file_path}")
+        self.log_project_event(project_id, "document", "\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d PDF \u0441\u043c\u0435\u0442\u044b \u0438\u0437 \u043a\u0430\u0440\u0442\u043e\u0447\u043a\u0438 \u043f\u0440\u043e\u0435\u043a\u0442\u0430")
+        if self.is_workspace_portable_path(file_path):
+            messagebox.showinfo("\u0421\u043c\u0435\u0442\u0430", f"PDF \u0441\u043c\u0435\u0442\u044b \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d:\n{file_path}")
+        else:
+            messagebox.showwarning(
+                "\u0421\u043c\u0435\u0442\u0430",
+                f"PDF \u0441\u043c\u0435\u0442\u044b \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d:\n{file_path}\n\n"
+                "\u0424\u0430\u0439\u043b \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d \u0432\u043d\u0435 \u043f\u0430\u043f\u043a\u0438 \u043f\u0440\u043e\u0435\u043a\u0442\u0430. "
+                "\u0414\u043b\u044f \u043d\u0430\u0434\u0451\u0436\u043d\u043e\u0439 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u0438 "
+                "\u043c\u0435\u0436\u0434\u0443 \u043e\u0444\u0438\u0441\u043e\u043c \u0438 \u0434\u043e\u043c\u043e\u043c \u043b\u0443\u0447\u0448\u0435 "
+                "\u0445\u0440\u0430\u043d\u0438\u0442\u044c PDF \u0432\u043d\u0443\u0442\u0440\u0438 \u043f\u0430\u043f\u043a\u0438 CRM_OLD_BAD."
+            )
         return file_path
 
     def normalize_contract_settings(self, settings):
@@ -1756,14 +1784,19 @@ finally {
 
         title = f"Договор - {project_name}"
         self.upsert_project_document(project_id, "Договор", title, output_path, status="Черновик")
+        status_promoted = self.promote_project_to_in_progress_after_contract(project_id)
         if project_window is not None and project_window.winfo_exists():
             project_window.destroy()
-        messagebox.showinfo(
-            "Договор сформирован",
+        success_message = (
             "Базовый договор сформирован успешно.\n\n"
             "Сейчас в документ автоматически подставляются реквизиты клиента, номер и дата договора, "
             "адрес объекта и контактные данные.\n"
-            f"\nФайл:\n{output_path}",
+        )
+        if status_promoted:
+            success_message += "\nСтатус проекта автоматически изменен: Черновик -> В работе.\n"
+        messagebox.showinfo(
+            "Договор сформирован",
+            f"{success_message}\nФайл:\n{output_path}",
         )
         self.refresh_projects()
 

@@ -18,6 +18,8 @@ Desktop.ini
 
 # Local runtime artifacts
 codex_write_test.txt
+.env.web
+server_storage/
 
 # Application data
 *.db

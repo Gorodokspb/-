@@ -3,9 +3,10 @@
 Read order for a fresh session:
 1. `01_PROJECT_SNAPSHOT.md`
 2. `07_NEXT_STEPS.md`
-3. `06_SESSION_LOG.md`
-4. `05_DECISIONS.md`
-5. `09_BUGS_AND_RISKS.md`
+3. `14_HOME_OFFICE_CONTINUITY.md`
+4. `06_SESSION_LOG.md`
+5. `05_DECISIONS.md`
+6. `09_BUGS_AND_RISKS.md`
 
 File map:
 - `01_PROJECT_SNAPSHOT.md` - one-file orientation to the project, product, code, and current priorities.
@@ -21,6 +22,7 @@ File map:
 - `11_ENVIRONMENT_AND_PATHS.md` - machine, repo, and storage-path realities.
 - `12_CONVERSATION_RULES.md` - how to preserve chat decisions in project memory.
 - `13_WEB_DEPLOYMENT_PLAN.md` - staged path from desktop CRM to browser-based access on a rented server.
+- `14_HOME_OFFICE_CONTINUITY.md` - startup and handoff rules for switching between office and home work.
 
 Quick rule:
 - if something must still matter next week, it should live in one of these files.

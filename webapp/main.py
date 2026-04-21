@@ -1,0 +1,166 @@
+from pathlib import Path
+
+from fastapi import FastAPI, Form, HTTPException, Request, status
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
+
+from webapp.config import get_settings
+from webapp.db import (
+    fetch_dashboard_counts,
+    fetch_document,
+    fetch_project,
+    fetch_project_documents,
+    fetch_project_events,
+    fetch_projects,
+)
+from webapp.storage import ensure_storage_dirs, resolve_storage_path
+
+
+settings = get_settings()
+ensure_storage_dirs()
+
+app = FastAPI(title="Dekorartstroy CRM Web")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    same_site="lax",
+    https_only=False,
+)
+
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
+app.mount(
+    "/static",
+    StaticFiles(directory=str(Path(__file__).resolve().parent / "static")),
+    name="static",
+)
+
+
+def status_class(value: str) -> str:
+    mapping = {
+        "Черновик": "draft",
+        "В работе": "active",
+        "Пауза": "paused",
+        "Завершен": "done",
+        "Завершён": "done",
+    }
+    return mapping.get((value or "").strip(), "neutral")
+
+
+templates.env.filters["status_class"] = status_class
+
+
+def is_authenticated(request: Request) -> bool:
+    return bool(request.session.get("is_authenticated"))
+
+
+def require_auth(request: Request) -> None:
+    if not is_authenticated(request):
+        raise HTTPException(
+            status_code=status.HTTP_302_FOUND,
+            headers={"Location": "/login"},
+        )
+
+
+@app.get("/")
+def index():
+    return RedirectResponse(url="/projects", status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/login")
+def login_page(request: Request):
+    if is_authenticated(request):
+        return RedirectResponse(url="/projects", status_code=status.HTTP_302_FOUND)
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"error": None},
+    )
+
+
+@app.post("/login")
+def login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+):
+    if username == settings.admin_username and password == settings.admin_password:
+        request.session["is_authenticated"] = True
+        request.session["username"] = username
+        return RedirectResponse(url="/projects", status_code=status.HTTP_302_FOUND)
+    return templates.TemplateResponse(
+        request=request,
+        name="login.html",
+        context={"error": "Неверный логин или пароль."},
+        status_code=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@app.post("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/projects")
+def projects_page(request: Request):
+    require_auth(request)
+    return templates.TemplateResponse(
+        request=request,
+        name="projects.html",
+        context={
+            "projects": fetch_projects(),
+            "counts": fetch_dashboard_counts(),
+            "username": request.session.get("username", settings.admin_username),
+        },
+    )
+
+
+@app.get("/projects/{project_id}")
+def project_detail_page(project_id: int, request: Request):
+    require_auth(request)
+    project = fetch_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+
+    documents = fetch_project_documents(project_id)
+    events = fetch_project_events(project_id)
+    for document in documents:
+        document["has_file"] = bool(resolve_storage_path(document.get("file_path")))
+        document["has_draft"] = bool(resolve_storage_path(document.get("draft_path")))
+        document["has_pdf"] = bool(resolve_storage_path(document.get("pdf_path")))
+
+    return templates.TemplateResponse(
+        request=request,
+        name="project_detail.html",
+        context={
+            "project": project,
+            "documents": documents,
+            "events": events,
+            "username": request.session.get("username", settings.admin_username),
+        },
+    )
+
+
+@app.get("/documents/{document_id}/download")
+def download_document(document_id: int, request: Request, kind: str = "file"):
+    require_auth(request)
+    document = fetch_document(document_id)
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Документ не найден.")
+
+    path_by_kind = {
+        "file": document.get("file_path"),
+        "draft": document.get("draft_path"),
+        "pdf": document.get("pdf_path"),
+    }
+    relative_path = path_by_kind.get(kind)
+    absolute_path = resolve_storage_path(relative_path or "")
+    if not absolute_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл отсутствует в серверном хранилище.",
+        )
+
+    return FileResponse(path=absolute_path, filename=absolute_path.name)
