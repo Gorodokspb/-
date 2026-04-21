@@ -88,7 +88,7 @@ Reason:
 ## D-008 Browser Access Is A Separate Delivery Target
 
 Status:
-- accepted
+- accepted direction, currently paused
 
 Decision:
 - the project will move toward a real web version with browser login/password access on a rented server;
@@ -102,3 +102,21 @@ Reason:
 Implementation note:
 - do not promise "site access" by only moving the current app to a server;
 - first stabilize the live desktop workflow, then extract the data model and build a minimal browser-accessible surface.
+- as of 2026-04-20 later in the day, this track is paused while office/home continuity and the live desktop workflow are being verified.
+
+## D-009 Office And Home Continuity Takes Priority
+
+Status:
+- accepted
+
+Decision:
+- the immediate priority is reliable desktop work from both office and home using the shared Yandex Disk project folder;
+- portability, path safety, and durable session memory now come before the paused web track.
+
+Reason:
+- the user needs to continue work across office and home without re-explaining prior work or losing access to saved estimates, PDFs, drafts, and related project documents.
+
+Implementation note:
+- save workflow files inside the project workspace whenever possible;
+- treat warnings about nonportable document paths as actionable blockers before switching machines;
+- keep session memory updated after each meaningful task so the next machine can resume without chat history.

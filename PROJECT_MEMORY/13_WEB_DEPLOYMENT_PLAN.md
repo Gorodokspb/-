@@ -1,5 +1,8 @@
 # Web Deployment Plan
 
+Current status:
+- paused for now while office/home continuity and desktop workflow reliability are being verified live.
+
 Goal:
 - move from the current single-user desktop workflow to a server-hosted system that the owner can use and a colleague can test through a browser with login and password.
 

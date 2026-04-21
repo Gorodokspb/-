@@ -31,8 +31,8 @@ Current product priority:
 1. Keep the live workflow stable.
 2. Fix bugs found from real use and screenshots.
 3. Validate the full estimate -> project -> counterparty -> contract path.
-4. Prepare the future browser-based deployment path so testing can happen through login/password on a server.
-5. After stability, move into the shared cash desk implementation.
+4. After stability, move into the shared cash desk implementation.
+5. Keep the future browser-based deployment plan documented, but postpone active web work until the desktop workflow is stronger.
 
 What is already known:
 - `smeta.py` is not dead legacy code; it is still a live daily-use tool.

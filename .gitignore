@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 .repo_git/
 
+# Environment files
+.env.web
+
 # Virtual environments
 .venv/
 venv/

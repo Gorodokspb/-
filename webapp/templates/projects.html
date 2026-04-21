@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Проекты | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="dashboard-shell dashboard-shell-v2">
+    <div class="workspace-frame">
+        <header class="topbar-card">
+            <div class="topbar-brand">
+                <span class="eyebrow">Dekorartstroy CRM</span>
+                <strong>Единая рабочая витрина</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <span class="topbar-chip">PostgreSQL online</span>
+                <span class="topbar-chip">Server storage</span>
+                <span class="topbar-chip">Browser mode</span>
+            </div>
+
+            <div class="topbar-userbox">
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        <section class="overview-grid">
+            <article class="hero-card hero-card-v2">
+                <div class="hero-copy-wrap">
+                    <div class="eyebrow">Операционный центр</div>
+                    <h1>Проекты, договоры и документы в одном аккуратном кабинете</h1>
+                    <p class="hero-copy hero-copy-wide">
+                        Теперь главная страница работает как единая точка контроля: видно все объекты,
+                        статус проекта, привязку контрагента и готовность документов без локальных окон,
+                        Яндекс Диска и ручной рутины.
+                    </p>
+                </div>
+
+                <div class="hero-ribbon">
+                    <div class="hero-ribbon-item">
+                        <span class="insight-label">Сейчас уже доступно</span>
+                        <strong>Проекты и карточки объектов</strong>
+                        <p>Открытие проекта, просмотр статусов, переход в документы прямо из браузера.</p>
+                    </div>
+                    <div class="hero-ribbon-item">
+                        <span class="insight-label">Следующий этап</span>
+                        <strong>Web-редактор сметы</strong>
+                        <p>После этой панели переносим саму смету в браузер и убираем зависимость от desktop-окон.</p>
+                    </div>
+                </div>
+            </article>
+
+            <div class="overview-stack">
+                <article class="focus-card">
+                    <div class="eyebrow">Фокус команды</div>
+                    <h2>Что в работе прямо сейчас</h2>
+                    <ul class="focus-list">
+                        <li>Карточки объектов и проекты уже читаются с сервера</li>
+                        <li>Документы подгружаются из серверного хранилища</li>
+                        <li>Основа CRM переведена на браузерный сценарий</li>
+                    </ul>
+                </article>
+
+                <article class="signal-card">
+                    <div class="signal-row">
+                        <span class="signal-label">Режим платформы</span>
+                        <strong>Browser MVP</strong>
+                    </div>
+                    <div class="signal-row">
+                        <span class="signal-label">Текущая опора</span>
+                        <strong>Сервер + PostgreSQL</strong>
+                    </div>
+                    <div class="signal-row">
+                        <span class="signal-label">Цель перехода</span>
+                        <strong>Работа без локальных копий</strong>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="stats-grid stats-grid-v2">
+            <article class="metric-panel metric-panel-blue">
+                <span class="metric-label">Проекты</span>
+                <strong>{{ counts.projects_total }}</strong>
+                <p>Все объекты и проекты в рабочем контуре</p>
+            </article>
+            <article class="metric-panel metric-panel-green">
+                <span class="metric-label">В работе</span>
+                <strong>{{ counts.active_projects_total }}</strong>
+                <p>Активные проекты, где сейчас идет движение</p>
+            </article>
+            <article class="metric-panel metric-panel-gold">
+                <span class="metric-label">Контрагенты</span>
+                <strong>{{ counts.counterparties_total }}</strong>
+                <p>Клиенты, ИП и компании в CRM</p>
+            </article>
+            <article class="metric-panel metric-panel-slate">
+                <span class="metric-label">Документы</span>
+                <strong>{{ counts.documents_total }}</strong>
+                <p>Сметы, договоры и связанные файлы проекта</p>
+            </article>
+        </section>
+
+        <section class="panel-card panel-card-wide projects-panel">
+            <div class="panel-header panel-header-wide">
+                <div class="panel-header-main">
+                    <div class="eyebrow">Рабочая витрина объектов</div>
+                    <h2>Список проектов</h2>
+                    <p class="panel-lead">
+                        Здесь удобно фильтровать базу, быстро находить нужный объект и переходить в карточку проекта.
+                    </p>
+                </div>
+
+                <div class="panel-header-side">
+                    <span class="search-label">Показано</span>
+                    <strong id="visibleProjectsCount">{{ projects|length }}</strong>
+                    <small>из {{ projects|length }}</small>
+                </div>
+            </div>
+
+            <div class="toolbar-card toolbar-card-wide">
+                <label class="search-box">
+                    <span class="search-label">Поиск</span>
+                    <input
+                        type="search"
+                        id="projectSearch"
+                        class="toolbar-input"
+                        placeholder="Адрес, проект, контрагент, договор"
+                    >
+                </label>
+
+                <div class="filter-box">
+                    <span class="search-label">Фильтр статуса</span>
+                    <div class="filter-chips">
+                        <button class="filter-chip is-active" type="button" data-filter="all">Все</button>
+                        <button class="filter-chip" type="button" data-filter="В работе">В работе</button>
+                        <button class="filter-chip" type="button" data-filter="Пауза">Пауза</button>
+                        <button class="filter-chip" type="button" data-filter="Черновик">Черновик</button>
+                        <button class="filter-chip" type="button" data-filter="Завершен">Завершен</button>
+                        <button class="filter-chip" type="button" data-filter="Завершён">Завершён</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="projects-table-wrap projects-table-wrap-wide">
+                <table class="projects-table" id="projectsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Проект</th>
+                            <th>Контрагент</th>
+                            <th>Статус</th>
+                            <th>Договор</th>
+                            <th>Обновлено</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for project in projects %}
+                        <tr
+                            class="project-row"
+                            data-status="{{ project.status }}"
+                            data-search="{{ project.id }} {{ project.project_name }} {{ project.address }} {{ project.counterparty_name }} {{ project.contract }}"
+                        >
+                            <td class="cell-id">{{ project.id }}</td>
+                            <td>
+                                <a class="project-link" href="/projects/{{ project.id }}">
+                                    <span class="project-name">{{ project.project_name }}</span>
+                                    <span class="project-address">{{ project.address or "Адрес пока не заполнен" }}</span>
+                                </a>
+                            </td>
+                            <td class="cell-muted">{{ project.counterparty_name or "Не привязан" }}</td>
+                            <td>
+                                <span class="status-pill status-{{ project.status|status_class }}">{{ project.status }}</span>
+                            </td>
+                            <td class="cell-contract">
+                                {% if project.contract %}
+                                    <span>{{ project.contract }}</span>
+                                    {% if project.contract_date %}
+                                    <small>от {{ project.contract_date }}</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="cell-muted">Еще не оформлен</span>
+                                {% endif %}
+                            </td>
+                            <td class="cell-muted">{{ project.updated_at or "—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="empty-box table-empty" id="projectsEmptyState" hidden>
+                По текущему фильтру проектов не найдено. Попробуй изменить запрос или сбросить фильтр статуса.
+            </div>
+        </section>
+    </div>
+</main>
+{% endblock %}

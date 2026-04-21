@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Вход | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="auth-shell auth-shell-v2">
+    <section class="auth-layout auth-layout-v2">
+        <div class="auth-story auth-story-v2">
+            <div class="auth-story-head">
+                <div class="eyebrow eyebrow-light">Dekorartstroy CRM</div>
+                <h1>Браузерный кабинет компании для проектов, документов и смет</h1>
+                <p class="auth-lead">
+                    Система уже работает через сервер: данные лежат в PostgreSQL, документы идут из общего хранилища,
+                    а сама CRM постепенно превращается в полноценную web-платформу без локальной рутины.
+                </p>
+            </div>
+
+            <div class="auth-trust-grid">
+                <article class="auth-trust-card">
+                    <span class="auth-point-label">Инфраструктура</span>
+                    <strong>Единая серверная база и централизованное хранение файлов</strong>
+                    <p>Одна рабочая среда для всех проектов, без разъезда данных по локальным копиям.</p>
+                </article>
+                <article class="auth-trust-card">
+                    <span class="auth-point-label">Доступ</span>
+                    <strong>Вход по логину и паролю в браузере</strong>
+                    <p>Проверять систему, искать баги и смотреть изменения можно без запуска desktop-приложения.</p>
+                </article>
+                <article class="auth-trust-card">
+                    <span class="auth-point-label">Следующий шаг</span>
+                    <strong>Редактор проекта и сметы прямо в web-интерфейсе</strong>
+                    <p>После авторизации рабочее ядро CRM уже доступно в браузере и будет расширяться дальше.</p>
+                </article>
+            </div>
+
+            <div class="auth-story-footer">
+                <span class="auth-footer-chip">PostgreSQL</span>
+                <span class="auth-footer-chip">Server storage</span>
+                <span class="auth-footer-chip">GitHub workflow</span>
+            </div>
+        </div>
+
+        <section class="auth-card auth-card-v2">
+            <div class="auth-card-head auth-card-head-v2">
+                <div class="eyebrow">Безопасный вход</div>
+                <h2>Открыть рабочий кабинет</h2>
+                <p class="muted">
+                    Используйте учетную запись, чтобы войти в браузерную версию CRM и открыть проекты компании.
+                </p>
+            </div>
+
+            <div class="auth-side-note">
+                <span class="auth-point-label">Режим системы</span>
+                <strong>Browser MVP уже в работе</strong>
+                <p>На этом этапе доступны авторизация, список проектов, карточка объекта и документы.</p>
+            </div>
+
+            {% if error %}
+            <div class="error-box">{{ error }}</div>
+            {% endif %}
+
+            <form method="post" action="/login" class="login-form">
+                <label>
+                    <span>Логин</span>
+                    <input type="text" name="username" autocomplete="username" required>
+                </label>
+                <label>
+                    <span>Пароль</span>
+                    <input type="password" name="password" autocomplete="current-password" required>
+                </label>
+                <button type="submit" class="primary-button">Войти в CRM</button>
+            </form>
+        </section>
+    </section>
+</main>
+{% endblock %}

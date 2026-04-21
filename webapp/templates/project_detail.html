@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.project_name }} | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="detail-shell detail-shell-v2">
+    <div class="workspace-frame">
+        <header class="topbar-card detail-topbar">
+            <div class="topbar-brand">
+                <span class="eyebrow">Dekorartstroy CRM</span>
+                <strong>Карточка проекта</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <a class="topbar-chip topbar-chip-link" href="/projects">Назад к проектам</a>
+                <span class="topbar-chip">Проект ID {{ project.id }}</span>
+                <span class="topbar-chip">Статус: {{ project.status }}</span>
+            </div>
+
+            <div class="topbar-userbox">
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        <section class="detail-hero detail-hero-v2">
+            <div class="detail-hero-copy">
+                <div class="eyebrow eyebrow-light">Паспорт объекта</div>
+                <h1>{{ project.project_name }}</h1>
+                <p>
+                    Здесь собраны основные данные по объекту, заказчику, договору, документам и журналу событий.
+                    Это рабочая точка контроля по проекту перед следующим этапом — полноценным редактированием в браузере.
+                </p>
+            </div>
+
+            <div class="detail-hero-side">
+                <article class="detail-highlight">
+                    <span class="insight-label">Адрес</span>
+                    <strong>{{ project.address or "Адрес пока не заполнен" }}</strong>
+                </article>
+                <article class="detail-highlight">
+                    <span class="insight-label">Контрагент</span>
+                    <strong>{{ project.counterparty_name or "Не привязан" }}</strong>
+                </article>
+            </div>
+        </section>
+
+        <section class="stats-grid stats-grid-v2 detail-stats-grid">
+            <article class="metric-panel metric-panel-blue">
+                <span class="metric-label">Проект</span>
+                <strong>{{ project.id }}</strong>
+                <p>Идентификатор объекта в рабочей базе CRM</p>
+            </article>
+            <article class="metric-panel metric-panel-green">
+                <span class="metric-label">Документы</span>
+                <strong>{{ documents|length }}</strong>
+                <p>Файлы и версии, которые уже связаны с проектом</p>
+            </article>
+            <article class="metric-panel metric-panel-gold">
+                <span class="metric-label">События</span>
+                <strong>{{ events|length }}</strong>
+                <p>Записи в журнале, отражающие движение по объекту</p>
+            </article>
+            <article class="metric-panel metric-panel-slate">
+                <span class="metric-label">Статус</span>
+                <strong>{{ project.status }}</strong>
+                <p>Текущая стадия жизненного цикла проекта</p>
+            </article>
+        </section>
+
+        <section class="detail-info-grid">
+            <article class="panel-card panel-card-wide">
+                <div class="panel-header panel-header-compact">
+                    <div>
+                        <div class="eyebrow">Основное</div>
+                        <h3>Паспорт проекта</h3>
+                    </div>
+                </div>
+                <dl class="detail-list detail-list-grid">
+                    <div><dt>ID</dt><dd>{{ project.id }}</dd></div>
+                    <div><dt>Статус</dt><dd><span class="status-pill status-{{ project.status|status_class }}">{{ project.status }}</span></dd></div>
+                    <div><dt>Адрес</dt><dd>{{ project.address or "—" }}</dd></div>
+                    <div><dt>Заказчик</dt><dd>{{ project.customer or "—" }}</dd></div>
+                    <div><dt>Договор</dt><dd>{% if project.contract %}{{ project.contract }}{% if project.contract_date %} от {{ project.contract_date }}{% endif %}{% else %}—{% endif %}</dd></div>
+                    <div><dt>Создан</dt><dd>{{ project.created_at or "—" }}</dd></div>
+                    <div><dt>Обновлен</dt><dd>{{ project.updated_at or "—" }}</dd></div>
+                </dl>
+            </article>
+
+            <article class="panel-card panel-card-wide">
+                <div class="panel-header panel-header-compact">
+                    <div>
+                        <div class="eyebrow">Контрагент</div>
+                        <h3>Связанный участник проекта</h3>
+                    </div>
+                </div>
+                <dl class="detail-list detail-list-grid">
+                    <div><dt>Имя / компания</dt><dd>{{ project.counterparty_name or "—" }}</dd></div>
+                    <div><dt>Тип</dt><dd>{{ project.counterparty_type or "—" }}</dd></div>
+                    <div><dt>Телефон</dt><dd>{{ project.counterparty_phone or "—" }}</dd></div>
+                    <div><dt>Email</dt><dd>{{ project.counterparty_email or "—" }}</dd></div>
+                </dl>
+            </article>
+        </section>
+
+        <section class="panel-card panel-card-wide">
+            <div class="panel-header">
+                <div>
+                    <div class="eyebrow">Документы</div>
+                    <h3>Файлы проекта</h3>
+                </div>
+                <p class="panel-note">
+                    Документы открываются из серверного хранилища. Если ссылки нет, файл еще не перенесен на сервер.
+                </p>
+            </div>
+
+            {% if documents %}
+            <div class="projects-table-wrap projects-table-wrap-wide">
+                <table class="projects-table">
+                    <thead>
+                        <tr>
+                            <th>Документ</th>
+                            <th>Тип</th>
+                            <th>Статус</th>
+                            <th>Версия</th>
+                            <th>Файлы</th>
+                            <th>Обновлено</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for document in documents %}
+                        <tr>
+                            <td>
+                                <div class="project-link">
+                                    <span class="project-name">{{ document.title or "Без названия" }}</span>
+                                    <span class="project-address">{{ document.description or "Документ проекта" }}</span>
+                                </div>
+                            </td>
+                            <td class="cell-muted">{{ document.doc_type or "—" }}</td>
+                            <td><span class="status-pill status-{{ document.status|status_class }}">{{ document.status }}</span></td>
+                            <td class="cell-id">{{ document.version }}</td>
+                            <td>
+                                <div class="doc-links">
+                                    {% if document.has_file %}<a class="mini-link" href="/documents/{{ document.id }}/download?kind=file">Основной</a>{% endif %}
+                                    {% if document.has_pdf %}<a class="mini-link" href="/documents/{{ document.id }}/download?kind=pdf">PDF</a>{% endif %}
+                                    {% if document.has_draft %}<a class="mini-link" href="/documents/{{ document.id }}/download?kind=draft">Черновик</a>{% endif %}
+                                    {% if not document.has_file and not document.has_pdf and not document.has_draft %}<span class="cell-muted">Файл еще не перенесен</span>{% endif %}
+                                </div>
+                            </td>
+                            <td class="cell-muted">{{ document.updated_at or document.created_at or "—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-box">У этого проекта пока нет документов.</div>
+            {% endif %}
+        </section>
+
+        <section class="panel-card panel-card-wide">
+            <div class="panel-header panel-header-compact">
+                <div>
+                    <div class="eyebrow">История</div>
+                    <h3>Журнал событий</h3>
+                </div>
+            </div>
+
+            {% if events %}
+            <div class="timeline timeline-v2">
+                {% for event in events %}
+                <article class="timeline-item timeline-item-v2">
+                    <div class="timeline-meta">
+                        <strong>{{ event.event_type or "Событие" }}</strong>
+                        <span>{{ event.created_at or "—" }}</span>
+                    </div>
+                    <div class="timeline-text">{{ event.event_text or "—" }}</div>
+                    <div class="timeline-author">Автор: {{ event.author or "—" }}</div>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-box">История по проекту пока пуста.</div>
+            {% endif %}
+        </section>
+    </div>
+</main>
+{% endblock %}

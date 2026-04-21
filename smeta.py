@@ -4,12 +4,13 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
 import datetime
-import sqlite3
+import sqlite3 as sqlite3_module
 import warnings
 import json
 import re
 import sys
 import subprocess
+import types
 
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -19,8 +20,12 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
+from db_compat import connect as compat_db_connect, is_postgres_enabled
+
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
+
+sqlite3 = types.SimpleNamespace(connect=compat_db_connect, Row=sqlite3_module.Row)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_DB_PATH = os.path.join(BASE_DIR, "dekorart_base.db")
@@ -124,6 +129,7 @@ class SmetaApp(ctk.CTk):
         self.del_btn.pack(side="left", padx=4)
         self.price_btn = ctk.CTkButton(self.toolbar_buttons, text="Прайс-лист", width=98, height=32, command=self.open_price_manager, fg_color="#183153", hover_color="#12243d", corner_radius=12)
         self.price_btn.pack(side="left", padx=(8, 0))
+        self.add_room_btn.destroy()
 
         self.quick_add_frame = ctk.CTkFrame(self, fg_color="#eef3f8", corner_radius=22)
         self.quick_add_frame.pack(pady=(0, 3), padx=12, fill="x")
@@ -164,6 +170,8 @@ class SmetaApp(ctk.CTk):
         self.inline_db_tree.bind("<Double-1>", self.inline_add_to_main)
         self.inline_db_tree.bind("<Return>", self.inline_add_to_main)
         self.filter_inline_prices()
+        self.quick_add_frame.pack_forget()
+        self.quick_add_frame.destroy()
 
         self.main_frame = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=22)
         self.main_frame.pack(pady=(0, 4), padx=12, fill="both", expand=True)
@@ -183,6 +191,21 @@ class SmetaApp(ctk.CTk):
         ctk.CTkLabel(self.main_header, text="Позиции сметы", font=("Segoe UI Semibold", 16), text_color="#1d2b3a").grid(row=0, column=0, sticky="w")
         self.main_summary_label = ctk.CTkLabel(self.main_header, textvariable=self.summary_rows_var, font=("Segoe UI Semibold", 12), text_color="#2556a1")
         self.main_summary_label.grid(row=0, column=1, sticky="e")
+        self.main_hint_label = ctk.CTkLabel(
+            self.main_header,
+            text="РЎРѕР·РґР°Р№С‚Рµ СЂР°Р·РґРµР», Р° Р·Р°С‚РµРј РґРѕР±Р°РІР»СЏР№С‚Рµ РІ РЅРµРіРѕ РїРѕР·РёС†РёРё РёР· РїСЂР°Р№СЃ-Р»РёСЃС‚Р° РёР»Рё РІСЂСѓС‡РЅСѓСЋ.",
+            font=("Segoe UI", 10),
+            text_color="#6a7c90",
+        )
+        self.main_hint_label.grid(row=1, column=0, sticky="w", pady=(0, 4))
+        self.main_actions = ctk.CTkFrame(self.main_header, fg_color="transparent")
+        self.main_actions.grid(row=1, column=1, sticky="e", pady=(0, 4))
+        self.add_manual_btn = ctk.CTkButton(self.main_actions, text="+ РЎС‚СЂРѕРєР°", width=110, height=32, command=self.add_manual_row, fg_color="#8b5cf6", hover_color="#7347df", corner_radius=12)
+        self.add_manual_btn.pack(side="right", padx=4)
+        self.add_work_btn = ctk.CTkButton(self.main_actions, text="+ Р Р°Р±РѕС‚Р°", width=110, height=32, command=self.open_add_window, fg_color="#2f80ed", hover_color="#2567bd", corner_radius=12)
+        self.add_work_btn.pack(side="right", padx=4)
+        self.add_room_main_btn = ctk.CTkButton(self.main_actions, text="+ Р Р°Р·РґРµР»", width=110, height=32, command=self.add_room, fg_color="#34495e", hover_color="#253647", corner_radius=12)
+        self.add_room_main_btn.pack(side="right", padx=4)
 
         self.tree_shell = ctk.CTkFrame(self.main_frame, fg_color="#f8fafc", corner_radius=18)
         self.tree_shell.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 8))
@@ -402,6 +425,25 @@ class SmetaApp(ctk.CTk):
 
     def normalize_price_key(self, name):
         return str(name or "").strip().lower()
+
+    def normalize_price_row(self, row):
+        if row is None:
+            return ("", "", "", "")
+        if isinstance(row, (list, tuple)):
+            raw_values = list(row)
+        else:
+            try:
+                raw_values = [row["id"], row["name"], row["unit"], row["price"]]
+            except Exception:
+                raw_values = list(row)
+        if len(raw_values) < 4:
+            raw_values.extend([""] * (4 - len(raw_values)))
+        return (
+            str(raw_values[0]).strip(),
+            str(raw_values[1]).strip(),
+            str(raw_values[2]).strip(),
+            self.format_tree_number(self.parse_tree_number(raw_values[3]), 2) if raw_values[3] not in ("", None) else "",
+        )
 
     def parse_tree_number(self, value):
         raw = str(value or "").strip().replace(" ", "").replace(",", ".")
@@ -893,6 +935,10 @@ class SmetaApp(ctk.CTk):
             pass
         return candidate
 
+    def is_workspace_portable_path(self, path):
+        stored_path = self.to_workspace_storage_path(path)
+        return bool(stored_path) and not os.path.isabs(stored_path)
+
     def repair_document_paths(self, conn=None):
         owns_connection = conn is None
         if owns_connection:
@@ -1140,11 +1186,10 @@ class SmetaApp(ctk.CTk):
     def collect_startup_health_issues(self):
         workspace_dir = self.get_workspace_dir()
         issues = []
-        critical_files = [
-            ("\u0411\u0430\u0437\u0430 CRM", self.state_db_path),
-            ("\u0411\u0430\u0437\u0430 \u0446\u0435\u043d", PRICE_DB_PATH),
-            ("\u0424\u0430\u0439\u043b CRM", os.path.join(workspace_dir, "CRM.py")),
-        ]
+        critical_files = [("\u0424\u0430\u0439\u043b CRM", os.path.join(workspace_dir, "CRM.py"))]
+        if not is_postgres_enabled():
+            critical_files.insert(0, ("\u0411\u0430\u0437\u0430 CRM", self.state_db_path))
+            critical_files.insert(1, ("\u0411\u0430\u0437\u0430 \u0446\u0435\u043d", PRICE_DB_PATH))
         for label, path in critical_files:
             if not os.path.exists(path):
                 issues.append(f"{label}: {path}")
@@ -1163,10 +1208,19 @@ class SmetaApp(ctk.CTk):
                 broken_docs = []
                 for row in rows:
                     missing_parts = []
+                    nonportable_parts = []
                     for column, label in (("file_path", "\u0444\u0430\u0439\u043b"), ("draft_path", "\u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a"), ("pdf_path", "PDF")):
                         stored_path = str(row[column] or "").strip()
+                        if stored_path and not self.is_workspace_portable_path(stored_path):
+                            nonportable_parts.append(f"{label}: {stored_path}")
                         if stored_path and not os.path.exists(self.resolve_workspace_path(stored_path)):
                             missing_parts.append(f"{label}: {stored_path}")
+                    if nonportable_parts:
+                        title = str(row["title"] or f"\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 #{row['id']}")
+                        project_id = row["project_id"] if row["project_id"] is not None else "-"
+                        issues.append(
+                            f"\u041d\u0435\u043f\u0435\u0440\u0435\u043d\u043e\u0441\u0438\u043c\u044b\u0435 \u043f\u0443\u0442\u0438: {title} (\u043f\u0440\u043e\u0435\u043a\u0442 {project_id}) -> {'; '.join(nonportable_parts)}"
+                        )
                     if missing_parts:
                         title = str(row["title"] or f"\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 #{row['id']}")
                         project_id = row["project_id"] if row["project_id"] is not None else "-"
@@ -1626,6 +1680,7 @@ class SmetaApp(ctk.CTk):
         conn = sqlite3.connect(PRICE_DB_PATH)
         rows = conn.cursor().execute("SELECT id, name, unit, price FROM prices").fetchall()
         conn.close()
+        rows = [self.normalize_price_row(row) for row in rows]
         rows.sort(key=lambda x: (self.get_category_weight(x[1]), x[1]))
         for idx, row in enumerate(rows, 1): self.pm_tree.insert("", "end", values=(idx, row[1], row[2], row[3], row[0]))
 
@@ -1680,14 +1735,14 @@ class SmetaApp(ctk.CTk):
     def open_add_window(self):
         self.add_window = ctk.CTkToplevel(self)
         self.add_window.title("Выбор работы")
-        self.add_window.geometry("750x500")
+        self.add_window.geometry("980x640")
         self.add_window.attributes('-topmost', True)
 
         sf = ctk.CTkFrame(self.add_window, fg_color="transparent")
         sf.pack(fill="x", padx=10, pady=10)
         ctk.CTkLabel(sf, text="Поиск:").pack(side="left", padx=5)
         self.search_var = tk.StringVar()
-        self.search_entry = ctk.CTkEntry(sf, width=400, textvariable=self.search_var)
+        self.search_entry = ctk.CTkEntry(sf, width=520, textvariable=self.search_var)
         self.search_entry.pack(side="left", padx=5)
         self.search_var.trace_add("write", lambda *_: self.filter_prices_list())
         self.bind_search_shortcuts(self.search_entry, self.filter_prices_list)
@@ -1695,9 +1750,11 @@ class SmetaApp(ctk.CTk):
         self.db_tree = ttk.Treeview(self.add_window, columns=("id", "name", "unit", "price"), show="headings")
         self.db_tree.heading("id", text="ID"); self.db_tree.heading("name", text="Наименование")
         self.db_tree.heading("unit", text="Ед."); self.db_tree.heading("price", text="Цена")
-        self.db_tree.column("id", width=0, stretch=False); self.db_tree.column("name", width=400)
-        self.db_tree.column("unit", width=50, anchor="center"); self.db_tree.column("price", width=80, anchor="center")
+        self.db_tree.column("id", width=0, stretch=False); self.db_tree.column("name", width=620)
+        self.db_tree.column("unit", width=100, anchor="center"); self.db_tree.column("price", width=120, anchor="center")
         self.db_tree.pack(fill="both", expand=True, padx=10, pady=5)
+        self.db_tree.bind("<Double-1>", lambda event: self.add_to_main())
+        self.db_tree.bind("<Return>", lambda event: self.add_to_main())
         self.filter_prices_list()
 
         bot = ctk.CTkFrame(self.add_window)
@@ -1706,11 +1763,13 @@ class SmetaApp(ctk.CTk):
         ctk.CTkLabel(bot, text="Кол-во:").pack(side="left", padx=(30, 5))
         self.qty_entry = ctk.CTkEntry(bot, width=80); self.qty_entry.pack(side="left", padx=5); self.qty_entry.insert(0, "1")
         ctk.CTkButton(bot, text="Добавить", command=self.add_to_main, fg_color="green").pack(side="right", padx=5)
+        self.search_entry.focus_set()
 
     def fetch_price_rows(self):
         conn = sqlite3.connect(PRICE_DB_PATH)
         rows = conn.cursor().execute("SELECT id, name, unit, price FROM prices").fetchall()
         conn.close()
+        rows = [self.normalize_price_row(row) for row in rows]
         rows.sort(key=lambda x: (self.get_category_weight(x[1]), x[1]))
         return rows
 
@@ -1722,7 +1781,7 @@ class SmetaApp(ctk.CTk):
         for item in tree.get_children():
             tree.delete(item)
         for row in rows:
-            tree.insert("", "end", values=row)
+            tree.insert("", "end", values=self.normalize_price_row(row))
 
     def filter_prices_list(self, event=None):
         self.populate_price_tree(self.db_tree, self.filter_rows_by_query(self.search_entry.get()))
@@ -1899,12 +1958,32 @@ class SmetaApp(ctk.CTk):
         self.schedule_autosave()
 
     # --- БАЗОВЫЕ ФУНКЦИИ ---
+    def insert_tree_item_after_selection(self, values, tags=()):
+        siblings = list(self.tree.get_children(""))
+        index = "end"
+        selection = self.tree.selection()
+        if selection:
+            anchor = selection[-1]
+            if anchor in siblings:
+                index = siblings.index(anchor) + 1
+        item_id = self.tree.insert("", index, values=self.normalize_tree_values(values, tags=tags), tags=tags)
+        self.tree.selection_set(item_id)
+        self.tree.focus(item_id)
+        self.tree.see(item_id)
+        return item_id
+
     def add_room(self):
         d = ctk.CTkInputDialog(text="Название раздела:", title="Раздел")
         r = d.get_input()
         if r:
-            self.tree.insert("", "end", values=self.normalize_tree_values((r,), tags=("room",)), tags=("room",))
+            self.insert_tree_item_after_selection((r,), tags=("room",))
             self.schedule_autosave()
+
+    def add_manual_row(self):
+        item_id = self.insert_tree_item_after_selection(("Новая работа", "шт", 1, 0, 0, 0, ""))
+        self.recalculate_total()
+        self.schedule_autosave()
+        self.after(60, self.edit_row)
 
     def delete_row(self):
         for i in self.tree.selection(): self.tree.delete(i)
@@ -2116,8 +2195,18 @@ class SmetaApp(ctk.CTk):
 
             doc.build(els, onFirstPage=aw, onLaterPages=aw)
             self.update_project_smeta_document(pdf_path=fp)
-            messagebox.showinfo("Успешно", f"Файл сохранен:\n{fp}")
-        except Exception as e: messagebox.showerror("Ошибка", f"Ошибка: {e}")
+            if self.is_workspace_portable_path(fp):
+                messagebox.showinfo("\u0423\u0441\u043f\u0435\u0448\u043d\u043e", f"\u0424\u0430\u0439\u043b \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d:\n{fp}")
+            else:
+                messagebox.showwarning(
+                    "\u0423\u0441\u043f\u0435\u0448\u043d\u043e",
+                    f"\u0424\u0430\u0439\u043b \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d:\n{fp}\n\n"
+                    "\u0424\u0430\u0439\u043b \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d \u0432\u043d\u0435 \u043f\u0430\u043f\u043a\u0438 \u043f\u0440\u043e\u0435\u043a\u0442\u0430. "
+                    "\u0414\u043b\u044f \u043d\u0430\u0434\u0451\u0436\u043d\u043e\u0439 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u0438 "
+                    "\u043c\u0435\u0436\u0434\u0443 \u043e\u0444\u0438\u0441\u043e\u043c \u0438 \u0434\u043e\u043c\u043e\u043c \u043b\u0443\u0447\u0448\u0435 "
+                    "\u0445\u0440\u0430\u043d\u0438\u0442\u044c PDF \u0432\u043d\u0443\u0442\u0440\u0438 \u043f\u0430\u043f\u043a\u0438 CRM_OLD_BAD."
+                )
+        except Exception as e: messagebox.showerror("\u041e\u0448\u0438\u0431\u043a\u0430", f"\u041e\u0448\u0438\u0431\u043a\u0430: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)

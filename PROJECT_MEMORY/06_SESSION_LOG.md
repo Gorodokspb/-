@@ -270,3 +270,53 @@ What changed:
 
 Next action:
 - define the first web architecture slice around authentication, projects, and a tester-safe browser workflow.
+
+## 2026-04-21 - Contract Generation Now Promotes Draft Projects To In Progress
+
+Task:
+- continue strengthening the live desktop workflow instead of moving into web work yet.
+
+What was found:
+- the agreed project-stage model already had `Черновик -> В работе`, but the desktop CRM did not automatically move a project forward when the contract was successfully generated;
+- this left the project in draft even after the workflow had already entered the contract/execution stage.
+
+What changed:
+- added `promote_project_to_in_progress_after_contract()` in `CRM.py`;
+- after successful contract generation, the project now automatically moves from `Черновик` to `В работе`;
+- manual statuses such as `Пауза` and `Завершён` are left untouched;
+- the project history now records the automatic status transition.
+
+Verification:
+- `python -m py_compile CRM.py smeta.py` passed after the change.
+
+Next action:
+- manually verify the live scenario where a draft project generates its first contract and immediately appears as `В работе` in CRM.
+
+## 2026-04-20 - Office/Home Portability Audit And Memory Upgrade
+
+Task:
+- shift priority away from the paused web track and verify that office/home desktop work keeps saving portable document paths;
+- strengthen persistent memory so future office and home sessions can resume without retelling prior work.
+
+What was found:
+- the current office workspace is `D:\Yandex.Disk\СМЕТЫ НА ПРОВЕРКУ\CRM_OLD_BAD`;
+- the database currently stores document paths in `documents` as relative project paths, and the recent saved estimate document resolved correctly in the current workspace;
+- `smeta_drafts` and `project_events` did not contain explicit drive-letter or workspace-root path strings in the current data snapshot;
+- `CRM.py` already had repair logic for old document paths, but project-card PDF export still wrote the selected PDF path back to `documents` directly instead of normalizing it first;
+- both apps could still let a user save PDFs outside the project workspace, which is a portability risk when switching between office and home.
+
+What changed:
+- added `is_workspace_portable_path()` to both `CRM.py` and `smeta.py`;
+- upgraded startup health checks in both apps so they warn not only about missing files but also about nonportable document paths;
+- updated project-card estimate PDF export in `CRM.py` so the saved PDF path is normalized before writing back into `documents`;
+- updated estimate PDF export in `smeta.py` to warn when a PDF is saved outside the project workspace;
+- added `portability_audit.py` as a reusable database audit tool for office/home path checks;
+- updated project memory to reflect that the web track is paused and office/home continuity is now the active priority;
+- added `PROJECT_MEMORY/14_HOME_OFFICE_CONTINUITY.md` and updated the memory entry point, next steps, decisions, environment notes, and conversation rules.
+
+Verification:
+- `py portability_audit.py` reported zero absolute paths in the current `documents` rows and no explicit drive/workspace hints in `smeta_drafts` or `project_events`;
+- `py -m py_compile CRM.py smeta.py portability_audit.py` passed successfully.
+
+Next action:
+- manually test estimate PDF export from both CRM and the estimate editor, once saving inside the workspace and once outside it, and confirm that the warnings and saved document paths behave as expected.
