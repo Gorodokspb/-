@@ -890,6 +890,14 @@ input:focus {
     backdrop-filter: blur(10px);
 }
 
+.topbar-card-projects {
+    grid-template-columns: minmax(260px, 1fr) auto;
+}
+
+.topbar-userbox-compact {
+    justify-content: flex-end;
+}
+
 .topbar-brand {
     display: grid;
     gap: 6px;
