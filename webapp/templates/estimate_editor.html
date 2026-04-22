@@ -53,7 +53,8 @@
             </section>
 
             <div class="estimate-rail-footer">
-                <a href="/projects" class="estimate-rail-link">К проектам</a>
+                <a href="/projects" class="estimate-rail-link">Главная CRM</a>
+                <a href="/projects" class="estimate-rail-link">Все проекты</a>
                 <a href="/projects/{{ project.id }}" class="estimate-rail-link">Карточка проекта</a>
                 <form method="post" action="/logout">
                     <button type="submit" class="estimate-rail-link-button">Выйти</button>
@@ -64,6 +65,8 @@
         <div class="estimate-workspace">
             <header class="estimate-header-strip">
                 <nav class="estimate-header-tabs">
+                    <a class="estimate-header-tab" href="/projects">Главная</a>
+                    <a class="estimate-header-tab" href="/projects/{{ project.id }}">Карточка проекта</a>
                     <a class="estimate-header-tab is-active" href="/projects/{{ project.id }}/estimate">Редактор сметы</a>
                     <button type="button" class="estimate-header-tab" id="openDrawerRatesTop">База расценок</button>
                     <button type="button" class="estimate-header-tab" id="openDrawerTemplatesTop">Шаблоны</button>
