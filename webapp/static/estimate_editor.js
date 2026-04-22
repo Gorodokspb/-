@@ -9,6 +9,16 @@
     const itemCountNode = document.getElementById("estimateItemCount");
     const totalSumNode = document.getElementById("estimateTotalSum");
     const discountedSumNode = document.getElementById("estimateDiscountedSum");
+    const totalValueNodes = [
+        document.getElementById("estimateTotalSum"),
+        document.getElementById("estimateTotalHeadValue"),
+        document.getElementById("estimateTotalFooterValue"),
+    ].filter(Boolean);
+    const discountedValueNodes = [
+        document.getElementById("estimateDiscountedSum"),
+        document.getElementById("estimateDiscountedHeadValue"),
+        document.getElementById("estimateDiscountedFooterValue"),
+    ].filter(Boolean);
     const searchInput = document.getElementById("estimateSearchInput");
     const selectionTitle = document.getElementById("estimateSelectionTitle");
     const selectionMeta = document.getElementById("estimateSelectionMeta");
@@ -32,12 +42,26 @@
     const quickAddPrice = document.getElementById("quickAddPrice");
     const quickAddReference = document.getElementById("quickAddReference");
     const quickAddButton = document.getElementById("quickAddButton");
+    const quickAddInlineButton = document.getElementById("quickAddInlineButton");
     const quickAddClearButton = document.getElementById("quickAddClearButton");
     const quickAddHint = document.getElementById("estimateQuickAddHint");
     const quickAddItemFields = Array.from(document.querySelectorAll(".quick-add-item-field"));
     const sectionNavigator = document.getElementById("estimateSectionNavigator");
     const sectionNavigatorCount = document.getElementById("estimateSectionNavigatorCount");
     const bottomStatus = document.getElementById("estimateBottomStatus");
+    const drawer = document.getElementById("estimateDrawer");
+    const drawerSearch = document.getElementById("estimateDrawerSearch");
+    const drawerCloseButton = document.getElementById("closeEstimateDrawer");
+    const drawerTabs = Array.from(document.querySelectorAll(".estimate-drawer-tab"));
+    const drawerPanels = Array.from(document.querySelectorAll(".estimate-drawer-panel"));
+    const ratesLibrary = document.getElementById("estimateRatesLibrary");
+    const operationsLibrary = document.getElementById("estimateOperationsLibrary");
+    const templatesLibrary = document.getElementById("estimateTemplatesLibrary");
+    const drawerOpeners = {
+        rates: Array.from(document.querySelectorAll("#openDrawerRates, #openDrawerRatesTop")),
+        operations: Array.from(document.querySelectorAll("#openDrawerOperations, #openDrawerOperationsTop")),
+        templates: Array.from(document.querySelectorAll("#openDrawerTemplates, #openDrawerTemplatesTop")),
+    };
     const dialog = document.getElementById("estimateRowDialog");
     const dialogTitle = document.getElementById("estimateDialogTitle");
     const dialogRowType = document.getElementById("dialogRowType");
@@ -169,6 +193,7 @@
     let editingIndex = -1;
     let activeFilter = "all";
     let isDirty = false;
+    let activeDrawerTab = "rates";
     const collapsedSections = new Set();
 
     function setDirtyState(value) {
@@ -432,6 +457,132 @@
         });
     }
 
+    function openDrawer(tabName = "rates") {
+        if (!drawer) {
+            return;
+        }
+        activeDrawerTab = tabName;
+        drawer.dataset.open = "true";
+        drawerTabs.forEach((tab) => {
+            tab.classList.toggle("is-active", tab.dataset.drawerTab === tabName);
+        });
+        drawerPanels.forEach((panel) => {
+            panel.classList.toggle("is-active", panel.dataset.drawerPanel === tabName);
+        });
+        renderDrawerLibraries();
+    }
+
+    function closeDrawer() {
+        if (!drawer) {
+            return;
+        }
+        drawer.dataset.open = "false";
+    }
+
+    function libraryCard({ title, description, pills = [] }) {
+        const card = document.createElement("article");
+        card.className = "estimate-library-card";
+
+        const strong = document.createElement("strong");
+        strong.textContent = title;
+        card.appendChild(strong);
+
+        if (description) {
+            const text = document.createElement("p");
+            text.textContent = description;
+            card.appendChild(text);
+        }
+
+        if (pills.length) {
+            const meta = document.createElement("div");
+            meta.className = "estimate-library-meta";
+            pills.forEach((pillText) => {
+                const pill = document.createElement("span");
+                pill.className = "estimate-library-pill";
+                pill.textContent = pillText;
+                meta.appendChild(pill);
+            });
+            card.appendChild(meta);
+        }
+
+        return card;
+    }
+
+    function renderDrawerLibraries() {
+        if (!ratesLibrary || !operationsLibrary || !templatesLibrary) {
+            return;
+        }
+
+        const query = normalizeText(drawerSearch ? drawerSearch.value : "");
+        const items = rows.filter((row) => row.row_type === "item");
+        const sections = rows.filter((row) => row.row_type === "section");
+
+        ratesLibrary.innerHTML = "";
+        operationsLibrary.innerHTML = "";
+        templatesLibrary.innerHTML = "";
+
+        const filteredItems = items.filter((row) => {
+            const haystack = normalizeText([row.name, row.reference, row.unit, row.price].join(" "));
+            return !query || haystack.includes(query);
+        });
+        const filteredSections = sections.filter((row) => {
+            const haystack = normalizeText(row.name);
+            return !query || haystack.includes(query);
+        });
+
+        if (!filteredItems.length) {
+            ratesLibrary.innerHTML = '<div class="estimate-section-empty">По текущему фильтру подходящих расценок пока нет.</div>';
+            operationsLibrary.innerHTML = '<div class="estimate-section-empty">Нет строк для панели операций.</div>';
+        } else {
+            filteredItems.slice(0, 24).forEach((row) => {
+                ratesLibrary.appendChild(
+                    libraryCard({
+                        title: row.name || "Позиция без названия",
+                        description: row.reference
+                            ? `Код: ${row.reference}`
+                            : "Пока без кода. Дальше сюда подключим отдельную базу расценок.",
+                        pills: [
+                            row.unit ? `Ед.: ${row.unit}` : "Ед. не указана",
+                            `Цена: ${row.price || "0"}`,
+                            `Количество: ${row.quantity || "0"}`,
+                        ],
+                    }),
+                );
+            });
+
+            filteredItems.slice(0, 24).forEach((row) => {
+                operationsLibrary.appendChild(
+                    libraryCard({
+                        title: row.name || "Позиция",
+                        description: "Для этой позиции доступны базовые действия через таблицу: изменить, дублировать, переместить или удалить.",
+                        pills: [
+                            row.total ? `Стоимость: ${row.total}` : "Стоимость: 0",
+                            row.discounted_total ? `Со скидкой: ${row.discounted_total}` : "Со скидкой: 0",
+                        ],
+                    }),
+                );
+            });
+        }
+
+        if (!filteredSections.length) {
+            templatesLibrary.innerHTML = '<div class="estimate-section-empty">Шаблоны этапов пока не собраны.</div>';
+        } else {
+            filteredSections.slice(0, 24).forEach((row) => {
+                const summary = buildSectionSummaries("").get(row.client_id);
+                templatesLibrary.appendChild(
+                    libraryCard({
+                        title: row.name || "Раздел",
+                        description: "Раздел можно использовать как основу будущего шаблона этапа.",
+                        pills: [
+                            summary ? `Позиций: ${summary.itemCount}` : "Позиций: 0",
+                            summary ? `Итого: ${formatMoneyLabel(summary.discounted)}` : "Итого: 0",
+                        ],
+                    }),
+                );
+            });
+        }
+    }
+
     function createCell(content, className = "") {
         const cell = document.createElement("td");
         if (className) {
@@ -488,13 +639,32 @@
         meta.textContent = `${summary.itemCount} поз. · итого ${formatMoneyLabel(summary.total)} · со скидкой ${formatMoneyLabel(summary.discounted)}`;
         titleWrap.appendChild(meta);
 
-        tr.appendChild(createCell(toggleButton, "estimate-row-type"));
+        const typeBadge = document.createElement("span");
+        typeBadge.className = "estimate-row-type-badge is-section";
+        typeBadge.textContent = "Э";
+
+        const actionWrap = document.createElement("div");
+        actionWrap.className = "estimate-row-actions";
+        const actionButton = document.createElement("button");
+        actionButton.type = "button";
+        actionButton.className = "estimate-row-menu";
+        actionButton.textContent = "⋮";
+        actionButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            selectedIndex = index;
+            renderRows();
+        });
+        actionWrap.appendChild(actionButton);
+
+        tr.appendChild(createCell(typeBadge, "estimate-row-type"));
+        tr.appendChild(createCell("—", "estimate-row-reference"));
         tr.appendChild(createCell(titleWrap, "estimate-row-name"));
         tr.appendChild(createCell("—", "estimate-row-muted"));
         tr.appendChild(createCell(String(summary.itemCount || 0), "estimate-row-muted"));
         tr.appendChild(createCell("—", "estimate-row-muted"));
         tr.appendChild(createCell(formatMoneyLabel(summary.total), "estimate-row-muted"));
         tr.appendChild(createCell(formatMoneyLabel(summary.discounted), "estimate-row-muted"));
+        tr.appendChild(createCell(actionWrap, "estimate-row-actions"));
         return tr;
     }
 
@@ -511,13 +681,45 @@
             openDialog("edit", row.row_type, index);
         });
 
-        tr.appendChild(createCell("Позиция", "estimate-row-type"));
-        tr.appendChild(createCell(row.name || "—", "estimate-row-name"));
+        const typeBadge = document.createElement("span");
+        typeBadge.className = "estimate-row-type-badge";
+        typeBadge.textContent = "П";
+
+        const nameWrap = document.createElement("div");
+        nameWrap.className = "estimate-row-name-wrap";
+        const nameNode = document.createElement("div");
+        nameNode.className = "estimate-row-name";
+        nameNode.textContent = row.name || "—";
+        nameWrap.appendChild(nameNode);
+        if (row.reference) {
+            const refNode = document.createElement("div");
+            refNode.className = "estimate-row-muted";
+            refNode.textContent = `Артикул: ${row.reference}`;
+            nameWrap.appendChild(refNode);
+        }
+
+        const actionWrap = document.createElement("div");
+        actionWrap.className = "estimate-row-actions";
+        const actionButton = document.createElement("button");
+        actionButton.type = "button";
+        actionButton.className = "estimate-row-menu";
+        actionButton.textContent = "⋮";
+        actionButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            selectedIndex = index;
+            renderRows();
+        });
+        actionWrap.appendChild(actionButton);
+
+        tr.appendChild(createCell(typeBadge, "estimate-row-type"));
+        tr.appendChild(createCell(row.reference || "—", "estimate-row-reference"));
+        tr.appendChild(createCell(nameWrap, ""));
         tr.appendChild(createCell(row.unit || "—"));
         tr.appendChild(createCell(row.quantity || "0"));
         tr.appendChild(createCell(row.price || "0"));
         tr.appendChild(createCell(row.total || "0"));
         tr.appendChild(createCell(row.discounted_total || "0"));
+        tr.appendChild(createCell(actionWrap, "estimate-row-actions"));
         return tr;
     }
 
@@ -580,9 +782,14 @@
         filteredEmptyState.hidden = rows.length === 0 || visibleRows !== 0;
         sectionCountNode.textContent = String(sectionCount);
         itemCountNode.textContent = String(itemCount);
-        totalSumNode.textContent = formatNumber(totalSum);
-        discountedSumNode.textContent = formatNumber(discountedSum);
+        totalValueNodes.forEach((node) => {
+            node.textContent = formatNumber(totalSum);
+        });
+        discountedValueNodes.forEach((node) => {
+            node.textContent = formatNumber(discountedSum);
+        });
         renderSectionNavigator(sectionSummaries);
+        renderDrawerLibraries();
         updateSelectionSummary(sectionSummaries);
         updateActionButtons();
         updateBottomStatus();
@@ -671,6 +878,7 @@
 
     addSectionButton?.addEventListener("click", () => openDialog("create", "section"));
     addItemButton?.addEventListener("click", () => openDialog("create", "item"));
+    quickAddButton?.addEventListener("click", () => openDialog("create", "item"));
 
     editRowButton?.addEventListener("click", () => {
         const row = selectedRowOrAlert();
@@ -720,7 +928,7 @@
     });
 
     quickAddRowType?.addEventListener("change", syncQuickAddFieldVisibility);
-    quickAddButton?.addEventListener("click", addQuickRow);
+    quickAddInlineButton?.addEventListener("click", addQuickRow);
     quickAddClearButton?.addEventListener("click", clearQuickAddFields);
     quickAddName?.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -730,9 +938,21 @@
     });
 
     searchInput?.addEventListener("input", renderRows);
+    drawerSearch?.addEventListener("input", renderDrawerLibraries);
     dialogRowType?.addEventListener("change", syncDialogFieldVisibility);
     cancelEstimateDialog?.addEventListener("click", closeDialog);
     closeEstimateDialog?.addEventListener("click", closeDialog);
+    drawerCloseButton?.addEventListener("click", closeDrawer);
+
+    Object.entries(drawerOpeners).forEach(([tabName, buttons]) => {
+        buttons.forEach((button) => {
+            button?.addEventListener("click", () => openDrawer(tabName));
+        });
+    });
+
+    drawerTabs.forEach((tab) => {
+        tab.addEventListener("click", () => openDrawer(tab.dataset.drawerTab || "rates"));
+    });
 
     saveEstimateRow?.addEventListener("click", () => {
         const draftRow = normalizeRow({
@@ -826,6 +1046,10 @@
                 event.preventDefault();
                 addQuickRow();
             }
+        }
+
+        if (event.key === "Escape" && drawer?.dataset.open === "true") {
+            closeDrawer();
         }
     });
 

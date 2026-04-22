@@ -3,317 +3,406 @@
 {% block title %}Web-смета | {{ project.project_name }}{% endblock %}
 
 {% block body %}
-<main class="estimate-shell">
-    <div class="workspace-frame">
-        <header class="topbar-card detail-topbar">
-            <div class="topbar-brand">
-                <span class="eyebrow">Dekorartstroy CRM</span>
-                <strong>Web-смета проекта</strong>
-            </div>
-
-            <div class="topbar-meta">
-                <a class="topbar-chip topbar-chip-link" href="/projects">Проекты</a>
-                <a class="topbar-chip topbar-chip-link" href="/projects/{{ project.id }}">Карточка проекта</a>
-                <span class="topbar-chip">Проект ID {{ project.id }}</span>
-                <span class="topbar-chip">Статус: {{ project.status }}</span>
-            </div>
-
-            <div class="topbar-userbox">
-                <div class="topbar-usertext">
-                    <span class="sidebar-label">Пользователь</span>
-                    <strong>{{ username }}</strong>
+<main class="estimate-shell estimate-shell-v3">
+    <div class="estimate-app-shell">
+        <aside class="estimate-rail">
+            <div class="estimate-rail-brand">
+                <div class="estimate-rail-logo">D</div>
+                <div class="estimate-rail-brand-copy">
+                    <span class="eyebrow eyebrow-rail">Dekorartstroy CRM</span>
+                    <strong>Редактор сметы</strong>
                 </div>
+            </div>
+
+            <section class="estimate-rail-block">
+                <span class="estimate-rail-label">Объект и смета</span>
+                <div class="estimate-rail-project">
+                    <strong>{{ estimate.object_name or project.project_name }}</strong>
+                    <span>{{ project.address or project.project_name }}</span>
+                </div>
+                <div class="estimate-rail-badges">
+                    <span class="estimate-rail-badge">Проект ID {{ project.id }}</span>
+                    <span class="estimate-rail-badge">Статус: {{ project.status }}</span>
+                </div>
+            </section>
+
+            <section class="estimate-rail-block">
+                <div class="estimate-rail-block-head">
+                    <span class="estimate-rail-label">Навигация по смете</span>
+                    <strong id="estimateSectionNavigatorCount">0</strong>
+                </div>
+                <div class="estimate-rail-sections" id="estimateSectionNavigator">
+                    <div class="estimate-section-empty">Разделы появятся после добавления строк типа «Раздел».</div>
+                </div>
+            </section>
+
+            <section class="estimate-rail-block">
+                <span class="estimate-rail-label">Быстрые действия</span>
+                <div class="estimate-rail-actions">
+                    <button type="button" class="estimate-rail-button estimate-rail-button-primary" id="addSectionButton">+ Этап</button>
+                    <button type="button" class="estimate-rail-button" id="addItemButton">+ Позиция</button>
+                    <button type="button" class="estimate-rail-button" id="collapseAllButton">Свернуть разделы</button>
+                    <button type="button" class="estimate-rail-button" id="expandAllButton">Развернуть разделы</button>
+                </div>
+            </section>
+
+            <section class="estimate-rail-block estimate-rail-selection">
+                <span class="estimate-rail-label">Текущая строка</span>
+                <strong id="estimateSelectionTitle">Ничего не выбрано</strong>
+                <p id="estimateSelectionMeta">Выберите строку в таблице или добавьте новую.</p>
+            </section>
+
+            <div class="estimate-rail-footer">
+                <a href="/projects" class="estimate-rail-link">К проектам</a>
+                <a href="/projects/{{ project.id }}" class="estimate-rail-link">Карточка проекта</a>
                 <form method="post" action="/logout">
-                    <button type="submit" class="ghost-button">Выйти</button>
+                    <button type="submit" class="estimate-rail-link-button">Выйти</button>
                 </form>
             </div>
-        </header>
+        </aside>
 
-        <section class="estimate-hero">
-            <div class="estimate-hero-copy">
-                <div class="eyebrow eyebrow-light">Редактор сметы</div>
-                <h1>{{ estimate.object_name or project.project_name }}</h1>
-                <p>
-                    Здесь мы ведем смету уже в браузере: редактируем шапку, создаем разделы,
-                    добавляем позиции, пересчитываем итоги и сохраняем черновик прямо на сервере.
-                </p>
+        <div class="estimate-workspace">
+            <header class="estimate-header-strip">
+                <nav class="estimate-header-tabs">
+                    <a class="estimate-header-tab is-active" href="/projects/{{ project.id }}/estimate">Редактор сметы</a>
+                    <button type="button" class="estimate-header-tab" id="openDrawerRatesTop">База расценок</button>
+                    <button type="button" class="estimate-header-tab" id="openDrawerTemplatesTop">Шаблоны</button>
+                    <button type="button" class="estimate-header-tab" id="openDrawerOperationsTop">Операции</button>
+                </nav>
 
-                <div class="estimate-hero-actions">
-                    <button type="submit" form="estimateEditorForm" class="primary-button">Сохранить черновик</button>
-                    <button
-                        type="submit"
-                        form="estimateEditorForm"
-                        formaction="/projects/{{ project.id }}/estimate/pdf"
-                        class="ghost-button-light estimate-inline-action"
-                    >
-                        Сформировать PDF
-                    </button>
-                    {% if estimate.has_draft_file and estimate.document %}
-                    <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=draft">Скачать JSON</a>
-                    {% endif %}
-                    {% if estimate.has_pdf_file and estimate.document %}
-                    <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=pdf">Скачать PDF</a>
-                    {% endif %}
-                    <span class="estimate-dirty-badge" id="estimateDirtyBadge" hidden>Есть несохраненные изменения</span>
+                <div class="estimate-header-user">
+                    <span class="estimate-header-user-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
                 </div>
+            </header>
+
+            <section class="estimate-summary-board">
+                <div class="estimate-summary-main">
+                    <div class="eyebrow">Web-смета</div>
+                    <h1>{{ estimate.object_name or project.project_name }}</h1>
+                    <p>
+                        Переделываем смету в плотный браузерный рабочий экран: всё ключевое перед глазами,
+                        разделы слева, большая таблица по центру и справочники в выезжающей панели справа.
+                    </p>
+
+                    <div class="estimate-summary-meta">
+                        <div class="estimate-summary-chip">
+                            <span>Сохранено</span>
+                            <strong>{{ estimate.saved_at or "Пока нет сохранения" }}</strong>
+                        </div>
+                        <div class="estimate-summary-chip">
+                            <span>Черновик</span>
+                            <strong>{{ estimate.draft_path or "Будет создан после первого сохранения" }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="estimate-summary-side">
+                    <div class="estimate-total-card">
+                        <span class="estimate-total-label">Всего по смете</span>
+                        <strong id="estimateDiscountedSum">{{ estimate.discounted_sum }}</strong>
+                        <small>С учетом скидки</small>
+                    </div>
+
+                    <div class="estimate-kpi-grid">
+                        <article class="estimate-kpi-card">
+                            <span>Разделы</span>
+                            <strong id="estimateSectionCount">{{ estimate.section_count }}</strong>
+                        </article>
+                        <article class="estimate-kpi-card">
+                            <span>Позиции</span>
+                            <strong id="estimateItemCount">{{ estimate.item_count }}</strong>
+                        </article>
+                        <article class="estimate-kpi-card">
+                            <span>Итого</span>
+                            <strong id="estimateTotalSum">{{ estimate.total_sum }}</strong>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            {% if saved %}
+            <div class="notice-banner notice-banner-success">Черновик сметы успешно сохранен на сервере.</div>
+            {% endif %}
+
+            {% if error %}
+            <div class="error-box">{{ error }}</div>
+            {% endif %}
+
+            <form id="estimateEditorForm" class="estimate-workspace-form" method="post" action="/projects/{{ project.id }}/estimate">
+                <section class="estimate-document-bar">
+                    <div class="estimate-document-main">
+                        <div class="estimate-document-title-row">
+                            <div>
+                                <div class="eyebrow">Паспорт сметы</div>
+                                <h2>Общие данные</h2>
+                            </div>
+                            <span class="estimate-dirty-badge" id="estimateDirtyBadge" hidden>Есть несохраненные изменения</span>
+                        </div>
+
+                        <div class="estimate-document-grid">
+                            <label>
+                                <span class="sidebar-label">Компания</span>
+                                <input type="text" name="company_name" value="{{ estimate.company }}">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Объект</span>
+                                <input type="text" name="object_name" value="{{ estimate.object_name }}" placeholder="Адрес или название объекта">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Заказчик</span>
+                                <input type="text" name="customer_name" value="{{ estimate.customer_name }}" placeholder="ФИО или компания">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Договор</span>
+                                <input type="text" name="contract_label" value="{{ estimate.contract_label }}" placeholder="№00/00/26 от 00 мая 2026 г.">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Скидка, %</span>
+                                <input id="estimateDiscountInput" type="text" name="discount" value="{{ estimate.discount }}" placeholder="0">
+                            </label>
+                            <label class="estimate-toggle-box">
+                                <span class="sidebar-label">Режим PDF</span>
+                                <span class="estimate-check estimate-check-inline">
+                                    <input type="checkbox" name="watermark" {% if estimate.watermark %}checked{% endif %}>
+                                    <span>Черновик с водяным знаком</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <aside class="estimate-document-actions">
+                        <button type="submit" class="primary-button">Сохранить черновик</button>
+                        <button
+                            type="submit"
+                            formaction="/projects/{{ project.id }}/estimate/pdf"
+                            class="ghost-button"
+                        >
+                            Сформировать PDF
+                        </button>
+                        {% if estimate.has_draft_file and estimate.document %}
+                        <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=draft">Скачать JSON</a>
+                        {% endif %}
+                        {% if estimate.has_pdf_file and estimate.document %}
+                        <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=pdf">Скачать PDF</a>
+                        {% endif %}
+                        <button type="button" class="ghost-button-light estimate-inline-action" id="editRowButton">Изменить строку</button>
+                        <button type="button" class="ghost-button-light estimate-inline-action" id="duplicateRowButton">Дублировать</button>
+                        <button type="button" class="ghost-button-light estimate-inline-action" id="deleteRowButton">Удалить</button>
+                    </aside>
+
+                    <input type="hidden" name="items_payload" id="estimateItemsPayload" value="">
+                </section>
+
+                <section class="estimate-stage-board">
+                    <div class="estimate-stage-head">
+                        <div class="estimate-stage-title">
+                            <div class="estimate-stage-order">1</div>
+                            <div>
+                                <span class="eyebrow">Этап работы</span>
+                                <h3>Редактор таблицы сметы</h3>
+                            </div>
+                        </div>
+
+                        <div class="estimate-stage-totals">
+                            <div>
+                                <span>До скидки</span>
+                                <strong id="estimateTotalHeadValue">{{ estimate.total_sum }}</strong>
+                            </div>
+                            <div>
+                                <span>После скидки</span>
+                                <strong id="estimateDiscountedHeadValue">{{ estimate.discounted_sum }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="estimate-tool-row">
+                        <div class="estimate-tool-tabs">
+                            <button type="button" class="estimate-tool-tab estimate-tool-tab-primary" id="quickAddButton">+ Позиция</button>
+                            <button type="button" class="estimate-tool-tab" id="openDrawerRates">База расценок</button>
+                            <button type="button" class="estimate-tool-tab" id="openDrawerTemplates">Шаблоны</button>
+                            <button type="button" class="estimate-tool-tab" id="openDrawerOperations">Операции</button>
+                        </div>
+
+                        <div class="estimate-tool-search">
+                            <label class="estimate-search-box">
+                                <span class="sidebar-label">Поиск по смете</span>
+                                <input type="text" id="estimateSearchInput" placeholder="Найдите раздел, работу, код или единицу измерения">
+                            </label>
+                            <label class="estimate-inline-qty">
+                                <span class="sidebar-label">Быстрое кол-во</span>
+                                <input type="text" id="quickAddQuantity" placeholder="1">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="estimate-quick-add-panel">
+                        <div class="estimate-quick-add-panel-copy">
+                            <div class="eyebrow">Быстрое добавление</div>
+                            <h4>Добавьте этап или позицию без лишних окон</h4>
+                            <p id="estimateQuickAddHint">Новая строка добавится после выделенной позиции или в конец сметы.</p>
+                        </div>
+
+                        <div class="estimate-quick-add-panel-fields">
+                            <label>
+                                <span class="sidebar-label">Тип</span>
+                                <select id="quickAddRowType">
+                                    <option value="item">Позиция</option>
+                                    <option value="section">Раздел</option>
+                                </select>
+                            </label>
+                            <label class="estimate-quick-add-name">
+                                <span class="sidebar-label">Название</span>
+                                <input type="text" id="quickAddName" placeholder="Например: Шпаклевка стен">
+                            </label>
+                            <label class="quick-add-item-field">
+                                <span class="sidebar-label">Ед.</span>
+                                <input type="text" id="quickAddUnit" placeholder="м2">
+                            </label>
+                            <label class="quick-add-item-field">
+                                <span class="sidebar-label">Цена</span>
+                                <input type="text" id="quickAddPrice" placeholder="0">
+                            </label>
+                            <label class="quick-add-item-field">
+                                <span class="sidebar-label">Код</span>
+                                <input type="text" id="quickAddReference" placeholder="Необязательно">
+                            </label>
+                        </div>
+
+                        <div class="estimate-quick-add-panel-actions">
+                            <button type="button" class="primary-button" id="quickAddInlineButton">Добавить сразу</button>
+                            <button type="button" class="ghost-button-light estimate-inline-action" id="quickAddClearButton">Очистить поля</button>
+                            <button type="button" class="ghost-button-light estimate-inline-action" id="moveUpButton">Выше</button>
+                            <button type="button" class="ghost-button-light estimate-inline-action" id="moveDownButton">Ниже</button>
+                            <button type="button" class="ghost-button-light estimate-inline-action" id="clearSelectionButton">Снять выделение</button>
+                        </div>
+                    </div>
+
+                    <div class="estimate-table-toolbar estimate-table-toolbar-v3">
+                        <div class="estimate-filter-box">
+                            <span class="sidebar-label">Фильтр строк</span>
+                            <div class="estimate-filter-chips">
+                                <button type="button" class="filter-chip is-active estimate-filter-chip" data-filter="all">Все</button>
+                                <button type="button" class="filter-chip estimate-filter-chip" data-filter="section">Разделы</button>
+                                <button type="button" class="filter-chip estimate-filter-chip" data-filter="item">Позиции</button>
+                            </div>
+                        </div>
+
+                        <div class="estimate-shortcuts estimate-shortcuts-inline">
+                            <span>Ctrl+S сохранить</span>
+                            <span>Enter изменить</span>
+                            <span>Alt+↑ / Alt+↓ двигать</span>
+                        </div>
+                    </div>
+
+                    <div class="estimate-table-wrap estimate-table-wrap-v3">
+                        <table class="estimate-table estimate-table-v3" id="estimateTable">
+                            <thead>
+                                <tr>
+                                    <th>Тип</th>
+                                    <th>Код</th>
+                                    <th>Позиция</th>
+                                    <th>Ед.</th>
+                                    <th>Кол-во</th>
+                                    <th>Цена</th>
+                                    <th>Стоимость</th>
+                                    <th>Со скидкой</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="estimateRowsBody"></tbody>
+                        </table>
+
+                        <div class="estimate-empty" id="estimateEmptyState" hidden>
+                            Смета пока пустая. Начните с кнопки «+ Этап», затем добавьте позиции работ.
+                        </div>
+                        <div class="estimate-empty" id="estimateFilteredEmptyState" hidden>
+                            По текущему фильтру строки не найдены. Сбросьте поиск или переключите тип строк.
+                        </div>
+                    </div>
+                </section>
+
+                <section class="estimate-final-board">
+                    <div class="estimate-final-summary">
+                        <div class="estimate-final-head">
+                            <h3>Итоги по смете</h3>
+                            <span class="estimate-final-pill">Рабочий браузерный режим</span>
+                        </div>
+
+                        <div class="estimate-final-grid">
+                            <div class="estimate-final-row">
+                                <span>Итого без скидки</span>
+                                <strong id="estimateTotalFooterValue">{{ estimate.total_sum }}</strong>
+                            </div>
+                            <div class="estimate-final-row">
+                                <span>Итого со скидкой</span>
+                                <strong id="estimateDiscountedFooterValue">{{ estimate.discounted_sum }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="estimate-comment-card">
+                        <div class="eyebrow">Комментарий к смете</div>
+                        <h4>Внутренний контекст и пояснения</h4>
+                        <textarea rows="7" placeholder="Сюда можно выносить важные замечания по объекту, условиям расчета и договоренностям с заказчиком."></textarea>
+                    </div>
+                </section>
+
+                <section class="estimate-bottom-bar estimate-layout-span">
+                    <div class="estimate-bottom-bar-copy">
+                        <span class="sidebar-label">Быстрые действия</span>
+                        <strong id="estimateBottomStatus">Смета готова к редактированию</strong>
+                        <p>Нижняя панель всегда под рукой: сохраняем изменения, держим фокус на таблице и сразу отдаем PDF.</p>
+                    </div>
+
+                    <div class="estimate-bottom-bar-actions">
+                        <button type="submit" class="primary-button">Сохранить черновик</button>
+                        <button
+                            type="submit"
+                            formaction="/projects/{{ project.id }}/estimate/pdf"
+                            class="ghost-button"
+                        >
+                            Сформировать PDF
+                        </button>
+                    </div>
+                </section>
+            </form>
+        </div>
+
+        <aside class="estimate-drawer" id="estimateDrawer" data-open="false">
+            <div class="estimate-drawer-head">
+                <div>
+                    <span class="eyebrow">Справочники</span>
+                    <h3>Правая рабочая панель</h3>
+                </div>
+                <button type="button" class="estimate-drawer-close" id="closeEstimateDrawer">×</button>
             </div>
 
-            <aside class="estimate-hero-side">
-                <article class="estimate-aside-card">
-                    <span class="insight-label">Сохранено</span>
-                    <strong>{{ estimate.saved_at or "Пока не сохранялось" }}</strong>
-                    <p>Черновик сметы хранится на сервере и синхронизируется через PostgreSQL.</p>
-                </article>
-                <article class="estimate-aside-card">
-                    <span class="insight-label">Хранилище</span>
-                    <strong>{{ estimate.draft_path or "Путь появится после первого сохранения" }}</strong>
-                    <p>После сохранения документ появится в серверной папке смет без привязки к Яндекс Диску.</p>
-                </article>
-            </aside>
-        </section>
+            <div class="estimate-drawer-tabs">
+                <button type="button" class="estimate-drawer-tab is-active" data-drawer-tab="rates">Мои расценки</button>
+                <button type="button" class="estimate-drawer-tab" data-drawer-tab="operations">Операции</button>
+                <button type="button" class="estimate-drawer-tab" data-drawer-tab="templates">Шаблоны</button>
+            </div>
 
-        {% if saved %}
-        <div class="notice-banner notice-banner-success">Черновик сметы успешно сохранен на сервере.</div>
-        {% endif %}
+            <div class="estimate-drawer-search">
+                <input type="text" id="estimateDrawerSearch" placeholder="Поиск по правой панели">
+            </div>
 
-        {% if error %}
-        <div class="error-box">{{ error }}</div>
-        {% endif %}
+            <div class="estimate-drawer-panel is-active" data-drawer-panel="rates">
+                <div class="estimate-drawer-note">Локальный справочник показывает позиции и коды из текущей сметы. Дальше подключим полноценную базу расценок.</div>
+                <div class="estimate-library-list" id="estimateRatesLibrary"></div>
+            </div>
 
-        <section class="estimate-metric-grid">
-            <article class="metric-panel metric-panel-blue">
-                <span class="metric-label">Разделы</span>
-                <strong id="estimateSectionCount">{{ estimate.section_count }}</strong>
-                <p>Структурные блоки сметы по помещениям и этапам работ.</p>
-            </article>
-            <article class="metric-panel metric-panel-green">
-                <span class="metric-label">Позиции</span>
-                <strong id="estimateItemCount">{{ estimate.item_count }}</strong>
-                <p>Работы и материалы, внесенные в текущий черновик.</p>
-            </article>
-            <article class="metric-panel metric-panel-gold">
-                <span class="metric-label">Итого</span>
-                <strong id="estimateTotalSum">{{ estimate.total_sum }}</strong>
-                <p>Общая сумма до применения скидки по всей смете.</p>
-            </article>
-            <article class="metric-panel metric-panel-slate">
-                <span class="metric-label">Со скидкой</span>
-                <strong id="estimateDiscountedSum">{{ estimate.discounted_sum }}</strong>
-                <p>Финальный расчет после применения скидки ко всем позициям.</p>
-            </article>
-        </section>
+            <div class="estimate-drawer-panel" data-drawer-panel="operations">
+                <div class="estimate-drawer-note">Здесь будут типовые действия по строке и шаблонные операции. Пока панель помогает быстрее ориентироваться в структуре сметы.</div>
+                <div class="estimate-library-list" id="estimateOperationsLibrary"></div>
+            </div>
 
-        <form id="estimateEditorForm" class="estimate-layout" method="post" action="/projects/{{ project.id }}/estimate">
-            <section class="panel-card panel-card-wide estimate-main-card">
-                <div class="panel-header panel-header-compact">
-                    <div>
-                        <div class="eyebrow">Шапка сметы</div>
-                        <h3>Основные реквизиты</h3>
-                    </div>
-                </div>
-
-                <div class="estimate-form-grid">
-                    <label>
-                        <span class="sidebar-label">Компания</span>
-                        <input type="text" name="company_name" value="{{ estimate.company }}">
-                    </label>
-                    <label>
-                        <span class="sidebar-label">Договор</span>
-                        <input type="text" name="contract_label" value="{{ estimate.contract_label }}" placeholder="№00/00/26 от 00 мая 2026 г.">
-                    </label>
-                    <label class="estimate-form-span-2">
-                        <span class="sidebar-label">Объект</span>
-                        <input type="text" name="object_name" value="{{ estimate.object_name }}" placeholder="Адрес или название объекта">
-                    </label>
-                    <label>
-                        <span class="sidebar-label">Заказчик</span>
-                        <input type="text" name="customer_name" value="{{ estimate.customer_name }}" placeholder="ФИО или компания">
-                    </label>
-                    <label>
-                        <span class="sidebar-label">Скидка, %</span>
-                        <input id="estimateDiscountInput" type="text" name="discount" value="{{ estimate.discount }}" placeholder="0">
-                    </label>
-                </div>
-
-                <div class="estimate-form-footer">
-                    <label class="estimate-check">
-                        <input type="checkbox" name="watermark" {% if estimate.watermark %}checked{% endif %}>
-                        <span>Черновик с водяным знаком</span>
-                    </label>
-                    <div class="estimate-inline-note">
-                        Смету можно сохранить как черновик, а затем сразу сформировать PDF из текущего состояния таблицы.
-                    </div>
-                </div>
-
-                <input type="hidden" name="items_payload" id="estimateItemsPayload" value="">
-            </section>
-
-            <aside class="panel-card panel-card-wide estimate-side-card">
-                <div class="panel-header panel-header-compact">
-                    <div>
-                        <div class="eyebrow">Панель действий</div>
-                        <h3>Работа со строками</h3>
-                    </div>
-                </div>
-
-                <div class="estimate-action-stack">
-                    <button type="button" class="primary-button" id="addSectionButton">+ Раздел</button>
-                    <button type="button" class="primary-button estimate-secondary-button" id="addItemButton">+ Позиция</button>
-                    <button type="button" class="ghost-button-light" id="editRowButton">Изменить выбранную</button>
-                    <button type="button" class="ghost-button-light" id="duplicateRowButton">Дублировать</button>
-                    <button type="button" class="ghost-button-light" id="collapseAllButton">Свернуть разделы</button>
-                    <button type="button" class="ghost-button-light" id="expandAllButton">Развернуть разделы</button>
-                    <button type="button" class="ghost-button-light" id="moveUpButton">Поднять выше</button>
-                    <button type="button" class="ghost-button-light" id="moveDownButton">Опустить ниже</button>
-                    <button type="button" class="ghost-button-light" id="clearSelectionButton">Снять выделение</button>
-                    <button type="button" class="ghost-button-light" id="deleteRowButton">Удалить выбранную</button>
-                </div>
-
-                <div class="estimate-selection-card">
-                    <span class="sidebar-label">Текущая строка</span>
-                    <strong id="estimateSelectionTitle">Ничего не выбрано</strong>
-                    <p id="estimateSelectionMeta">Выберите строку в таблице или добавьте новую.</p>
-                </div>
-
-                <div class="estimate-section-card">
-                    <div class="estimate-section-card-head">
-                        <span class="sidebar-label">Разделы сметы</span>
-                        <strong id="estimateSectionNavigatorCount">0</strong>
-                    </div>
-                    <div class="estimate-section-list" id="estimateSectionNavigator">
-                        <div class="estimate-section-empty">Разделы появятся после добавления строк типа «Раздел».</div>
-                    </div>
-                </div>
-
-                <div class="estimate-hint-box">
-                    <strong>Как теперь работать</strong>
-                    <p>
-                        Сначала добавляем раздел, затем вносим в него позиции.
-                        Можно выделять строку, поднимать ее выше, дублировать и редактировать двойным кликом.
-                    </p>
-                    <div class="estimate-shortcuts">
-                        <span>Ctrl+S: сохранить</span>
-                        <span>Delete: удалить строку</span>
-                        <span>Alt+↑ / Alt+↓: двигать строку</span>
-                    </div>
-                </div>
-            </aside>
-
-            <section class="panel-card panel-card-wide estimate-table-card estimate-layout-span">
-                <div class="panel-header">
-                    <div>
-                        <div class="eyebrow">Позиции сметы</div>
-                        <h3>Рабочая таблица</h3>
-                    </div>
-                    <p class="panel-note">
-                        Таблица поддерживает поиск по строкам и двойной клик для быстрого редактирования.
-                    </p>
-                </div>
-
-                <div class="estimate-table-toolbar">
-                    <label class="estimate-search-box">
-                        <span class="sidebar-label">Поиск по смете</span>
-                        <input type="text" id="estimateSearchInput" placeholder="Найдите раздел, работу, код или единицу измерения">
-                    </label>
-
-                    <div class="estimate-filter-box">
-                        <span class="sidebar-label">Показывать</span>
-                        <div class="estimate-filter-chips">
-                            <button type="button" class="filter-chip is-active estimate-filter-chip" data-filter="all">Все</button>
-                            <button type="button" class="filter-chip estimate-filter-chip" data-filter="section">Разделы</button>
-                            <button type="button" class="filter-chip estimate-filter-chip" data-filter="item">Позиции</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="estimate-quick-add">
-                    <div class="estimate-quick-add-head">
-                        <div>
-                            <div class="eyebrow">Быстрое добавление</div>
-                            <h4>Добавить строку без модального окна</h4>
-                        </div>
-                        <p id="estimateQuickAddHint">Новая строка добавится после выделенной позиции или в конец сметы.</p>
-                    </div>
-
-                    <div class="estimate-quick-add-grid">
-                        <label>
-                            <span class="sidebar-label">Тип</span>
-                            <select id="quickAddRowType">
-                                <option value="item">Позиция</option>
-                                <option value="section">Раздел</option>
-                            </select>
-                        </label>
-                        <label class="estimate-quick-add-name">
-                            <span class="sidebar-label">Название</span>
-                            <input type="text" id="quickAddName" placeholder="Например: Шпаклевка стен">
-                        </label>
-                        <label class="quick-add-item-field">
-                            <span class="sidebar-label">Ед.</span>
-                            <input type="text" id="quickAddUnit" placeholder="м2">
-                        </label>
-                        <label class="quick-add-item-field">
-                            <span class="sidebar-label">Кол-во</span>
-                            <input type="text" id="quickAddQuantity" placeholder="1">
-                        </label>
-                        <label class="quick-add-item-field">
-                            <span class="sidebar-label">Цена</span>
-                            <input type="text" id="quickAddPrice" placeholder="0">
-                        </label>
-                        <label class="quick-add-item-field">
-                            <span class="sidebar-label">Код</span>
-                            <input type="text" id="quickAddReference" placeholder="Необязательно">
-                        </label>
-                    </div>
-
-                    <div class="estimate-quick-add-actions">
-                        <button type="button" class="primary-button" id="quickAddButton">Добавить сразу</button>
-                        <button type="button" class="ghost-button-light" id="quickAddClearButton">Очистить поля</button>
-                    </div>
-                </div>
-
-                <div class="estimate-table-wrap">
-                    <table class="estimate-table" id="estimateTable">
-                        <thead>
-                            <tr>
-                                <th>Тип</th>
-                                <th>Наименование</th>
-                                <th>Ед.</th>
-                                <th>Кол-во</th>
-                                <th>Цена</th>
-                                <th>Стоимость</th>
-                                <th>Со скидкой</th>
-                            </tr>
-                        </thead>
-                        <tbody id="estimateRowsBody"></tbody>
-                    </table>
-                    <div class="estimate-empty" id="estimateEmptyState" hidden>
-                        Смета пока пустая. Начните с кнопки «+ Раздел», затем добавьте позиции работ.
-                    </div>
-                    <div class="estimate-empty" id="estimateFilteredEmptyState" hidden>
-                        По текущему фильтру строки не найдены. Сбросьте поиск или переключите тип строк.
-                    </div>
-                </div>
-            </section>
-
-            <section class="estimate-bottom-bar estimate-layout-span">
-                <div class="estimate-bottom-bar-copy">
-                    <span class="sidebar-label">Быстрые действия</span>
-                    <strong id="estimateBottomStatus">Смета готова к редактированию</strong>
-                    <p>Нижняя панель остается под рукой даже на длинных сметах: здесь сохраняем изменения и сразу формируем PDF.</p>
-                </div>
-
-                <div class="estimate-bottom-bar-actions">
-                    <button type="submit" class="primary-button">Сохранить черновик</button>
-                    <button
-                        type="submit"
-                        formaction="/projects/{{ project.id }}/estimate/pdf"
-                        class="ghost-button"
-                    >
-                        Сформировать PDF
-                    </button>
-                </div>
-            </section>
-        </form>
+            <div class="estimate-drawer-panel" data-drawer-panel="templates">
+                <div class="estimate-drawer-note">Шаблоны пока собираются из этапов текущей сметы. Следующий шаг — отдельные шаблоны для отделки, инженерии и материалов.</div>
+                <div class="estimate-library-list" id="estimateTemplatesLibrary"></div>
+            </div>
+        </aside>
     </div>
 </main>
 

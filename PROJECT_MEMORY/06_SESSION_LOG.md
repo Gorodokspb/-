@@ -563,3 +563,38 @@ Verification:
 
 Next action:
 - keep pushing the browser flow toward daily usability: make the web project and estimate screens cleaner, denser, and more convenient than the desktop routine.
+
+## 2026-04-22 - Web Estimate Interface Rebuilt Into A Denser Product Screen
+
+Task:
+- redesign the browser estimate workspace into a more professional, production-like interface inspired by the stronger working patterns visible in `smetta.ru`: left navigation, tighter top tabs, a dominant estimate table, and a side knowledge panel.
+
+What was done:
+- rebuilt `webapp/templates/estimate_editor.html` into a new three-zone estimate workspace:
+  - dark left rail with object context, estimate section navigation, and fast actions;
+  - compact top strip with working tabs and user area;
+  - denser center workspace with passport block, stage header, tool row, large estimate table, and final totals block;
+  - right drawer for local rates, operations, and template-oriented reference panels;
+- extended `webapp/static/app.css` with a full estimate-editor v3 visual system for the new layout;
+- extended `webapp/static/estimate_editor.js` so the new interface remains functional:
+  - quick-add logic adapted to the new layout,
+  - top tool buttons now open the right drawer,
+  - right drawer tabs switch between local libraries,
+  - local drawer content is built dynamically from current estimate rows,
+  - estimate totals now update in several summary zones at once,
+  - estimate rows render with a denser multi-column structure closer to a real estimate screen.
+
+Verification:
+- local `python -m py_compile run_web.py webapp\\config.py webapp\\db.py webapp\\main.py webapp\\storage.py webapp\\estimate_pdf.py` passed;
+- updated files were uploaded to `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- `dekorcrm-web` restarted successfully and remained `active`;
+- live HTTP check against `/projects/7/estimate` confirmed the served page now contains:
+  - `estimate-app-shell`,
+  - `estimate-rail`,
+  - `estimate-drawer`,
+  - `estimate-tool-tab`,
+  - `quickAddInlineButton`,
+  - `estimateRatesLibrary`.
+
+Next action:
+- visually polish and tighten the new estimate screen based on real usage feedback, then deepen the browser flow around reference data, estimate linkage, and final export quality.

@@ -2,23 +2,24 @@
 
 Current immediate priorities:
 1. Use this memory system as the standard starting point for every new Codex session.
-2. Confirm that the local repo, GitHub, and server still match the latest browser-UX commit before starting the next large code change.
-3. Manually verify the full live browser flow on a real working project: login -> projects -> project card edit -> web estimate -> quick add -> collapse sections -> save -> generate PDF -> reopen.
-4. Continue polishing the browser estimate editor based on real daily use, now that the biggest speed blockers are gone.
-5. Continue with the next browser slice after project-card editing:
-6. Option A: make the web estimate workspace denser, clearer, and more comfortable than the desktop version during long daily sessions.
+2. Confirm that the local repo, GitHub, and server still match the latest estimate-layout redesign before starting the next large code change.
+3. Manually verify the full live browser flow on a real working project: login -> projects -> project card edit -> web estimate -> left rail navigation -> quick add -> drawer open -> save -> generate PDF -> reopen.
+4. Continue polishing the browser estimate editor based on real daily use, now that the screen architecture is much closer to a production tool.
+5. Continue with the next browser slice after the estimate-layout redesign:
+6. Option A: make the new estimate workspace feel even more usable than the desktop version during long daily sessions.
 7. Option B: strengthen estimate/project linkage, document state visibility, and validation before final export.
 8. Keep fixing real workflow bugs found in manual testing and screenshots.
 9. Continue preserving office/home continuity and avoid machine-specific path regressions.
 10. Keep the desktop/server PostgreSQL bridge working until the browser flow can replace more of the daily routine.
 
 Highest-value short-term browser tasks:
-1. Redesign the browser estimate workspace so it feels tighter and more productive than the desktop screen, especially on wide monitors.
-2. Improve the estimate/project linkage so document state and project updates are clearer from the estimate screen.
-3. Add stronger validation around customer, contract, and estimate totals before final export.
-4. Add clearer linked-document visibility from the estimate screen.
-5. Add smarter estimate conveniences such as auto-inserting positions into the active section and better handling of very large estimates.
-6. Continue visual cleanup where it directly improves speed, clarity, and confidence during daily use.
+1. Polish the redesigned browser estimate workspace so spacing, hierarchy, and controls feel consistently strong on wide screens and laptops.
+2. Add a real rates/reference source behind the new right drawer instead of the current local estimate-derived placeholder content.
+3. Improve the estimate/project linkage so document state and project updates are clearer from the estimate screen.
+4. Add stronger validation around customer, contract, and estimate totals before final export.
+5. Add clearer linked-document visibility from the estimate screen.
+6. Add smarter estimate conveniences such as auto-inserting positions into the active section and better handling of very large estimates.
+7. Continue visual cleanup where it directly improves speed, clarity, and confidence during daily use.
 
 Desktop and data integrity checks that still matter:
 1. Manually verify desktop launch through `launch_server_app.ps1` with the server PostgreSQL backend enabled.
@@ -41,4 +42,5 @@ Before the next work block:
 - update `PROJECT_MEMORY/06_SESSION_LOG.md` right after any meaningful completed task.
 - remember that the browser estimate page now supports both draft save and direct PDF generation.
 - remember that the browser estimate page now also supports quick add, section navigation, collapsing sections, sticky bottom actions, and keyboard shortcuts.
+- remember that the browser estimate page now has a new denser layout with a left rail, top working tabs, a larger table-focused center area, and a right drawer for reference panels.
 - remember that the browser project page now supports direct editing and saving of the project card through the web interface.
