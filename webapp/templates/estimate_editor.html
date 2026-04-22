@@ -161,6 +161,8 @@
                     <button type="button" class="primary-button estimate-secondary-button" id="addItemButton">+ Позиция</button>
                     <button type="button" class="ghost-button-light" id="editRowButton">Изменить выбранную</button>
                     <button type="button" class="ghost-button-light" id="duplicateRowButton">Дублировать</button>
+                    <button type="button" class="ghost-button-light" id="collapseAllButton">Свернуть разделы</button>
+                    <button type="button" class="ghost-button-light" id="expandAllButton">Развернуть разделы</button>
                     <button type="button" class="ghost-button-light" id="moveUpButton">Поднять выше</button>
                     <button type="button" class="ghost-button-light" id="moveDownButton">Опустить ниже</button>
                     <button type="button" class="ghost-button-light" id="clearSelectionButton">Снять выделение</button>
@@ -173,12 +175,27 @@
                     <p id="estimateSelectionMeta">Выберите строку в таблице или добавьте новую.</p>
                 </div>
 
+                <div class="estimate-section-card">
+                    <div class="estimate-section-card-head">
+                        <span class="sidebar-label">Разделы сметы</span>
+                        <strong id="estimateSectionNavigatorCount">0</strong>
+                    </div>
+                    <div class="estimate-section-list" id="estimateSectionNavigator">
+                        <div class="estimate-section-empty">Разделы появятся после добавления строк типа «Раздел».</div>
+                    </div>
+                </div>
+
                 <div class="estimate-hint-box">
                     <strong>Как теперь работать</strong>
                     <p>
                         Сначала добавляем раздел, затем вносим в него позиции.
                         Можно выделять строку, поднимать ее выше, дублировать и редактировать двойным кликом.
                     </p>
+                    <div class="estimate-shortcuts">
+                        <span>Ctrl+S: сохранить</span>
+                        <span>Delete: удалить строку</span>
+                        <span>Alt+↑ / Alt+↓: двигать строку</span>
+                    </div>
                 </div>
             </aside>
 
@@ -209,6 +226,51 @@
                     </div>
                 </div>
 
+                <div class="estimate-quick-add">
+                    <div class="estimate-quick-add-head">
+                        <div>
+                            <div class="eyebrow">Быстрое добавление</div>
+                            <h4>Добавить строку без модального окна</h4>
+                        </div>
+                        <p id="estimateQuickAddHint">Новая строка добавится после выделенной позиции или в конец сметы.</p>
+                    </div>
+
+                    <div class="estimate-quick-add-grid">
+                        <label>
+                            <span class="sidebar-label">Тип</span>
+                            <select id="quickAddRowType">
+                                <option value="item">Позиция</option>
+                                <option value="section">Раздел</option>
+                            </select>
+                        </label>
+                        <label class="estimate-quick-add-name">
+                            <span class="sidebar-label">Название</span>
+                            <input type="text" id="quickAddName" placeholder="Например: Шпаклевка стен">
+                        </label>
+                        <label class="quick-add-item-field">
+                            <span class="sidebar-label">Ед.</span>
+                            <input type="text" id="quickAddUnit" placeholder="м2">
+                        </label>
+                        <label class="quick-add-item-field">
+                            <span class="sidebar-label">Кол-во</span>
+                            <input type="text" id="quickAddQuantity" placeholder="1">
+                        </label>
+                        <label class="quick-add-item-field">
+                            <span class="sidebar-label">Цена</span>
+                            <input type="text" id="quickAddPrice" placeholder="0">
+                        </label>
+                        <label class="quick-add-item-field">
+                            <span class="sidebar-label">Код</span>
+                            <input type="text" id="quickAddReference" placeholder="Необязательно">
+                        </label>
+                    </div>
+
+                    <div class="estimate-quick-add-actions">
+                        <button type="button" class="primary-button" id="quickAddButton">Добавить сразу</button>
+                        <button type="button" class="ghost-button-light" id="quickAddClearButton">Очистить поля</button>
+                    </div>
+                </div>
+
                 <div class="estimate-table-wrap">
                     <table class="estimate-table" id="estimateTable">
                         <thead>
@@ -230,6 +292,25 @@
                     <div class="estimate-empty" id="estimateFilteredEmptyState" hidden>
                         По текущему фильтру строки не найдены. Сбросьте поиск или переключите тип строк.
                     </div>
+                </div>
+            </section>
+
+            <section class="estimate-bottom-bar estimate-layout-span">
+                <div class="estimate-bottom-bar-copy">
+                    <span class="sidebar-label">Быстрые действия</span>
+                    <strong id="estimateBottomStatus">Смета готова к редактированию</strong>
+                    <p>Нижняя панель остается под рукой даже на длинных сметах: здесь сохраняем изменения и сразу формируем PDF.</p>
+                </div>
+
+                <div class="estimate-bottom-bar-actions">
+                    <button type="submit" class="primary-button">Сохранить черновик</button>
+                    <button
+                        type="submit"
+                        formaction="/projects/{{ project.id }}/estimate/pdf"
+                        class="ghost-button"
+                    >
+                        Сформировать PDF
+                    </button>
                 </div>
             </section>
         </form>

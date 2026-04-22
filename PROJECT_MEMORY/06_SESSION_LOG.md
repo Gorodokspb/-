@@ -498,3 +498,36 @@ Verification:
 
 Next action:
 - continue from PDF export into the deeper browser estimate workflow: better table ergonomics, project linkage, and then browser-side project editing.
+
+## 2026-04-22 - Web Estimate UX Upgraded Beyond Desktop Friction
+
+Task:
+- move the browser estimate editor from "works in principle" to "actually faster than the desktop routine" by removing repetitive modal-heavy actions and improving navigation inside long estimates.
+
+What was done:
+- added a quick-add strip directly above the estimate table, so a section or position can be inserted without opening the modal editor;
+- added a section navigator in the right panel with live section totals and item counts;
+- added section collapse/expand controls for large estimates;
+- surfaced section totals directly inside the section rows in the table;
+- added a sticky bottom action bar with always-visible save and PDF actions;
+- added keyboard shortcuts for common actions:
+  - `Ctrl+S` save draft,
+  - `Delete` remove selected row,
+  - `Alt+Up` / `Alt+Down` reorder selected row,
+  - `Enter` edit selected row,
+  - `Ctrl+Enter` apply dialog changes or quick-add from the inline composer;
+- kept server deployment aligned by uploading the updated template, CSS, and JavaScript and restarting `dekorcrm-web`.
+
+Verification:
+- local `python -m py_compile run_web.py webapp\\config.py webapp\\db.py webapp\\main.py webapp\\storage.py webapp\\estimate_pdf.py` passed;
+- the updated UI assets were uploaded to `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- `dekorcrm-web` restarted successfully and remained `active`;
+- live HTTP checks confirmed the estimate page now includes:
+  - `quickAddButton`,
+  - `estimateSectionNavigator`,
+  - `collapseAllButton`,
+  - `estimateBottomStatus`;
+- live static asset checks confirmed the server serves the new CSS and JavaScript for quick add, section navigation, collapse actions, and keyboard shortcuts.
+
+Next action:
+- manually test the new browser estimate workflow on a real long estimate and then continue with project-side browser editing and deeper estimate/project linkage.

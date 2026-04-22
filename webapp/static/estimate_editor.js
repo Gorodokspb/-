@@ -18,11 +18,26 @@
     const addItemButton = document.getElementById("addItemButton");
     const editRowButton = document.getElementById("editRowButton");
     const duplicateRowButton = document.getElementById("duplicateRowButton");
+    const collapseAllButton = document.getElementById("collapseAllButton");
+    const expandAllButton = document.getElementById("expandAllButton");
     const moveUpButton = document.getElementById("moveUpButton");
     const moveDownButton = document.getElementById("moveDownButton");
     const clearSelectionButton = document.getElementById("clearSelectionButton");
     const deleteRowButton = document.getElementById("deleteRowButton");
     const filterChips = Array.from(document.querySelectorAll(".estimate-filter-chip"));
+    const quickAddRowType = document.getElementById("quickAddRowType");
+    const quickAddName = document.getElementById("quickAddName");
+    const quickAddUnit = document.getElementById("quickAddUnit");
+    const quickAddQuantity = document.getElementById("quickAddQuantity");
+    const quickAddPrice = document.getElementById("quickAddPrice");
+    const quickAddReference = document.getElementById("quickAddReference");
+    const quickAddButton = document.getElementById("quickAddButton");
+    const quickAddClearButton = document.getElementById("quickAddClearButton");
+    const quickAddHint = document.getElementById("estimateQuickAddHint");
+    const quickAddItemFields = Array.from(document.querySelectorAll(".quick-add-item-field"));
+    const sectionNavigator = document.getElementById("estimateSectionNavigator");
+    const sectionNavigatorCount = document.getElementById("estimateSectionNavigatorCount");
+    const bottomStatus = document.getElementById("estimateBottomStatus");
     const dialog = document.getElementById("estimateRowDialog");
     const dialogTitle = document.getElementById("estimateDialogTitle");
     const dialogRowType = document.getElementById("dialogRowType");
@@ -57,6 +72,10 @@
         return rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     }
 
+    function formatMoneyLabel(value) {
+        return formatNumber(value || 0);
+    }
+
     function normalizeText(value) {
         return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
     }
@@ -65,14 +84,37 @@
         return parseNumber(discountInput ? discountInput.value : 0);
     }
 
+    function isEditableElement(target) {
+        return Boolean(
+            target &&
+            (
+                target.closest("input") ||
+                target.closest("textarea") ||
+                target.closest("select") ||
+                target.closest("dialog")
+            )
+        );
+    }
+
+    let nextRowId = 1;
+
+    function generateRowId() {
+        const id = `row-${nextRowId}`;
+        nextRowId += 1;
+        return id;
+    }
+
     function cloneRow(row) {
         return JSON.parse(JSON.stringify(row));
     }
 
     function normalizeRow(row) {
         const rowType = row && row.row_type === "section" ? "section" : "item";
+        const clientId = row && row.client_id ? String(row.client_id) : generateRowId();
+
         if (rowType === "section") {
             return {
+                client_id: clientId,
                 row_type: "section",
                 name: String((row && row.name) || "").trim() || "Новый раздел",
                 unit: "",
@@ -89,6 +131,7 @@
         const total = quantity * price;
         const discountedTotal = total * Math.max(0, 1 - currentDiscount() / 100);
         return {
+            client_id: clientId,
             row_type: "item",
             name: String((row && row.name) || "").trim(),
             unit: String((row && row.unit) || "").trim(),
@@ -98,6 +141,19 @@
             discounted_total: discountedTotal ? formatNumber(discountedTotal) : "",
             reference: String((row && row.reference) || "").trim(),
         };
+    }
+
+    function serializeRowsForSubmit() {
+        return rows.map((row) => ({
+            row_type: row.row_type,
+            name: row.name,
+            unit: row.unit,
+            quantity: row.quantity,
+            price: row.price,
+            total: row.total,
+            discounted_total: row.discounted_total,
+            reference: row.reference,
+        }));
     }
 
     let rows;
@@ -113,12 +169,14 @@
     let editingIndex = -1;
     let activeFilter = "all";
     let isDirty = false;
+    const collapsedSections = new Set();
 
     function setDirtyState(value) {
         isDirty = Boolean(value);
         if (dirtyBadge) {
             dirtyBadge.hidden = !isDirty;
         }
+        updateBottomStatus();
     }
 
     function syncDialogFieldVisibility() {
@@ -126,6 +184,20 @@
         itemFields.forEach((field) => {
             field.classList.toggle("dialog-hidden", isSection);
         });
+    }
+
+    function syncQuickAddFieldVisibility() {
+        const isSection = quickAddRowType && quickAddRowType.value === "section";
+        quickAddItemFields.forEach((field) => {
+            field.classList.toggle("dialog-hidden", isSection);
+        });
+        if (quickAddHint) {
+            const selected = selectedRow();
+            const insertionTarget = selected ? `после строки «${selected.name || "без названия"}»` : "в конец сметы";
+            quickAddHint.textContent = isSection
+                ? `Новый раздел добавится ${insertionTarget}.`
+                : `Новая позиция добавится ${insertionTarget}.`;
+        }
     }
 
     function closeDialog() {
@@ -174,7 +246,58 @@
         return row;
     }
 
-    function updateSelectionSummary() {
+    function rowMatchesSearch(row, query) {
+        const haystack = normalizeText([
+            row.row_type === "section" ? "раздел" : "позиция",
+            row.name,
+            row.unit,
+            row.reference,
+            row.quantity,
+            row.price,
+        ].join(" "));
+        return !query || haystack.includes(query);
+    }
+
+    function buildSectionSummaries(query) {
+        const summaries = new Map();
+        let currentSectionId = null;
+        let currentSectionOrder = -1;
+
+        rows.forEach((row, index) => {
+            if (row.row_type === "section") {
+                currentSectionOrder += 1;
+                currentSectionId = row.client_id;
+                summaries.set(currentSectionId, {
+                    id: row.client_id,
+                    index,
+                    order: currentSectionOrder,
+                    name: row.name || "Раздел",
+                    itemCount: 0,
+                    total: 0,
+                    discounted: 0,
+                    matchesSelf: rowMatchesSearch(row, query),
+                    visibleChildren: 0,
+                });
+                return;
+            }
+
+            const searchVisible = rowMatchesSearch(row, query);
+            if (!currentSectionId || !summaries.has(currentSectionId)) {
+                return;
+            }
+            const summary = summaries.get(currentSectionId);
+            summary.itemCount += 1;
+            summary.total += parseNumber(row.total);
+            summary.discounted += parseNumber(row.discounted_total);
+            if (searchVisible) {
+                summary.visibleChildren += 1;
+            }
+        });
+
+        return summaries;
+    }
+
+    function updateSelectionSummary(sectionSummaries) {
         const row = selectedRow();
         if (!row) {
             selectionTitle.textContent = "Ничего не выбрано";
@@ -183,8 +306,17 @@
         }
 
         if (row.row_type === "section") {
+            const summary = sectionSummaries.get(row.client_id);
+            const parts = [];
+            if (summary) {
+                parts.push(`${summary.itemCount} поз.`);
+                parts.push(`итого: ${formatMoneyLabel(summary.total)}`);
+                parts.push(`со скидкой: ${formatMoneyLabel(summary.discounted)}`);
+            }
             selectionTitle.textContent = row.name || "Раздел";
-            selectionMeta.textContent = `Раздел. Можно редактировать, дублировать или менять порядок.`;
+            selectionMeta.textContent = parts.length
+                ? parts.join(" | ")
+                : "Раздел без позиций. В него можно быстро добавлять строки.";
             return;
         }
 
@@ -198,8 +330,13 @@
         if (row.price) {
             parts.push(`цена: ${row.price}`);
         }
+        if (row.discounted_total) {
+            parts.push(`со скидкой: ${row.discounted_total}`);
+        }
         selectionTitle.textContent = row.name || "Позиция";
-        selectionMeta.textContent = parts.length ? parts.join(" | ") : "Позиция без заполненных числовых полей.";
+        selectionMeta.textContent = parts.length
+            ? parts.join(" | ")
+            : "Позиция без заполненных числовых полей.";
     }
 
     function updateActionButtons() {
@@ -207,12 +344,18 @@
         const isFirst = selectedIndex <= 0;
         const isLast = selectedIndex < 0 || selectedIndex >= rows.length - 1;
 
-        [editRowButton, duplicateRowButton, moveUpButton, moveDownButton, clearSelectionButton, deleteRowButton]
-            .forEach((button) => {
-                if (button) {
-                    button.disabled = !hasSelection;
-                }
-            });
+        [
+            editRowButton,
+            duplicateRowButton,
+            moveUpButton,
+            moveDownButton,
+            clearSelectionButton,
+            deleteRowButton,
+        ].forEach((button) => {
+            if (button) {
+                button.disabled = !hasSelection;
+            }
+        });
 
         if (moveUpButton) {
             moveUpButton.disabled = !hasSelection || isFirst;
@@ -220,108 +363,237 @@
         if (moveDownButton) {
             moveDownButton.disabled = !hasSelection || isLast;
         }
+
+        const hasSections = rows.some((row) => row.row_type === "section");
+        if (collapseAllButton) {
+            collapseAllButton.disabled = !hasSections;
+        }
+        if (expandAllButton) {
+            expandAllButton.disabled = !hasSections || collapsedSections.size === 0;
+        }
     }
 
-    function rowMatchesFilters(row) {
-        const query = normalizeText(searchInput ? searchInput.value : "");
-        const haystack = normalizeText([
-            row.row_type === "section" ? "раздел" : "позиция",
-            row.name,
-            row.unit,
-            row.reference,
-            row.quantity,
-            row.price,
-        ].join(" "));
+    function updateBottomStatus() {
+        if (!bottomStatus) {
+            return;
+        }
+        const row = selectedRow();
+        if (isDirty && row) {
+            bottomStatus.textContent = `Есть несохраненные изменения. Выбрана строка: ${row.name || "без названия"}`;
+            return;
+        }
+        if (isDirty) {
+            bottomStatus.textContent = "Есть несохраненные изменения. Не забудьте сохранить черновик.";
+            return;
+        }
+        if (row && row.row_type === "section") {
+            bottomStatus.textContent = `Выбран раздел «${row.name || "без названия"}». Можно быстро добавить в него позиции.`;
+            return;
+        }
+        if (row) {
+            bottomStatus.textContent = `Выбрана позиция «${row.name || "без названия"}».`;
+            return;
+        }
+        bottomStatus.textContent = "Смета готова к редактированию";
+    }
 
-        const matchesText = !query || haystack.includes(query);
-        const matchesType = activeFilter === "all" || row.row_type === activeFilter;
-        return matchesText && matchesType;
+    function renderSectionNavigator(sectionSummaries) {
+        if (!sectionNavigator || !sectionNavigatorCount) {
+            return;
+        }
+        const orderedSections = Array.from(sectionSummaries.values()).sort((left, right) => left.order - right.order);
+        sectionNavigatorCount.textContent = String(orderedSections.length);
+        sectionNavigator.innerHTML = "";
+
+        if (!orderedSections.length) {
+            sectionNavigator.innerHTML = '<div class="estimate-section-empty">Разделы появятся после добавления строк типа «Раздел».</div>';
+            return;
+        }
+
+        orderedSections.forEach((section) => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "estimate-section-nav-item";
+            item.classList.toggle("is-collapsed", collapsedSections.has(section.id));
+            item.addEventListener("click", () => {
+                selectedIndex = section.index;
+                renderRows();
+            });
+
+            const title = document.createElement("strong");
+            title.textContent = section.name;
+
+            const meta = document.createElement("span");
+            meta.textContent = `${section.itemCount} поз. · ${formatMoneyLabel(section.discounted)}`;
+
+            item.appendChild(title);
+            item.appendChild(meta);
+            sectionNavigator.appendChild(item);
+        });
+    }
+
+    function createCell(content, className = "") {
+        const cell = document.createElement("td");
+        if (className) {
+            cell.className = className;
+        }
+        if (content instanceof Node) {
+            cell.appendChild(content);
+        } else {
+            cell.textContent = content;
+        }
+        return cell;
+    }
+
+    function createSectionRow(row, index, summary, queryActive) {
+        const tr = document.createElement("tr");
+        const isCollapsed = collapsedSections.has(row.client_id) && !queryActive;
+        tr.dataset.index = String(index);
+        tr.classList.add("estimate-row-section");
+        tr.classList.toggle("estimate-row-selected", index === selectedIndex);
+        tr.addEventListener("click", () => {
+            selectedIndex = index;
+            renderRows();
+        });
+        tr.addEventListener("dblclick", () => {
+            selectedIndex = index;
+            openDialog("edit", row.row_type, index);
+        });
+
+        const toggleButton = document.createElement("button");
+        toggleButton.type = "button";
+        toggleButton.className = "estimate-section-toggle";
+        toggleButton.textContent = isCollapsed ? "+" : "−";
+        toggleButton.title = isCollapsed ? "Развернуть раздел" : "Свернуть раздел";
+        toggleButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            if (collapsedSections.has(row.client_id)) {
+                collapsedSections.delete(row.client_id);
+            } else {
+                collapsedSections.add(row.client_id);
+            }
+            renderRows();
+        });
+
+        const titleWrap = document.createElement("div");
+        titleWrap.className = "estimate-section-title-wrap";
+
+        const title = document.createElement("div");
+        title.className = "estimate-section-title";
+        title.textContent = row.name || "Раздел";
+        titleWrap.appendChild(title);
+
+        const meta = document.createElement("div");
+        meta.className = "estimate-section-meta";
+        meta.textContent = `${summary.itemCount} поз. · итого ${formatMoneyLabel(summary.total)} · со скидкой ${formatMoneyLabel(summary.discounted)}`;
+        titleWrap.appendChild(meta);
+
+        tr.appendChild(createCell(toggleButton, "estimate-row-type"));
+        tr.appendChild(createCell(titleWrap, "estimate-row-name"));
+        tr.appendChild(createCell("—", "estimate-row-muted"));
+        tr.appendChild(createCell(String(summary.itemCount || 0), "estimate-row-muted"));
+        tr.appendChild(createCell("—", "estimate-row-muted"));
+        tr.appendChild(createCell(formatMoneyLabel(summary.total), "estimate-row-muted"));
+        tr.appendChild(createCell(formatMoneyLabel(summary.discounted), "estimate-row-muted"));
+        return tr;
+    }
+
+    function createItemRow(row, index) {
+        const tr = document.createElement("tr");
+        tr.dataset.index = String(index);
+        tr.classList.toggle("estimate-row-selected", index === selectedIndex);
+        tr.addEventListener("click", () => {
+            selectedIndex = index;
+            renderRows();
+        });
+        tr.addEventListener("dblclick", () => {
+            selectedIndex = index;
+            openDialog("edit", row.row_type, index);
+        });
+
+        tr.appendChild(createCell("Позиция", "estimate-row-type"));
+        tr.appendChild(createCell(row.name || "—", "estimate-row-name"));
+        tr.appendChild(createCell(row.unit || "—"));
+        tr.appendChild(createCell(row.quantity || "0"));
+        tr.appendChild(createCell(row.price || "0"));
+        tr.appendChild(createCell(row.total || "0"));
+        tr.appendChild(createCell(row.discounted_total || "0"));
+        return tr;
     }
 
     function renderRows() {
         recalcRows();
         rowsBody.innerHTML = "";
+        const query = normalizeText(searchInput ? searchInput.value : "");
+        const queryActive = Boolean(query);
+        const sectionSummaries = buildSectionSummaries(query);
+
         let sectionCount = 0;
         let itemCount = 0;
         let totalSum = 0;
         let discountedSum = 0;
         let visibleRows = 0;
+        let currentSectionId = null;
+        let currentSectionCollapsed = false;
 
         rows.forEach((row, index) => {
             if (row.row_type === "section") {
                 sectionCount += 1;
-            } else {
-                itemCount += 1;
-                totalSum += parseNumber(row.total);
-                discountedSum += parseNumber(row.discounted_total);
-            }
+                currentSectionId = row.client_id;
+                const summary = sectionSummaries.get(row.client_id) || {
+                    itemCount: 0,
+                    total: 0,
+                    discounted: 0,
+                    visibleChildren: 0,
+                    matchesSelf: rowMatchesSearch(row, query),
+                };
+                currentSectionCollapsed = collapsedSections.has(row.client_id) && !queryActive;
 
-            const visible = rowMatchesFilters(row);
-            if (!visible) {
+                const showSection = !queryActive || summary.matchesSelf || summary.visibleChildren > 0;
+                if (showSection) {
+                    visibleRows += 1;
+                    rowsBody.appendChild(createSectionRow(row, index, summary, queryActive));
+                }
                 return;
             }
+
+            itemCount += 1;
+            totalSum += parseNumber(row.total);
+            discountedSum += parseNumber(row.discounted_total);
+
+            if (activeFilter === "section") {
+                return;
+            }
+            if (currentSectionCollapsed) {
+                return;
+            }
+            if (!rowMatchesSearch(row, query)) {
+                return;
+            }
+
             visibleRows += 1;
-
-            const tr = document.createElement("tr");
-            tr.dataset.index = String(index);
-            tr.classList.toggle("estimate-row-selected", index === selectedIndex);
-            tr.classList.toggle("estimate-row-section", row.row_type === "section");
-            tr.addEventListener("click", () => {
-                selectedIndex = index;
-                renderRows();
-            });
-            tr.addEventListener("dblclick", () => {
-                selectedIndex = index;
-                openDialog("edit", row.row_type, index);
-            });
-
-            const typeCell = document.createElement("td");
-            typeCell.className = "estimate-row-type";
-            typeCell.textContent = row.row_type === "section" ? "Раздел" : "Позиция";
-            tr.appendChild(typeCell);
-
-            const nameCell = document.createElement("td");
-            nameCell.className = "estimate-row-name";
-            nameCell.textContent = row.name || "—";
-            tr.appendChild(nameCell);
-
-            const unitCell = document.createElement("td");
-            unitCell.className = row.row_type === "section" ? "estimate-row-muted" : "";
-            unitCell.textContent = row.row_type === "section" ? "—" : (row.unit || "—");
-            tr.appendChild(unitCell);
-
-            const quantityCell = document.createElement("td");
-            quantityCell.className = row.row_type === "section" ? "estimate-row-muted" : "";
-            quantityCell.textContent = row.row_type === "section" ? "—" : (row.quantity || "0");
-            tr.appendChild(quantityCell);
-
-            const priceCell = document.createElement("td");
-            priceCell.className = row.row_type === "section" ? "estimate-row-muted" : "";
-            priceCell.textContent = row.row_type === "section" ? "—" : (row.price || "0");
-            tr.appendChild(priceCell);
-
-            const totalCell = document.createElement("td");
-            totalCell.className = row.row_type === "section" ? "estimate-row-muted" : "";
-            totalCell.textContent = row.row_type === "section" ? "—" : (row.total || "0");
-            tr.appendChild(totalCell);
-
-            const discountedCell = document.createElement("td");
-            discountedCell.className = row.row_type === "section" ? "estimate-row-muted" : "";
-            discountedCell.textContent = row.row_type === "section" ? "—" : (row.discounted_total || "0");
-            tr.appendChild(discountedCell);
-
-            rowsBody.appendChild(tr);
+            rowsBody.appendChild(createItemRow(row, index));
         });
 
-        itemsPayloadInput.value = JSON.stringify(rows);
+        itemsPayloadInput.value = JSON.stringify(serializeRowsForSubmit());
         emptyState.hidden = rows.length !== 0;
         filteredEmptyState.hidden = rows.length === 0 || visibleRows !== 0;
         sectionCountNode.textContent = String(sectionCount);
         itemCountNode.textContent = String(itemCount);
         totalSumNode.textContent = formatNumber(totalSum);
         discountedSumNode.textContent = formatNumber(discountedSum);
-        updateSelectionSummary();
+        renderSectionNavigator(sectionSummaries);
+        updateSelectionSummary(sectionSummaries);
         updateActionButtons();
+        updateBottomStatus();
+        syncQuickAddFieldVisibility();
+    }
+
+    function findInsertIndex() {
+        if (selectedIndex >= 0 && selectedIndex < rows.length) {
+            return selectedIndex + 1;
+        }
+        return rows.length;
     }
 
     function moveSelectedRow(direction) {
@@ -345,12 +617,11 @@
         if (!row) {
             return;
         }
-        const duplicate = cloneRow(row);
-        if (duplicate.row_type === "section") {
-            duplicate.name = `${duplicate.name} (копия)`;
-        } else {
-            duplicate.name = `${duplicate.name} (копия)`;
-        }
+        const duplicate = normalizeRow({
+            ...cloneRow(row),
+            client_id: generateRowId(),
+            name: `${row.name || "Строка"} (копия)`,
+        });
         rows.splice(selectedIndex + 1, 0, duplicate);
         selectedIndex += 1;
         setDirtyState(true);
@@ -360,6 +631,42 @@
     function clearSelection() {
         selectedIndex = -1;
         renderRows();
+    }
+
+    function clearQuickAddFields() {
+        if (quickAddName) quickAddName.value = "";
+        if (quickAddUnit) quickAddUnit.value = "";
+        if (quickAddQuantity) quickAddQuantity.value = "";
+        if (quickAddPrice) quickAddPrice.value = "";
+        if (quickAddReference) quickAddReference.value = "";
+        syncQuickAddFieldVisibility();
+    }
+
+    function buildQuickAddRow() {
+        return normalizeRow({
+            row_type: quickAddRowType ? quickAddRowType.value : "item",
+            name: quickAddName ? quickAddName.value : "",
+            unit: quickAddUnit ? quickAddUnit.value : "",
+            quantity: quickAddQuantity ? quickAddQuantity.value : "",
+            price: quickAddPrice ? quickAddPrice.value : "",
+            reference: quickAddReference ? quickAddReference.value : "",
+        });
+    }
+
+    function addQuickRow() {
+        const draftRow = buildQuickAddRow();
+        if (!draftRow.name) {
+            window.alert("Введите название строки.");
+            quickAddName?.focus();
+            return;
+        }
+        const insertIndex = findInsertIndex();
+        rows.splice(insertIndex, 0, draftRow);
+        selectedIndex = insertIndex;
+        setDirtyState(true);
+        clearQuickAddFields();
+        renderRows();
+        quickAddName?.focus();
     }
 
     addSectionButton?.addEventListener("click", () => openDialog("create", "section"));
@@ -377,6 +684,16 @@
     moveUpButton?.addEventListener("click", () => moveSelectedRow(-1));
     moveDownButton?.addEventListener("click", () => moveSelectedRow(1));
     clearSelectionButton?.addEventListener("click", clearSelection);
+    collapseAllButton?.addEventListener("click", () => {
+        rows
+            .filter((row) => row.row_type === "section")
+            .forEach((row) => collapsedSections.add(row.client_id));
+        renderRows();
+    });
+    expandAllButton?.addEventListener("click", () => {
+        collapsedSections.clear();
+        renderRows();
+    });
 
     deleteRowButton?.addEventListener("click", () => {
         const row = selectedRowOrAlert();
@@ -402,6 +719,16 @@
         });
     });
 
+    quickAddRowType?.addEventListener("change", syncQuickAddFieldVisibility);
+    quickAddButton?.addEventListener("click", addQuickRow);
+    quickAddClearButton?.addEventListener("click", clearQuickAddFields);
+    quickAddName?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+            event.preventDefault();
+            addQuickRow();
+        }
+    });
+
     searchInput?.addEventListener("input", renderRows);
     dialogRowType?.addEventListener("change", syncDialogFieldVisibility);
     cancelEstimateDialog?.addEventListener("click", closeDialog);
@@ -409,6 +736,7 @@
 
     saveEstimateRow?.addEventListener("click", () => {
         const draftRow = normalizeRow({
+            client_id: editingIndex >= 0 && rows[editingIndex] ? rows[editingIndex].client_id : generateRowId(),
             row_type: dialogRowType.value,
             name: dialogRowName.value,
             unit: dialogRowUnit.value,
@@ -427,8 +755,9 @@
             rows[editingIndex] = draftRow;
             selectedIndex = editingIndex;
         } else {
-            rows.push(draftRow);
-            selectedIndex = rows.length - 1;
+            const insertIndex = findInsertIndex();
+            rows.splice(insertIndex, 0, draftRow);
+            selectedIndex = insertIndex;
         }
 
         setDirtyState(true);
@@ -448,8 +777,56 @@
 
     form.addEventListener("submit", () => {
         recalcRows();
-        itemsPayloadInput.value = JSON.stringify(rows);
+        itemsPayloadInput.value = JSON.stringify(serializeRowsForSubmit());
         setDirtyState(false);
+    });
+
+    window.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+            event.preventDefault();
+            itemsPayloadInput.value = JSON.stringify(serializeRowsForSubmit());
+            form.requestSubmit();
+            return;
+        }
+
+        if ((event.altKey) && event.key === "ArrowUp" && !isEditableElement(event.target)) {
+            event.preventDefault();
+            moveSelectedRow(-1);
+            return;
+        }
+
+        if ((event.altKey) && event.key === "ArrowDown" && !isEditableElement(event.target)) {
+            event.preventDefault();
+            moveSelectedRow(1);
+            return;
+        }
+
+        if (event.key === "Delete" && !isEditableElement(event.target)) {
+            event.preventDefault();
+            deleteRowButton?.click();
+            return;
+        }
+
+        if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && !isEditableElement(event.target)) {
+            const row = selectedRow();
+            if (row) {
+                event.preventDefault();
+                openDialog("edit", row.row_type, selectedIndex);
+            }
+            return;
+        }
+
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+            if (dialog.open) {
+                event.preventDefault();
+                saveEstimateRow?.click();
+                return;
+            }
+            if (document.activeElement === quickAddName) {
+                event.preventDefault();
+                addQuickRow();
+            }
+        }
     });
 
     window.addEventListener("beforeunload", (event) => {
