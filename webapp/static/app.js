@@ -12,7 +12,11 @@
     let activeFilter = "all";
 
     function normalize(text) {
-        return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
+        return (text || "")
+            .toLowerCase()
+            .replace(/ё/g, "е")
+            .replace(/\s+/g, " ")
+            .trim();
     }
 
     function applyFilters() {
@@ -20,9 +24,10 @@
         let shown = 0;
 
         rows.forEach((row) => {
-            const status = row.dataset.status || "";
+            const status = normalize(row.dataset.status || "");
             const haystack = normalize(row.dataset.search || "");
-            const matchStatus = activeFilter === "all" || status === activeFilter;
+            const normalizedFilter = normalize(activeFilter);
+            const matchStatus = normalizedFilter === "all" || status === normalizedFilter;
             const matchQuery = !query || haystack.includes(query);
             const visible = matchStatus && matchQuery;
             row.hidden = !visible;
