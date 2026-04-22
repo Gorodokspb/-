@@ -451,3 +451,27 @@ Persistence and sync state:
 
 Next action:
 - improve the browser estimate UX and choose the next functional slice: web PDF export or deeper browser-side project editing.
+
+## 2026-04-22 - Browser Estimate UX Improved
+
+Task:
+- make the first browser estimate editor noticeably more comfortable for real use instead of keeping it only technically functional.
+
+What was done:
+- expanded the estimate screen with a clearer current-selection panel;
+- added browser-side search across estimate rows;
+- added row-type filters for all rows, sections only, and positions only;
+- added row duplication;
+- added row move up/down controls;
+- added clear-selection behavior;
+- added an unsaved-changes badge and browser unload protection while the form is dirty;
+- enabled double-click row editing in the estimate table.
+
+Verification:
+- local `python -m py_compile run_web.py webapp\\config.py webapp\\db.py webapp\\main.py webapp\\storage.py` passed;
+- updated template, CSS, and JavaScript were uploaded to the server;
+- `dekorcrm-web` was restarted and confirmed `active`;
+- HTTP check against `/projects/7/estimate` confirmed the new search, selection, duplication, and reorder controls are present in the served page.
+
+Next action:
+- continue with the next browser estimate slice: PDF export or deeper project linkage.

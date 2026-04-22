@@ -34,9 +34,10 @@
                 <div class="eyebrow eyebrow-light">Редактор сметы</div>
                 <h1>{{ estimate.object_name or project.project_name }}</h1>
                 <p>
-                    Здесь мы ведем смету уже в браузере: редактируем шапку, создаем разделы, добавляем позиции,
-                    пересчитываем итоги и сохраняем черновик прямо на сервере.
+                    Здесь мы ведем смету уже в браузере: редактируем шапку, создаем разделы,
+                    добавляем позиции, пересчитываем итоги и сохраняем черновик прямо на сервере.
                 </p>
+
                 <div class="estimate-hero-actions">
                     <button type="submit" form="estimateEditorForm" class="primary-button">Сохранить черновик</button>
                     {% if estimate.has_draft_file and estimate.document %}
@@ -45,6 +46,7 @@
                     {% if estimate.has_pdf_file and estimate.document %}
                     <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=pdf">Скачать PDF</a>
                     {% endif %}
+                    <span class="estimate-dirty-badge" id="estimateDirtyBadge" hidden>Есть несохраненные изменения</span>
                 </div>
             </div>
 
@@ -130,7 +132,9 @@
                         <input type="checkbox" name="watermark" {% if estimate.watermark %}checked{% endif %}>
                         <span>Черновик с водяным знаком</span>
                     </label>
-                    <div class="estimate-inline-note">PDF подключим следующим шагом, но вся логика сметы уже сохраняется в web-версии.</div>
+                    <div class="estimate-inline-note">
+                        Следующий слой после этой страницы: PDF-экспорт и более глубокая связка со статусами проекта.
+                    </div>
                 </div>
 
                 <input type="hidden" name="items_payload" id="estimateItemsPayload" value="">
@@ -148,12 +152,25 @@
                     <button type="button" class="primary-button" id="addSectionButton">+ Раздел</button>
                     <button type="button" class="primary-button estimate-secondary-button" id="addItemButton">+ Позиция</button>
                     <button type="button" class="ghost-button-light" id="editRowButton">Изменить выбранную</button>
+                    <button type="button" class="ghost-button-light" id="duplicateRowButton">Дублировать</button>
+                    <button type="button" class="ghost-button-light" id="moveUpButton">Поднять выше</button>
+                    <button type="button" class="ghost-button-light" id="moveDownButton">Опустить ниже</button>
+                    <button type="button" class="ghost-button-light" id="clearSelectionButton">Снять выделение</button>
                     <button type="button" class="ghost-button-light" id="deleteRowButton">Удалить выбранную</button>
+                </div>
+
+                <div class="estimate-selection-card">
+                    <span class="sidebar-label">Текущая строка</span>
+                    <strong id="estimateSelectionTitle">Ничего не выбрано</strong>
+                    <p id="estimateSelectionMeta">Выберите строку в таблице или добавьте новую.</p>
                 </div>
 
                 <div class="estimate-hint-box">
                     <strong>Как теперь работать</strong>
-                    <p>Сначала добавляем раздел, затем вносим в него позиции. Таблица стала крупнее, а строки редактируются прямо в одном окне.</p>
+                    <p>
+                        Сначала добавляем раздел, затем вносим в него позиции.
+                        Можно выделять строку, поднимать ее выше, дублировать и редактировать двойным кликом.
+                    </p>
                 </div>
             </aside>
 
@@ -164,8 +181,24 @@
                         <h3>Рабочая таблица</h3>
                     </div>
                     <p class="panel-note">
-                        Выделите строку в таблице, чтобы изменить или удалить ее. Итоги пересчитываются автоматически.
+                        Таблица поддерживает поиск по строкам и двойной клик для быстрого редактирования.
                     </p>
+                </div>
+
+                <div class="estimate-table-toolbar">
+                    <label class="estimate-search-box">
+                        <span class="sidebar-label">Поиск по смете</span>
+                        <input type="text" id="estimateSearchInput" placeholder="Найдите раздел, работу, код или единицу измерения">
+                    </label>
+
+                    <div class="estimate-filter-box">
+                        <span class="sidebar-label">Показывать</span>
+                        <div class="estimate-filter-chips">
+                            <button type="button" class="filter-chip is-active estimate-filter-chip" data-filter="all">Все</button>
+                            <button type="button" class="filter-chip estimate-filter-chip" data-filter="section">Разделы</button>
+                            <button type="button" class="filter-chip estimate-filter-chip" data-filter="item">Позиции</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="estimate-table-wrap">
@@ -185,6 +218,9 @@
                     </table>
                     <div class="estimate-empty" id="estimateEmptyState" hidden>
                         Смета пока пустая. Начните с кнопки «+ Раздел», затем добавьте позиции работ.
+                    </div>
+                    <div class="estimate-empty" id="estimateFilteredEmptyState" hidden>
+                        По текущему фильтру строки не найдены. Сбросьте поиск или переключите тип строк.
                     </div>
                 </div>
             </section>

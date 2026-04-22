@@ -13,11 +13,11 @@ Current immediate priorities:
 10. Keep the desktop/server PostgreSQL bridge working until the browser flow can replace more of the daily routine.
 
 Highest-value short-term browser tasks:
-1. Make estimate row editing faster and more comfortable.
-2. Improve table readability and visual spacing on the estimate screen.
-3. Add clearer success/error feedback after estimate saves.
-4. Show linked document state more explicitly from the estimate screen.
-5. Add estimate PDF generation or at least the browser trigger/placeholder for it.
+1. Add estimate PDF generation or a browser-side PDF export flow.
+2. Improve the estimate/project linkage so document state and project updates are clearer from the estimate screen.
+3. Continue smoothing estimate row editing where friction still appears in live use.
+4. Add clearer linked-document visibility from the estimate screen.
+5. Continue visual cleanup only where it helps daily work speed.
 
 Desktop and data integrity checks that still matter:
 1. Manually verify desktop launch through `launch_server_app.ps1` with the server PostgreSQL backend enabled.

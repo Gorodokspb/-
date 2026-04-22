@@ -1611,6 +1611,19 @@ textarea:focus {
     min-height: 52px;
 }
 
+.estimate-dirty-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 52px;
+    padding: 0 16px;
+    border-radius: 999px;
+    background: rgba(255, 244, 214, 0.16);
+    border: 1px solid rgba(255, 230, 162, 0.28);
+    color: #fff0c7;
+    font-size: 13px;
+    font-weight: 700;
+}
+
 .estimate-aside-card {
     padding: 18px 20px;
     border-radius: 22px;
@@ -1722,9 +1735,38 @@ textarea:focus {
     gap: 12px;
 }
 
+.estimate-action-stack button:disabled {
+    opacity: 0.52;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
 .estimate-secondary-button {
     background: linear-gradient(135deg, #1d8f78 0%, #35b09d 100%);
     box-shadow: 0 16px 32px rgba(29, 143, 120, 0.2);
+}
+
+.estimate-selection-card {
+    margin-top: 18px;
+    padding: 18px 20px;
+    border-radius: 22px;
+    background: rgba(17, 40, 61, 0.94);
+    color: #fff;
+}
+
+.estimate-selection-card strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 22px;
+    line-height: 1.14;
+    font-family: "Georgia", "Palatino Linotype", serif;
+}
+
+.estimate-selection-card p {
+    margin-top: 10px;
+    color: rgba(255, 255, 255, 0.78);
+    line-height: 1.58;
 }
 
 .estimate-hint-box {
@@ -1756,6 +1798,30 @@ textarea:focus {
     background: rgba(255, 255, 255, 0.86);
 }
 
+.estimate-table-toolbar {
+    display: grid;
+    grid-template-columns: minmax(320px, 1.25fr) minmax(260px, 0.95fr);
+    gap: 16px;
+    align-items: end;
+    margin-bottom: 18px;
+    padding: 16px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.64);
+    border: 1px solid rgba(23, 36, 52, 0.08);
+}
+
+.estimate-search-box,
+.estimate-filter-box {
+    display: grid;
+    gap: 8px;
+}
+
+.estimate-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 .estimate-table {
     width: 100%;
     min-width: 920px;
@@ -1783,7 +1849,8 @@ textarea:focus {
 }
 
 .estimate-row-selected {
-    background: rgba(21, 105, 216, 0.1);
+    background: rgba(21, 105, 216, 0.14);
+    box-shadow: inset 4px 0 0 #1569d8;
 }
 
 .estimate-row-section {
@@ -1882,6 +1949,10 @@ textarea:focus {
 
     .estimate-metric-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .estimate-table-toolbar {
+        grid-template-columns: 1fr;
     }
 }
 
