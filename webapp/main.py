@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request, status
@@ -12,8 +13,10 @@ from webapp.db import (
     fetch_document,
     fetch_project,
     fetch_project_documents,
+    fetch_project_estimate,
     fetch_project_events,
     fetch_projects,
+    save_project_estimate,
 )
 from webapp.storage import ensure_storage_dirs, resolve_storage_path
 
@@ -140,6 +143,96 @@ def project_detail_page(project_id: int, request: Request):
             "events": events,
             "username": request.session.get("username", settings.admin_username),
         },
+    )
+
+
+@app.get("/projects/{project_id}/estimate")
+def project_estimate_page(project_id: int, request: Request):
+    require_auth(request)
+    estimate = fetch_project_estimate(project_id)
+    if not estimate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+
+    return templates.TemplateResponse(
+        request=request,
+        name="estimate_editor.html",
+        context={
+            "project": estimate["project"],
+            "estimate": estimate,
+            "username": request.session.get("username", settings.admin_username),
+            "saved": request.query_params.get("saved") == "1",
+            "error": None,
+        },
+    )
+
+
+@app.post("/projects/{project_id}/estimate")
+def project_estimate_save(
+    project_id: int,
+    request: Request,
+    company_name: str = Form("ООО Декорартстрой"),
+    object_name: str = Form(""),
+    customer_name: str = Form(""),
+    contract_label: str = Form(""),
+    discount: str = Form(""),
+    items_payload: str = Form("[]"),
+    watermark: str | None = Form(None),
+):
+    require_auth(request)
+    estimate = fetch_project_estimate(project_id)
+    if not estimate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+
+    try:
+        editor_rows = json.loads(items_payload or "[]")
+    except json.JSONDecodeError:
+        editor_rows = []
+
+    normalized_object_name = (
+        (object_name or "").strip()
+        or estimate["project"]["address"]
+        or estimate["project"]["project_name"]
+    )
+    normalized_customer_name = (customer_name or "").strip()
+    normalized_contract_label = (contract_label or "").strip()
+    normalized_company_name = (company_name or "").strip() or "ООО Декорартстрой"
+
+    if not normalized_object_name:
+        return templates.TemplateResponse(
+            request=request,
+            name="estimate_editor.html",
+            context={
+                "project": estimate["project"],
+                "estimate": {
+                    **estimate,
+                    "company": normalized_company_name,
+                    "object_name": normalized_object_name,
+                    "customer_name": normalized_customer_name,
+                    "contract_label": normalized_contract_label,
+                    "discount": discount,
+                    "editor_rows_json": json.dumps(editor_rows, ensure_ascii=False),
+                },
+                "username": request.session.get("username", settings.admin_username),
+                "saved": False,
+                "error": "Укажите объект сметы перед сохранением.",
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    save_project_estimate(
+        project_id=project_id,
+        username=request.session.get("username", settings.admin_username),
+        company_name=normalized_company_name,
+        object_name=normalized_object_name,
+        customer_name=normalized_customer_name,
+        contract_label=normalized_contract_label,
+        discount_raw=discount,
+        watermark=bool(watermark),
+        editor_rows=editor_rows,
+    )
+    return RedirectResponse(
+        url=f"/projects/{project_id}/estimate?saved=1",
+        status_code=status.HTTP_302_FOUND,
     )
 
 

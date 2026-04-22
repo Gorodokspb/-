@@ -10,5 +10,6 @@
 <body>
     {% block body %}{% endblock %}
     <script src="{{ url_for('static', path='/app.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
 </body>
 </html>

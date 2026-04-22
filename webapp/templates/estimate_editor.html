@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}Web-смета | {{ project.project_name }}{% endblock %}
+
+{% block body %}
+<main class="estimate-shell">
+    <div class="workspace-frame">
+        <header class="topbar-card detail-topbar">
+            <div class="topbar-brand">
+                <span class="eyebrow">Dekorartstroy CRM</span>
+                <strong>Web-смета проекта</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <a class="topbar-chip topbar-chip-link" href="/projects">Проекты</a>
+                <a class="topbar-chip topbar-chip-link" href="/projects/{{ project.id }}">Карточка проекта</a>
+                <span class="topbar-chip">Проект ID {{ project.id }}</span>
+                <span class="topbar-chip">Статус: {{ project.status }}</span>
+            </div>
+
+            <div class="topbar-userbox">
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        <section class="estimate-hero">
+            <div class="estimate-hero-copy">
+                <div class="eyebrow eyebrow-light">Редактор сметы</div>
+                <h1>{{ estimate.object_name or project.project_name }}</h1>
+                <p>
+                    Здесь мы ведем смету уже в браузере: редактируем шапку, создаем разделы, добавляем позиции,
+                    пересчитываем итоги и сохраняем черновик прямо на сервере.
+                </p>
+                <div class="estimate-hero-actions">
+                    <button type="submit" form="estimateEditorForm" class="primary-button">Сохранить черновик</button>
+                    {% if estimate.has_draft_file and estimate.document %}
+                    <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=draft">Скачать JSON</a>
+                    {% endif %}
+                    {% if estimate.has_pdf_file and estimate.document %}
+                    <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=pdf">Скачать PDF</a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <aside class="estimate-hero-side">
+                <article class="estimate-aside-card">
+                    <span class="insight-label">Сохранено</span>
+                    <strong>{{ estimate.saved_at or "Пока не сохранялось" }}</strong>
+                    <p>Черновик сметы хранится на сервере и синхронизируется через PostgreSQL.</p>
+                </article>
+                <article class="estimate-aside-card">
+                    <span class="insight-label">Хранилище</span>
+                    <strong>{{ estimate.draft_path or "Путь появится после первого сохранения" }}</strong>
+                    <p>После сохранения документ появится в серверной папке смет без привязки к Яндекс Диску.</p>
+                </article>
+            </aside>
+        </section>
+
+        {% if saved %}
+        <div class="notice-banner notice-banner-success">Черновик сметы успешно сохранен на сервере.</div>
+        {% endif %}
+
+        {% if error %}
+        <div class="error-box">{{ error }}</div>
+        {% endif %}
+
+        <section class="estimate-metric-grid">
+            <article class="metric-panel metric-panel-blue">
+                <span class="metric-label">Разделы</span>
+                <strong id="estimateSectionCount">{{ estimate.section_count }}</strong>
+                <p>Структурные блоки сметы по помещениям и этапам работ.</p>
+            </article>
+            <article class="metric-panel metric-panel-green">
+                <span class="metric-label">Позиции</span>
+                <strong id="estimateItemCount">{{ estimate.item_count }}</strong>
+                <p>Работы и материалы, внесенные в текущий черновик.</p>
+            </article>
+            <article class="metric-panel metric-panel-gold">
+                <span class="metric-label">Итого</span>
+                <strong id="estimateTotalSum">{{ estimate.total_sum }}</strong>
+                <p>Общая сумма до применения скидки по всей смете.</p>
+            </article>
+            <article class="metric-panel metric-panel-slate">
+                <span class="metric-label">Со скидкой</span>
+                <strong id="estimateDiscountedSum">{{ estimate.discounted_sum }}</strong>
+                <p>Финальный расчет после применения скидки ко всем позициям.</p>
+            </article>
+        </section>
+
+        <form id="estimateEditorForm" class="estimate-layout" method="post" action="/projects/{{ project.id }}/estimate">
+            <section class="panel-card panel-card-wide estimate-main-card">
+                <div class="panel-header panel-header-compact">
+                    <div>
+                        <div class="eyebrow">Шапка сметы</div>
+                        <h3>Основные реквизиты</h3>
+                    </div>
+                </div>
+
+                <div class="estimate-form-grid">
+                    <label>
+                        <span class="sidebar-label">Компания</span>
+                        <input type="text" name="company_name" value="{{ estimate.company }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Договор</span>
+                        <input type="text" name="contract_label" value="{{ estimate.contract_label }}" placeholder="№00/00/26 от 00 мая 2026 г.">
+                    </label>
+                    <label class="estimate-form-span-2">
+                        <span class="sidebar-label">Объект</span>
+                        <input type="text" name="object_name" value="{{ estimate.object_name }}" placeholder="Адрес или название объекта">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Заказчик</span>
+                        <input type="text" name="customer_name" value="{{ estimate.customer_name }}" placeholder="ФИО или компания">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Скидка, %</span>
+                        <input id="estimateDiscountInput" type="text" name="discount" value="{{ estimate.discount }}" placeholder="0">
+                    </label>
+                </div>
+
+                <div class="estimate-form-footer">
+                    <label class="estimate-check">
+                        <input type="checkbox" name="watermark" {% if estimate.watermark %}checked{% endif %}>
+                        <span>Черновик с водяным знаком</span>
+                    </label>
+                    <div class="estimate-inline-note">PDF подключим следующим шагом, но вся логика сметы уже сохраняется в web-версии.</div>
+                </div>
+
+                <input type="hidden" name="items_payload" id="estimateItemsPayload" value="">
+            </section>
+
+            <aside class="panel-card panel-card-wide estimate-side-card">
+                <div class="panel-header panel-header-compact">
+                    <div>
+                        <div class="eyebrow">Панель действий</div>
+                        <h3>Работа со строками</h3>
+                    </div>
+                </div>
+
+                <div class="estimate-action-stack">
+                    <button type="button" class="primary-button" id="addSectionButton">+ Раздел</button>
+                    <button type="button" class="primary-button estimate-secondary-button" id="addItemButton">+ Позиция</button>
+                    <button type="button" class="ghost-button-light" id="editRowButton">Изменить выбранную</button>
+                    <button type="button" class="ghost-button-light" id="deleteRowButton">Удалить выбранную</button>
+                </div>
+
+                <div class="estimate-hint-box">
+                    <strong>Как теперь работать</strong>
+                    <p>Сначала добавляем раздел, затем вносим в него позиции. Таблица стала крупнее, а строки редактируются прямо в одном окне.</p>
+                </div>
+            </aside>
+
+            <section class="panel-card panel-card-wide estimate-table-card estimate-layout-span">
+                <div class="panel-header">
+                    <div>
+                        <div class="eyebrow">Позиции сметы</div>
+                        <h3>Рабочая таблица</h3>
+                    </div>
+                    <p class="panel-note">
+                        Выделите строку в таблице, чтобы изменить или удалить ее. Итоги пересчитываются автоматически.
+                    </p>
+                </div>
+
+                <div class="estimate-table-wrap">
+                    <table class="estimate-table" id="estimateTable">
+                        <thead>
+                            <tr>
+                                <th>Тип</th>
+                                <th>Наименование</th>
+                                <th>Ед.</th>
+                                <th>Кол-во</th>
+                                <th>Цена</th>
+                                <th>Стоимость</th>
+                                <th>Со скидкой</th>
+                            </tr>
+                        </thead>
+                        <tbody id="estimateRowsBody"></tbody>
+                    </table>
+                    <div class="estimate-empty" id="estimateEmptyState" hidden>
+                        Смета пока пустая. Начните с кнопки «+ Раздел», затем добавьте позиции работ.
+                    </div>
+                </div>
+            </section>
+        </form>
+    </div>
+</main>
+
+<dialog class="estimate-dialog" id="estimateRowDialog">
+    <form method="dialog" class="estimate-dialog-card" id="estimateRowDialogForm">
+        <div class="estimate-dialog-head">
+            <div>
+                <div class="eyebrow">Редактор строки</div>
+                <h3 id="estimateDialogTitle">Новая строка</h3>
+            </div>
+            <button type="button" class="ghost-button-light estimate-close-button" id="closeEstimateDialog">Закрыть</button>
+        </div>
+
+        <div class="estimate-dialog-grid">
+            <label class="estimate-dialog-row">
+                <span class="sidebar-label">Тип строки</span>
+                <select id="dialogRowType">
+                    <option value="section">Раздел</option>
+                    <option value="item">Позиция</option>
+                </select>
+            </label>
+            <label class="estimate-dialog-row estimate-dialog-span-2">
+                <span class="sidebar-label">Название</span>
+                <input type="text" id="dialogRowName" placeholder="Например: Кухня или Грунтовка потолка">
+            </label>
+            <label class="estimate-dialog-row dialog-item-field">
+                <span class="sidebar-label">Ед.</span>
+                <input type="text" id="dialogRowUnit" placeholder="м2">
+            </label>
+            <label class="estimate-dialog-row dialog-item-field">
+                <span class="sidebar-label">Кол-во</span>
+                <input type="text" id="dialogRowQuantity" placeholder="1">
+            </label>
+            <label class="estimate-dialog-row dialog-item-field">
+                <span class="sidebar-label">Цена</span>
+                <input type="text" id="dialogRowPrice" placeholder="0">
+            </label>
+            <label class="estimate-dialog-row dialog-item-field">
+                <span class="sidebar-label">Артикул / код</span>
+                <input type="text" id="dialogRowReference" placeholder="Необязательно">
+            </label>
+        </div>
+
+        <div class="estimate-dialog-actions">
+            <button type="button" class="ghost-button-light" id="cancelEstimateDialog">Отмена</button>
+            <button type="button" class="primary-button" id="saveEstimateRow">Применить</button>
+        </div>
+    </form>
+</dialog>
+
+<script id="estimateInitialRows" type="application/json">{{ estimate.editor_rows_json|safe }}</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', path='/estimate_editor.js') }}"></script>
+{% endblock %}

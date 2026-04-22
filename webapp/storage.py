@@ -3,6 +3,14 @@ from pathlib import Path
 from webapp.config import get_settings
 
 
+def sanitize_filename(value: str, fallback: str = "Документ") -> str:
+    cleaned = (value or "").strip()
+    for char in '<>:"/\\|?*':
+        cleaned = cleaned.replace(char, "_")
+    cleaned = " ".join(cleaned.split()).strip(". ")
+    return cleaned[:120] or fallback
+
+
 def ensure_storage_dirs() -> None:
     settings = get_settings()
     for path in (
@@ -31,3 +39,35 @@ def resolve_storage_path(relative_path: str) -> Path | None:
     if not candidate.exists() or not candidate.is_file():
         return None
     return candidate
+
+
+def storage_relative_path(path: Path | None) -> str:
+    if not path:
+        return ""
+
+    settings = get_settings()
+    candidate = Path(path).resolve()
+    storage_root = settings.storage_root.resolve()
+
+    try:
+        relative = candidate.relative_to(storage_root)
+    except ValueError:
+        return ""
+
+    return relative.as_posix()
+
+
+def build_estimate_draft_path(
+    project_id: int,
+    project_name: str = "",
+    object_name: str = "",
+) -> tuple[Path, str]:
+    settings = get_settings()
+    base_name = str(object_name or project_name or f"Объект_{project_id}").strip()
+    object_label = sanitize_filename(base_name, f"Объект_{project_id}")
+    project_dir = settings.estimates_dir / f"{int(project_id):04d}_{object_label}"
+    drafts_dir = project_dir / "Черновики"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    file_name = f"{sanitize_filename(base_name, 'Черновик сметы')}.json"
+    absolute_path = drafts_dir / file_name
+    return absolute_path, storage_relative_path(absolute_path)

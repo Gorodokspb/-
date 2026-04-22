@@ -13,6 +13,7 @@
 
             <div class="topbar-meta">
                 <a class="topbar-chip topbar-chip-link" href="/projects">Назад к проектам</a>
+                <a class="topbar-chip topbar-chip-link" href="/projects/{{ project.id }}/estimate">Открыть web-смету</a>
                 <span class="topbar-chip">Проект ID {{ project.id }}</span>
                 <span class="topbar-chip">Статус: {{ project.status }}</span>
             </div>
@@ -34,8 +35,11 @@
                 <h1>{{ project.project_name }}</h1>
                 <p>
                     Здесь собраны основные данные по объекту, заказчику, договору, документам и журналу событий.
-                    Это рабочая точка контроля по проекту перед следующим этапом — полноценным редактированием в браузере.
+                    Следующий рабочий слой уже открыт в браузере: теперь смету можно вести через отдельный web-редактор.
                 </p>
+                <div class="detail-hero-actions">
+                    <a class="primary-button" href="/projects/{{ project.id }}/estimate">Перейти в web-смету</a>
+                </div>
             </div>
 
             <div class="detail-hero-side">
@@ -54,22 +58,22 @@
             <article class="metric-panel metric-panel-blue">
                 <span class="metric-label">Проект</span>
                 <strong>{{ project.id }}</strong>
-                <p>Идентификатор объекта в рабочей базе CRM</p>
+                <p>Идентификатор объекта в рабочей базе CRM.</p>
             </article>
             <article class="metric-panel metric-panel-green">
                 <span class="metric-label">Документы</span>
                 <strong>{{ documents|length }}</strong>
-                <p>Файлы и версии, которые уже связаны с проектом</p>
+                <p>Файлы и версии, уже связанные с этим проектом.</p>
             </article>
             <article class="metric-panel metric-panel-gold">
                 <span class="metric-label">События</span>
                 <strong>{{ events|length }}</strong>
-                <p>Записи в журнале, отражающие движение по объекту</p>
+                <p>Журнал действий и изменений по объекту.</p>
             </article>
             <article class="metric-panel metric-panel-slate">
                 <span class="metric-label">Статус</span>
                 <strong>{{ project.status }}</strong>
-                <p>Текущая стадия жизненного цикла проекта</p>
+                <p>Текущая стадия проекта в CRM.</p>
             </article>
         </section>
 
@@ -138,7 +142,7 @@
                             <td>
                                 <div class="project-link">
                                     <span class="project-name">{{ document.title or "Без названия" }}</span>
-                                    <span class="project-address">{{ document.description or "Документ проекта" }}</span>
+                                    <span class="project-address">{{ document.doc_type or "Документ проекта" }}</span>
                                 </div>
                             </td>
                             <td class="cell-muted">{{ document.doc_type or "—" }}</td>
