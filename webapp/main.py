@@ -17,6 +17,7 @@ from webapp.db import (
     fetch_project_events,
     fetch_projects,
     save_project_estimate,
+    update_project_card,
 )
 from webapp.estimate_pdf import generate_estimate_pdf
 from webapp.storage import ensure_storage_dirs, resolve_storage_path
@@ -24,6 +25,13 @@ from webapp.storage import ensure_storage_dirs, resolve_storage_path
 
 settings = get_settings()
 ensure_storage_dirs()
+
+PROJECT_STATUS_OPTIONS = [
+    "Черновик",
+    "В работе",
+    "Пауза",
+    "Завершен",
+]
 
 app = FastAPI(title="Dekorartstroy CRM Web")
 app.add_middleware(
@@ -65,6 +73,40 @@ def require_auth(request: Request) -> None:
             status_code=status.HTTP_302_FOUND,
             headers={"Location": "/login"},
         )
+
+
+def render_project_detail(
+    request: Request,
+    project: dict,
+    *,
+    documents: list[dict] | None = None,
+    events: list[dict] | None = None,
+    saved: bool = False,
+    error: str | None = None,
+    status_code: int = status.HTTP_200_OK,
+):
+    documents = documents if documents is not None else fetch_project_documents(int(project["id"]))
+    events = events if events is not None else fetch_project_events(int(project["id"]))
+
+    for document in documents:
+        document["has_file"] = bool(resolve_storage_path(document.get("file_path")))
+        document["has_draft"] = bool(resolve_storage_path(document.get("draft_path")))
+        document["has_pdf"] = bool(resolve_storage_path(document.get("pdf_path")))
+
+    return templates.TemplateResponse(
+        request=request,
+        name="project_detail.html",
+        context={
+            "project": project,
+            "documents": documents,
+            "events": events,
+            "status_options": PROJECT_STATUS_OPTIONS,
+            "username": request.session.get("username", settings.admin_username),
+            "saved": saved,
+            "error": error,
+        },
+        status_code=status_code,
+    )
 
 
 def render_estimate_editor(
@@ -188,22 +230,72 @@ def project_detail_page(project_id: int, request: Request):
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
 
-    documents = fetch_project_documents(project_id)
-    events = fetch_project_events(project_id)
-    for document in documents:
-        document["has_file"] = bool(resolve_storage_path(document.get("file_path")))
-        document["has_draft"] = bool(resolve_storage_path(document.get("draft_path")))
-        document["has_pdf"] = bool(resolve_storage_path(document.get("pdf_path")))
+    return render_project_detail(
+        request,
+        project,
+        saved=request.query_params.get("saved") == "1",
+    )
 
-    return templates.TemplateResponse(
-        request=request,
-        name="project_detail.html",
-        context={
-            "project": project,
-            "documents": documents,
-            "events": events,
-            "username": request.session.get("username", settings.admin_username),
-        },
+
+@app.post("/projects/{project_id}")
+def project_detail_save(
+    project_id: int,
+    request: Request,
+    project_name: str = Form(""),
+    address: str = Form(""),
+    customer: str = Form(""),
+    status_value: str = Form(""),
+    contract: str = Form(""),
+    contract_date: str = Form(""),
+    notes: str = Form(""),
+):
+    require_auth(request)
+    project = fetch_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+
+    draft_project = {
+        **project,
+        "project_name": (project_name or "").strip(),
+        "address": (address or "").strip(),
+        "customer": (customer or "").strip(),
+        "status": (status_value or "").strip() or project.get("status") or PROJECT_STATUS_OPTIONS[0],
+        "contract": (contract or "").strip(),
+        "contract_date": (contract_date or "").strip(),
+        "notes": notes or "",
+    }
+
+    if draft_project["status"] not in PROJECT_STATUS_OPTIONS:
+        draft_project["status"] = PROJECT_STATUS_OPTIONS[0]
+
+    if not draft_project["project_name"] and not draft_project["address"]:
+        return render_project_detail(
+            request,
+            draft_project,
+            error="Заполните хотя бы название проекта или адрес.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    saved_project = update_project_card(
+        project_id,
+        request.session.get("username", settings.admin_username),
+        project_name=draft_project["project_name"],
+        address=draft_project["address"],
+        customer=draft_project["customer"],
+        status=draft_project["status"],
+        contract=draft_project["contract"],
+        contract_date=draft_project["contract_date"],
+        notes=draft_project["notes"],
+    )
+    if not saved_project:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не удалось сохранить карточку проекта.",
+        )
+
+    return RedirectResponse(
+        url=f"/projects/{project_id}?saved=1",
+        status_code=status.HTTP_302_FOUND,
     )
 
 

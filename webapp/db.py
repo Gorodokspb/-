@@ -336,6 +336,102 @@ def fetch_project(project_id: int):
             return cur.fetchone()
 
 
+def update_project_card(
+    project_id: int,
+    username: str,
+    *,
+    project_name: str,
+    address: str,
+    customer: str,
+    status: str,
+    contract: str,
+    contract_date: str,
+    notes: str,
+):
+    project = fetch_project(project_id)
+    if not project:
+        return None
+
+    now = _now_iso()
+    normalized_project_name = str(project_name or "").strip()
+    normalized_address = str(address or "").strip()
+    normalized_customer = str(customer or "").strip()
+    normalized_status = str(status or "").strip() or DEFAULT_PROJECT_STATUS
+    normalized_contract = str(contract or "").strip()
+    normalized_contract_date = str(contract_date or "").strip()
+    normalized_notes = str(notes or "").strip()
+
+    if not normalized_project_name:
+        normalized_project_name = normalized_address or project.get("project_name") or "Без названия"
+    if not normalized_address:
+        normalized_address = normalized_project_name
+
+    changes = []
+    comparisons = [
+        ("Название", project.get("project_name") or "", normalized_project_name),
+        ("Адрес", project.get("address") or "", normalized_address),
+        ("Заказчик", project.get("customer") or "", normalized_customer),
+        ("Статус", project.get("status") or "", normalized_status),
+        ("Договор", project.get("contract") or "", normalized_contract),
+        ("Дата договора", project.get("contract_date") or "", normalized_contract_date),
+        ("Заметки", project.get("notes") or "", normalized_notes),
+    ]
+    for label, old_value, new_value in comparisons:
+        if str(old_value).strip() != str(new_value).strip():
+            changes.append(label)
+
+    event_text = (
+        "Обновлена карточка проекта через web-интерфейс"
+        if not changes
+        else f"Обновлена карточка проекта через web-интерфейс: {', '.join(changes)}"
+    )
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE projects
+                SET
+                    project_name = %s,
+                    address = %s,
+                    customer = %s,
+                    status = %s,
+                    contract = %s,
+                    date = %s,
+                    notes = %s,
+                    updated_at = %s
+                WHERE id = %s
+                """,
+                (
+                    normalized_project_name,
+                    normalized_address,
+                    normalized_customer,
+                    normalized_status,
+                    normalized_contract,
+                    normalized_contract_date,
+                    normalized_notes,
+                    now,
+                    project_id,
+                ),
+            )
+            cur.execute(
+                """
+                INSERT INTO project_events (project_id, event_type, event_text, author, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    project_id,
+                    "project",
+                    event_text,
+                    username,
+                    now,
+                ),
+            )
+        conn.commit()
+
+    return fetch_project(project_id)
+
+
 def fetch_project_documents(project_id: int):
     query = """
         SELECT

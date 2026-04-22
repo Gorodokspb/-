@@ -531,3 +531,35 @@ Verification:
 
 Next action:
 - manually test the new browser estimate workflow on a real long estimate and then continue with project-side browser editing and deeper estimate/project linkage.
+
+## 2026-04-22 - Browser Project Card Editing Is Live
+
+Task:
+- finish the next browser slice after estimate UX by allowing direct project-card editing in the web interface instead of bouncing back into the desktop window for every small change.
+
+What was done:
+- extended `webapp/db.py` with `update_project_card(...)` to save project fields and write a `project_events` history entry;
+- extended `webapp/main.py` with shared project-detail rendering and a new `POST /projects/{id}` save route;
+- rebuilt `webapp/templates/project_detail.html` into a proper browser editing screen with editable fields for:
+  - project name,
+  - address,
+  - customer,
+  - status,
+  - contract,
+  - contract date,
+  - notes;
+- added success and validation feedback on the page;
+- uploaded the changed files to the server and restarted `dekorcrm-web`.
+
+Verification:
+- local `python -m py_compile run_web.py webapp\\config.py webapp\\db.py webapp\\main.py webapp\\storage.py webapp\\estimate_pdf.py` passed;
+- the updated files were uploaded to `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- `dekorcrm-web` restarted successfully and remained `active`;
+- live HTTP smoke test passed:
+  - login succeeded,
+  - `/projects/7` exposed the editable project form,
+  - `POST /projects/7` returned redirect to `?saved=1`,
+  - the saved page showed the success banner.
+
+Next action:
+- keep pushing the browser flow toward daily usability: make the web project and estimate screens cleaner, denser, and more convenient than the desktop routine.
