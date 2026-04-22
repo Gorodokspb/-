@@ -421,3 +421,33 @@ Verification:
 
 Important note:
 - at this stage PostgreSQL remains safely reachable through local/server-side access and SSH tunneling; direct public port exposure was not required.
+
+## 2026-04-22 - Browser Estimate Editor Workflow Added And Synced
+
+Task:
+- move the browser version from a read-only project viewer to the first real editable estimate workflow.
+
+What was done:
+- expanded the FastAPI browser layer so projects now have a dedicated estimate route: `/projects/{id}/estimate`;
+- added estimate read/write logic in `webapp/db.py` for loading estimate payloads from `smeta_drafts` and server draft files;
+- added estimate draft save logic back into PostgreSQL and server storage;
+- added server-storage helpers in `webapp/storage.py` for managed estimate draft paths;
+- added `webapp/templates/estimate_editor.html` as the first real browser estimate editor screen;
+- added `webapp/static/estimate_editor.js` for browser-side row creation, editing, deletion, total recalculation, and discount recalculation;
+- updated `webapp/static/app.css` to support the estimate editor layout and controls;
+- updated the project detail page to link directly into the browser estimate workflow.
+
+Verification:
+- local `python -m py_compile run_web.py webapp\\config.py webapp\\db.py webapp\\main.py webapp\\storage.py` passed;
+- the updated files were uploaded to the server under `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- `dekorcrm-web` was restarted successfully and confirmed `active`;
+- browser HTTP checks confirmed the estimate route loads and a save POST redirects to `?saved=1`.
+
+Persistence and sync state:
+- local repo was committed as `e76391b` (`Add browser estimate editor workflow`);
+- GitHub `origin/master` was updated to the same commit;
+- server repo under `/opt/dekorcrm/app/CRM_OLD_BAD` was reset to `origin/master`;
+- local repo, GitHub, and server were aligned to the same commit at the end of the session.
+
+Next action:
+- improve the browser estimate UX and choose the next functional slice: web PDF export or deeper browser-side project editing.

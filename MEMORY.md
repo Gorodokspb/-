@@ -14,17 +14,19 @@ Fast summary:
 - Project: Dekorartstroy CRM + estimate workflow.
 - Main app shell: `CRM.py`
 - Active estimate tool: `smeta.py`
+- Active browser layer: `webapp/` + `run_web.py`
 - Main DB: `dekorart_base.db`
 - Price DB: `dekorart_prices.db`
 - Contract template: `contract_template_physical.docx`
 - Diagnostic script for office/home portability: `portability_audit.py`
 - Current repo path detected in this session: `C:\Users\Aleks\YandexDisk-Gorodok198\СМЕТЫ НА ПРОВЕРКУ\CRM_OLD_BAD`
-- Server browser entry points: `/login`, `/projects`, `/projects/{id}`
+- Server browser entry points: `/login`, `/projects`, `/projects/{id}`, `/projects/{id}/estimate`
+- Latest synced git commit after the browser estimate work: `e76391b` (`Add browser estimate editor workflow`)
 
 Important working rule:
 - The estimate is the start of the business flow.
 - The accepted order is estimate -> project -> counterparty -> contract.
-- The browser/web track is active again through the server-hosted MVP, while desktop continuity still remains important.
+- The browser/web track is active again through the server-hosted MVP and now includes the first editable web estimate screen, while desktop continuity still remains important.
 
 Operational rule for future sessions:
 - Update `PROJECT_MEMORY/06_SESSION_LOG.md` after meaningful work.
