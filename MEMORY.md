@@ -21,12 +21,12 @@ Fast summary:
 - Diagnostic script for office/home portability: `portability_audit.py`
 - Current repo path detected in this session: `C:\Users\Aleks\YandexDisk-Gorodok198\СМЕТЫ НА ПРОВЕРКУ\CRM_OLD_BAD`
 - Server browser entry points: `/login`, `/projects`, `/projects/{id}`, `/projects/{id}/estimate`
-- Latest synced git commit after the browser estimate work: `e76391b` (`Add browser estimate editor workflow`)
+- Browser estimate milestone now includes draft save, improved row editing UX, and direct PDF generation from the web editor
 
 Important working rule:
 - The estimate is the start of the business flow.
 - The accepted order is estimate -> project -> counterparty -> contract.
-- The browser/web track is active again through the server-hosted MVP and now includes the first editable web estimate screen, while desktop continuity still remains important.
+- The browser/web track is active again through the server-hosted MVP and now includes an editable estimate screen with direct PDF export, while desktop continuity still remains important.
 
 Operational rule for future sessions:
 - Update `PROJECT_MEMORY/06_SESSION_LOG.md` after meaningful work.

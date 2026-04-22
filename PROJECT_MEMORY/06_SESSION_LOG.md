@@ -475,3 +475,26 @@ Verification:
 
 Next action:
 - continue with the next browser estimate slice: PDF export or deeper project linkage.
+
+## 2026-04-22 - Web Estimate PDF Export Added
+
+Task:
+- finish the next browser estimate milestone by generating a real PDF directly from the web editor and serving it through the browser flow.
+
+What was done:
+- added `webapp/estimate_pdf.py` with ReportLab-based estimate PDF generation;
+- extended `webapp/storage.py` so browser estimates now have a dedicated PDF path in server storage;
+- rewrote `webapp/main.py` cleanly and added a `POST /projects/{id}/estimate/pdf` route;
+- made the web estimate form save the current browser state before PDF generation;
+- added a `Сформировать PDF` button to the estimate editor and kept the existing download links;
+- uploaded the updated files to the server and restarted `dekorcrm-web`.
+
+Verification:
+- local `python -m py_compile run_web.py webapp\\config.py webapp\\db.py webapp\\main.py webapp\\storage.py webapp\\estimate_pdf.py` passed;
+- server-side `python3 -m py_compile webapp/main.py webapp/storage.py webapp/estimate_pdf.py` passed inside `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- `dekorcrm-web` restarted successfully and remained `active`;
+- live browser check confirmed the estimate page shows the new `Сформировать PDF` action;
+- live server-side generation created a PDF for project `7`, and the estimate page now exposes the `Скачать PDF` link.
+
+Next action:
+- continue from PDF export into the deeper browser estimate workflow: better table ergonomics, project linkage, and then browser-side project editing.

@@ -40,6 +40,14 @@
 
                 <div class="estimate-hero-actions">
                     <button type="submit" form="estimateEditorForm" class="primary-button">Сохранить черновик</button>
+                    <button
+                        type="submit"
+                        form="estimateEditorForm"
+                        formaction="/projects/{{ project.id }}/estimate/pdf"
+                        class="ghost-button-light estimate-inline-action"
+                    >
+                        Сформировать PDF
+                    </button>
                     {% if estimate.has_draft_file and estimate.document %}
                     <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=draft">Скачать JSON</a>
                     {% endif %}
@@ -133,7 +141,7 @@
                         <span>Черновик с водяным знаком</span>
                     </label>
                     <div class="estimate-inline-note">
-                        Следующий слой после этой страницы: PDF-экспорт и более глубокая связка со статусами проекта.
+                        Смету можно сохранить как черновик, а затем сразу сформировать PDF из текущего состояния таблицы.
                     </div>
                 </div>
 

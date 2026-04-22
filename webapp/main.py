@@ -18,6 +18,7 @@ from webapp.db import (
     fetch_projects,
     save_project_estimate,
 )
+from webapp.estimate_pdf import generate_estimate_pdf
 from webapp.storage import ensure_storage_dirs, resolve_storage_path
 
 
@@ -64,6 +65,66 @@ def require_auth(request: Request) -> None:
             status_code=status.HTTP_302_FOUND,
             headers={"Location": "/login"},
         )
+
+
+def render_estimate_editor(
+    request: Request,
+    estimate: dict,
+    *,
+    saved: bool = False,
+    error: str | None = None,
+    status_code: int = status.HTTP_200_OK,
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="estimate_editor.html",
+        context={
+            "project": estimate["project"],
+            "estimate": estimate,
+            "username": request.session.get("username", settings.admin_username),
+            "saved": saved,
+            "error": error,
+        },
+        status_code=status_code,
+    )
+
+
+def normalize_estimate_form_data(
+    estimate: dict,
+    company_name: str,
+    object_name: str,
+    customer_name: str,
+    contract_label: str,
+    discount: str,
+    items_payload: str,
+    watermark: str | None,
+) -> tuple[dict, list[dict]]:
+    try:
+        editor_rows = json.loads(items_payload or "[]")
+    except json.JSONDecodeError:
+        editor_rows = []
+
+    normalized_object_name = (
+        (object_name or "").strip()
+        or estimate["project"]["address"]
+        or estimate["project"]["project_name"]
+    )
+    normalized_customer_name = (customer_name or "").strip()
+    normalized_contract_label = (contract_label or "").strip()
+    normalized_company_name = (company_name or "").strip() or "ООО Декорартстрой"
+
+    draft_estimate = {
+        **estimate,
+        "company": normalized_company_name,
+        "object_name": normalized_object_name,
+        "customer_name": normalized_customer_name,
+        "contract_label": normalized_contract_label,
+        "discount": discount,
+        "watermark": bool(watermark),
+        "editor_rows": editor_rows,
+        "editor_rows_json": json.dumps(editor_rows, ensure_ascii=False),
+    }
+    return draft_estimate, editor_rows
 
 
 @app.get("/")
@@ -153,16 +214,10 @@ def project_estimate_page(project_id: int, request: Request):
     if not estimate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
 
-    return templates.TemplateResponse(
-        request=request,
-        name="estimate_editor.html",
-        context={
-            "project": estimate["project"],
-            "estimate": estimate,
-            "username": request.session.get("username", settings.admin_username),
-            "saved": request.query_params.get("saved") == "1",
-            "error": None,
-        },
+    return render_estimate_editor(
+        request,
+        estimate,
+        saved=request.query_params.get("saved") == "1",
     )
 
 
@@ -183,56 +238,111 @@ def project_estimate_save(
     if not estimate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
 
-    try:
-        editor_rows = json.loads(items_payload or "[]")
-    except json.JSONDecodeError:
-        editor_rows = []
-
-    normalized_object_name = (
-        (object_name or "").strip()
-        or estimate["project"]["address"]
-        or estimate["project"]["project_name"]
+    draft_estimate, editor_rows = normalize_estimate_form_data(
+        estimate,
+        company_name,
+        object_name,
+        customer_name,
+        contract_label,
+        discount,
+        items_payload,
+        watermark,
     )
-    normalized_customer_name = (customer_name or "").strip()
-    normalized_contract_label = (contract_label or "").strip()
-    normalized_company_name = (company_name or "").strip() or "ООО Декорартстрой"
 
-    if not normalized_object_name:
-        return templates.TemplateResponse(
-            request=request,
-            name="estimate_editor.html",
-            context={
-                "project": estimate["project"],
-                "estimate": {
-                    **estimate,
-                    "company": normalized_company_name,
-                    "object_name": normalized_object_name,
-                    "customer_name": normalized_customer_name,
-                    "contract_label": normalized_contract_label,
-                    "discount": discount,
-                    "editor_rows_json": json.dumps(editor_rows, ensure_ascii=False),
-                },
-                "username": request.session.get("username", settings.admin_username),
-                "saved": False,
-                "error": "Укажите объект сметы перед сохранением.",
-            },
+    if not draft_estimate["object_name"]:
+        return render_estimate_editor(
+            request,
+            draft_estimate,
+            error="Укажите объект сметы перед сохранением.",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
     save_project_estimate(
         project_id=project_id,
         username=request.session.get("username", settings.admin_username),
-        company_name=normalized_company_name,
-        object_name=normalized_object_name,
-        customer_name=normalized_customer_name,
-        contract_label=normalized_contract_label,
-        discount_raw=discount,
-        watermark=bool(watermark),
+        company_name=draft_estimate["company"],
+        object_name=draft_estimate["object_name"],
+        customer_name=draft_estimate["customer_name"],
+        contract_label=draft_estimate["contract_label"],
+        discount_raw=draft_estimate["discount"],
+        watermark=draft_estimate["watermark"],
         editor_rows=editor_rows,
     )
     return RedirectResponse(
         url=f"/projects/{project_id}/estimate?saved=1",
         status_code=status.HTTP_302_FOUND,
+    )
+
+
+@app.post("/projects/{project_id}/estimate/pdf")
+def project_estimate_pdf(
+    project_id: int,
+    request: Request,
+    company_name: str = Form("ООО Декорартстрой"),
+    object_name: str = Form(""),
+    customer_name: str = Form(""),
+    contract_label: str = Form(""),
+    discount: str = Form(""),
+    items_payload: str = Form("[]"),
+    watermark: str | None = Form(None),
+):
+    require_auth(request)
+    estimate = fetch_project_estimate(project_id)
+    if not estimate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+
+    draft_estimate, editor_rows = normalize_estimate_form_data(
+        estimate,
+        company_name,
+        object_name,
+        customer_name,
+        contract_label,
+        discount,
+        items_payload,
+        watermark,
+    )
+
+    missing_fields = []
+    if not draft_estimate["object_name"]:
+        missing_fields.append("объект")
+    if not draft_estimate["customer_name"]:
+        missing_fields.append("заказчика")
+    if not draft_estimate["contract_label"]:
+        missing_fields.append("договор")
+
+    if missing_fields:
+        return render_estimate_editor(
+            request,
+            draft_estimate,
+            error=f"Для PDF заполните: {', '.join(missing_fields)}.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    saved_estimate = save_project_estimate(
+        project_id=project_id,
+        username=request.session.get("username", settings.admin_username),
+        company_name=draft_estimate["company"],
+        object_name=draft_estimate["object_name"],
+        customer_name=draft_estimate["customer_name"],
+        contract_label=draft_estimate["contract_label"],
+        discount_raw=draft_estimate["discount"],
+        watermark=draft_estimate["watermark"],
+        editor_rows=editor_rows,
+    )
+    if not saved_estimate:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не удалось сохранить смету перед формированием PDF.",
+        )
+
+    pdf_path = generate_estimate_pdf(
+        saved_estimate,
+        request.session.get("username", settings.admin_username),
+    )
+    return FileResponse(
+        path=pdf_path,
+        filename=pdf_path.name,
+        media_type="application/pdf",
     )
 
 
