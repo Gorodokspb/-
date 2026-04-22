@@ -598,3 +598,61 @@ Verification:
 
 Next action:
 - visually polish and tighten the new estimate screen based on real usage feedback, then deepen the browser flow around reference data, estimate linkage, and final export quality.
+
+## 2026-04-22 - Domain CRM198.ru Bound To The Web CRM With HTTPS
+
+Task:
+- bind the purchased domain `crm198.ru` to the browser CRM, point DNS to the VPS, and enable secure access over HTTPS.
+
+What was done:
+- guided the DNS setup in AdminVPS so `crm198.ru` and `www.crm198.ru` point to `130.49.129.245`;
+- verified from Windows that both hostnames started resolving correctly;
+- verified the server-side `nginx` config already routed the domain names to `dekorcrm-web`;
+- confirmed `certbot` was installed on the VPS;
+- issued and deployed a Let’s Encrypt certificate for:
+  - `crm198.ru`,
+  - `www.crm198.ru`;
+- enabled HTTPS and redirect handling in `nginx`.
+
+Verification:
+- `Resolve-DnsName crm198.ru -Type A` returned `130.49.129.245`;
+- `Resolve-DnsName www.crm198.ru -Type A` returned `130.49.129.245`;
+- `certbot --nginx -d crm198.ru -d www.crm198.ru --redirect` completed successfully;
+- `nginx` remained `active`;
+- external HTTPS checks reached the CRM endpoint successfully.
+
+Next action:
+- use `https://crm198.ru` as the main browser entry point for the live CRM and continue polishing the product screens there instead of using the raw IP.
+
+## 2026-04-22 - Web Password Change Added
+
+Task:
+- add a user-facing way to change the web login password after signing in, so the CRM no longer depends only on the initial environment password.
+
+What was done:
+- extended `webapp/db.py` with a new `web_users` table bootstrap and helper functions:
+  - `ensure_web_users_table()`,
+  - `fetch_web_user(...)`,
+  - `ensure_web_user(...)`,
+  - `update_web_user_password(...)`;
+- extended `webapp/main.py` with:
+  - password hashing via `pbkdf2_sha256`,
+  - startup bootstrap of the first web user from current settings,
+  - login verification against the stored password hash,
+  - new routes:
+    - `GET /account/password`,
+    - `POST /account/password`;
+- added a new UI template:
+  - `webapp/templates/password_change.html`;
+- added a visible `Сменить пароль` entry on the projects page top bar;
+- uploaded the changed files to `/opt/dekorcrm/app/CRM_OLD_BAD`;
+- restarted `dekorcrm-web`.
+
+Verification:
+- local `python -m py_compile webapp\\main.py webapp\\db.py` passed;
+- server restart finished successfully and `dekorcrm-web` remained `active`;
+- server-side request to `http://127.0.0.1:8000/login` returned `200 OK`;
+- direct PostgreSQL check confirmed `web_users` exists and contains user `aleksey` with bootstrap metadata.
+
+Next action:
+- expose the same `Сменить пароль` access point from more browser screens such as the project card and estimate editor, then continue with the next web UX improvements.

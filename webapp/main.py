@@ -1,4 +1,7 @@
 import json
+import hashlib
+import hmac
+import secrets
 from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, Request, status
@@ -9,14 +12,21 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from webapp.config import get_settings
 from webapp.db import (
+    create_counterparty,
+    create_project,
+    ensure_web_user,
+    ensure_web_users_table,
     fetch_dashboard_counts,
+    fetch_counterparties,
     fetch_document,
     fetch_project,
     fetch_project_documents,
     fetch_project_estimate,
     fetch_project_events,
     fetch_projects,
+    fetch_web_user,
     save_project_estimate,
+    update_web_user_password,
     update_project_card,
 )
 from webapp.estimate_pdf import generate_estimate_pdf
@@ -49,6 +59,11 @@ app.mount(
 )
 
 
+@app.on_event("startup")
+def startup_web_auth() -> None:
+    ensure_auth_bootstrap()
+
+
 def status_class(value: str) -> str:
     mapping = {
         "Черновик": "draft",
@@ -61,6 +76,45 @@ def status_class(value: str) -> str:
 
 
 templates.env.filters["status_class"] = status_class
+
+
+def hash_password(password: str) -> str:
+    normalized_password = str(password or "")
+    salt = secrets.token_bytes(16)
+    derived_key = hashlib.pbkdf2_hmac(
+        "sha256",
+        normalized_password.encode("utf-8"),
+        salt,
+        240000,
+    )
+    return f"pbkdf2_sha256$240000${salt.hex()}${derived_key.hex()}"
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    normalized_password = str(password or "")
+    normalized_hash = str(password_hash or "").strip()
+    try:
+        algorithm, iterations_raw, salt_hex, digest_hex = normalized_hash.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        derived_key = hashlib.pbkdf2_hmac(
+            "sha256",
+            normalized_password.encode("utf-8"),
+            bytes.fromhex(salt_hex),
+            int(iterations_raw),
+        )
+    except (TypeError, ValueError):
+        return False
+    return hmac.compare_digest(derived_key.hex(), digest_hex)
+
+
+def ensure_auth_bootstrap() -> None:
+    ensure_web_users_table()
+    ensure_web_user(
+        settings.admin_username,
+        hash_password(settings.admin_password),
+        "system-bootstrap",
+    )
 
 
 def is_authenticated(request: Request) -> bool:
@@ -79,12 +133,14 @@ def render_project_detail(
     request: Request,
     project: dict,
     *,
+    counterparties: list[dict] | None = None,
     documents: list[dict] | None = None,
     events: list[dict] | None = None,
     saved: bool = False,
     error: str | None = None,
     status_code: int = status.HTTP_200_OK,
 ):
+    counterparties = counterparties if counterparties is not None else fetch_counterparties()
     documents = documents if documents is not None else fetch_project_documents(int(project["id"]))
     events = events if events is not None else fetch_project_events(int(project["id"]))
 
@@ -98,6 +154,7 @@ def render_project_detail(
         name="project_detail.html",
         context={
             "project": project,
+            "counterparties": counterparties,
             "documents": documents,
             "events": events,
             "status_options": PROJECT_STATUS_OPTIONS,
@@ -126,6 +183,25 @@ def render_estimate_editor(
             "username": request.session.get("username", settings.admin_username),
             "saved": saved,
             "error": error,
+        },
+        status_code=status_code,
+    )
+
+
+def render_password_change_page(
+    request: Request,
+    *,
+    error: str | None = None,
+    saved: bool = False,
+    status_code: int = status.HTTP_200_OK,
+):
+    return templates.TemplateResponse(
+        request=request,
+        name="password_change.html",
+        context={
+            "username": request.session.get("username", settings.admin_username),
+            "error": error,
+            "saved": saved,
         },
         status_code=status_code,
     )
@@ -191,7 +267,9 @@ def login_submit(
     username: str = Form(...),
     password: str = Form(...),
 ):
-    if username == settings.admin_username and password == settings.admin_password:
+    ensure_auth_bootstrap()
+    user = fetch_web_user(username)
+    if user and verify_password(password, user.get("password_hash", "")):
         request.session["is_authenticated"] = True
         request.session["username"] = username
         return RedirectResponse(url="/projects", status_code=status.HTTP_302_FOUND)
@@ -209,6 +287,60 @@ def logout(request: Request):
     return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
 
 
+@app.get("/account/password")
+def password_change_page(request: Request):
+    require_auth(request)
+    return render_password_change_page(
+        request,
+        saved=request.query_params.get("changed") == "1",
+    )
+
+
+@app.post("/account/password")
+def password_change_submit(
+    request: Request,
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    confirm_password: str = Form(""),
+):
+    require_auth(request)
+    username = request.session.get("username", settings.admin_username)
+    user = fetch_web_user(username)
+    if not user:
+        return render_password_change_page(
+            request,
+            error="Учетная запись не найдена. Перезайдите в систему.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if not verify_password(current_password, user.get("password_hash", "")):
+        return render_password_change_page(
+            request,
+            error="Текущий пароль указан неверно.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if len(new_password or "") < 8:
+        return render_password_change_page(
+            request,
+            error="Новый пароль должен быть не короче 8 символов.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if new_password != confirm_password:
+        return render_password_change_page(
+            request,
+            error="Подтверждение нового пароля не совпадает.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if verify_password(new_password, user.get("password_hash", "")):
+        return render_password_change_page(
+            request,
+            error="Новый пароль должен отличаться от текущего.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    update_web_user_password(username, hash_password(new_password), username)
+    return RedirectResponse(url="/account/password?changed=1", status_code=status.HTTP_302_FOUND)
+
+
 @app.get("/projects")
 def projects_page(request: Request):
     require_auth(request)
@@ -219,7 +351,178 @@ def projects_page(request: Request):
             "projects": fetch_projects(),
             "counts": fetch_dashboard_counts(),
             "username": request.session.get("username", settings.admin_username),
+            "created": request.query_params.get("created", ""),
         },
+    )
+
+
+def render_project_create_page(
+    request: Request,
+    *,
+    form_data: dict | None = None,
+    error: str | None = None,
+    status_code: int = status.HTTP_200_OK,
+):
+    form_data = form_data or {
+        "project_name": "",
+        "address": "",
+        "counterparty_id": "",
+        "status": PROJECT_STATUS_OPTIONS[0],
+        "contract": "",
+        "contract_date": "",
+        "notes": "",
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="project_create.html",
+        context={
+            "counterparties": fetch_counterparties(),
+            "status_options": PROJECT_STATUS_OPTIONS,
+            "form_data": form_data,
+            "error": error,
+            "username": request.session.get("username", settings.admin_username),
+        },
+        status_code=status_code,
+    )
+
+
+def render_counterparty_create_page(
+    request: Request,
+    *,
+    form_data: dict | None = None,
+    error: str | None = None,
+    status_code: int = status.HTTP_200_OK,
+):
+    form_data = form_data or {
+        "counterparty_type": "Физлицо",
+        "display_name": "",
+        "full_name": "",
+        "company_name": "",
+        "phone": "",
+        "email": "",
+        "inn": "",
+        "notes": "",
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="counterparty_create.html",
+        context={
+            "form_data": form_data,
+            "error": error,
+            "username": request.session.get("username", settings.admin_username),
+        },
+        status_code=status_code,
+    )
+
+
+@app.get("/projects/new")
+def project_create_page(request: Request):
+    require_auth(request)
+    return render_project_create_page(request)
+
+
+@app.post("/projects/new")
+def project_create_submit(
+    request: Request,
+    project_name: str = Form(""),
+    address: str = Form(""),
+    counterparty_id: str = Form(""),
+    status_value: str = Form(""),
+    contract: str = Form(""),
+    contract_date: str = Form(""),
+    notes: str = Form(""),
+):
+    require_auth(request)
+    draft = {
+        "project_name": (project_name or "").strip(),
+        "address": (address or "").strip(),
+        "counterparty_id": (counterparty_id or "").strip(),
+        "status": (status_value or "").strip() or PROJECT_STATUS_OPTIONS[0],
+        "contract": (contract or "").strip(),
+        "contract_date": (contract_date or "").strip(),
+        "notes": notes or "",
+    }
+    if draft["status"] not in PROJECT_STATUS_OPTIONS:
+        draft["status"] = PROJECT_STATUS_OPTIONS[0]
+
+    try:
+        created_project_id = create_project(
+            request.session.get("username", settings.admin_username),
+            project_name=draft["project_name"],
+            address=draft["address"],
+            counterparty_id=int(draft["counterparty_id"]) if draft["counterparty_id"].isdigit() else None,
+            status=draft["status"],
+            contract=draft["contract"],
+            contract_date=draft["contract_date"],
+            notes=draft["notes"],
+        )
+    except ValueError as exc:
+        return render_project_create_page(
+            request,
+            form_data=draft,
+            error=str(exc),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return RedirectResponse(
+        url=f"/projects/{created_project_id}?saved=1",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@app.get("/counterparties/new")
+def counterparty_create_page(request: Request):
+    require_auth(request)
+    return render_counterparty_create_page(request)
+
+
+@app.post("/counterparties/new")
+def counterparty_create_submit(
+    request: Request,
+    counterparty_type: str = Form("Физлицо"),
+    display_name: str = Form(""),
+    full_name: str = Form(""),
+    company_name: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    inn: str = Form(""),
+    notes: str = Form(""),
+):
+    require_auth(request)
+    draft = {
+        "counterparty_type": (counterparty_type or "").strip() or "Физлицо",
+        "display_name": (display_name or "").strip(),
+        "full_name": (full_name or "").strip(),
+        "company_name": (company_name or "").strip(),
+        "phone": (phone or "").strip(),
+        "email": (email or "").strip(),
+        "inn": (inn or "").strip(),
+        "notes": notes or "",
+    }
+
+    try:
+        create_counterparty(
+            request.session.get("username", settings.admin_username),
+            counterparty_type=draft["counterparty_type"],
+            display_name=draft["display_name"],
+            full_name=draft["full_name"],
+            company_name=draft["company_name"],
+            phone=draft["phone"],
+            email=draft["email"],
+            inn=draft["inn"],
+            notes=draft["notes"],
+        )
+    except ValueError as exc:
+        return render_counterparty_create_page(
+            request,
+            form_data=draft,
+            error=str(exc),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return RedirectResponse(
+        url="/projects?created=counterparty",
+        status_code=status.HTTP_302_FOUND,
     )
 
 
@@ -244,6 +547,7 @@ def project_detail_save(
     project_name: str = Form(""),
     address: str = Form(""),
     customer: str = Form(""),
+    counterparty_id: str = Form(""),
     status_value: str = Form(""),
     contract: str = Form(""),
     contract_date: str = Form(""),
@@ -282,6 +586,7 @@ def project_detail_save(
         project_name=draft_project["project_name"],
         address=draft_project["address"],
         customer=draft_project["customer"],
+        counterparty_id=int(counterparty_id) if (counterparty_id or "").strip().isdigit() else None,
         status=draft_project["status"],
         contract=draft_project["contract"],
         contract_date=draft_project["contract_date"],

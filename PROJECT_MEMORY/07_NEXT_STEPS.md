@@ -44,3 +44,6 @@ Before the next work block:
 - remember that the browser estimate page now also supports quick add, section navigation, collapsing sections, sticky bottom actions, and keyboard shortcuts.
 - remember that the browser estimate page now has a new denser layout with a left rail, top working tabs, a larger table-focused center area, and a right drawer for reference panels.
 - remember that the browser project page now supports direct editing and saving of the project card through the web interface.
+- remember that the production browser entry point is now `https://crm198.ru`.
+- remember that `www.crm198.ru` also resolves to the same server and HTTPS is already active.
+- remember that web password change now exists at `/account/password` and currently has a visible entry point from the projects page.

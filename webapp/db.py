@@ -33,6 +33,17 @@ def _now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
+def _counterparty_display_name(row: dict | None) -> str:
+    if not row:
+        return ""
+    return str(
+        row.get("company_name")
+        or row.get("full_name")
+        or row.get("name")
+        or ""
+    ).strip()
+
+
 def _safe_json_loads(raw_value):
     if not raw_value:
         return None
@@ -309,6 +320,34 @@ def fetch_dashboard_counts():
             return cur.fetchone()
 
 
+def fetch_counterparties():
+    query = """
+        SELECT
+            id,
+            COALESCE(type, '') AS type,
+            COALESCE(name, '') AS name,
+            COALESCE(full_name, '') AS full_name,
+            COALESCE(company_name, '') AS company_name,
+            COALESCE(phone, '') AS phone,
+            COALESCE(email, '') AS email,
+            COALESCE(inn, '') AS inn,
+            COALESCE(notes, '') AS notes,
+            COALESCE(created_at, '') AS created_at
+        FROM counterparties
+        ORDER BY
+            COALESCE(NULLIF(company_name, ''), NULLIF(full_name, ''), NULLIF(name, ''), '') ASC,
+            id DESC
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+
+    for row in rows:
+        row["display_name"] = _counterparty_display_name(row) or "Без названия"
+    return rows
+
+
 def fetch_project(project_id: int):
     query = """
         SELECT
@@ -318,6 +357,7 @@ def fetch_project(project_id: int):
             COALESCE(p.customer, '') AS customer,
             COALESCE(p.contract, '') AS contract,
             COALESCE(p.date, '') AS contract_date,
+            p.counterparty_id,
             COALESCE(NULLIF(p.status, ''), %s) AS status,
             COALESCE(p.notes, '') AS notes,
             COALESCE(p.created_at, '') AS created_at,
@@ -343,6 +383,7 @@ def update_project_card(
     project_name: str,
     address: str,
     customer: str,
+    counterparty_id: int | None,
     status: str,
     contract: str,
     contract_date: str,
@@ -360,17 +401,29 @@ def update_project_card(
     normalized_contract = str(contract or "").strip()
     normalized_contract_date = str(contract_date or "").strip()
     normalized_notes = str(notes or "").strip()
+    normalized_counterparty_id = int(counterparty_id) if counterparty_id else None
 
     if not normalized_project_name:
         normalized_project_name = normalized_address or project.get("project_name") or "Без названия"
     if not normalized_address:
         normalized_address = normalized_project_name
 
+    counterparty_row = None
+    if normalized_counterparty_id:
+        for row in fetch_counterparties():
+            if int(row["id"]) == normalized_counterparty_id:
+                counterparty_row = row
+                break
+    linked_counterparty_name = _counterparty_display_name(counterparty_row)
+    if linked_counterparty_name and not normalized_customer:
+        normalized_customer = linked_counterparty_name
+
     changes = []
     comparisons = [
         ("Название", project.get("project_name") or "", normalized_project_name),
         ("Адрес", project.get("address") or "", normalized_address),
         ("Заказчик", project.get("customer") or "", normalized_customer),
+        ("Контрагент", str(project.get("counterparty_id") or ""), str(normalized_counterparty_id or "")),
         ("Статус", project.get("status") or "", normalized_status),
         ("Договор", project.get("contract") or "", normalized_contract),
         ("Дата договора", project.get("contract_date") or "", normalized_contract_date),
@@ -395,6 +448,7 @@ def update_project_card(
                     project_name = %s,
                     address = %s,
                     customer = %s,
+                    counterparty_id = %s,
                     status = %s,
                     contract = %s,
                     date = %s,
@@ -406,6 +460,7 @@ def update_project_card(
                     normalized_project_name,
                     normalized_address,
                     normalized_customer,
+                    normalized_counterparty_id,
                     normalized_status,
                     normalized_contract,
                     normalized_contract_date,
@@ -430,6 +485,139 @@ def update_project_card(
         conn.commit()
 
     return fetch_project(project_id)
+
+
+def create_counterparty(
+    username: str,
+    *,
+    counterparty_type: str,
+    display_name: str,
+    full_name: str,
+    company_name: str,
+    phone: str,
+    email: str,
+    inn: str,
+    notes: str,
+):
+    normalized_type = str(counterparty_type or "").strip() or "Физлицо"
+    normalized_display_name = str(display_name or "").strip()
+    normalized_full_name = str(full_name or "").strip()
+    normalized_company_name = str(company_name or "").strip()
+    normalized_phone = str(phone or "").strip()
+    normalized_email = str(email or "").strip()
+    normalized_inn = str(inn or "").strip()
+    normalized_notes = str(notes or "").strip()
+
+    resolved_name = normalized_display_name or normalized_company_name or normalized_full_name
+    if not resolved_name:
+        raise ValueError("Укажите имя контрагента, ФИО или название компании.")
+
+    if normalized_type in {"ООО", "ИП"} and not normalized_company_name:
+        normalized_company_name = resolved_name
+    if normalized_type == "Физлицо" and not normalized_full_name:
+        normalized_full_name = resolved_name
+
+    now = _now_iso()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO counterparties (
+                    type, name, full_name, phone, email, inn, company_name, notes, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    normalized_type,
+                    resolved_name,
+                    normalized_full_name,
+                    normalized_phone,
+                    normalized_email,
+                    normalized_inn,
+                    normalized_company_name,
+                    normalized_notes,
+                    now,
+                ),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return int(row["id"])
+
+
+def create_project(
+    username: str,
+    *,
+    project_name: str,
+    address: str,
+    counterparty_id: int | None,
+    status: str,
+    contract: str,
+    contract_date: str,
+    notes: str,
+):
+    normalized_project_name = str(project_name or "").strip()
+    normalized_address = str(address or "").strip()
+    normalized_status = str(status or "").strip() or DEFAULT_PROJECT_STATUS
+    normalized_contract = str(contract or "").strip()
+    normalized_contract_date = str(contract_date or "").strip()
+    normalized_notes = str(notes or "").strip()
+    normalized_counterparty_id = int(counterparty_id) if counterparty_id else None
+
+    if not normalized_project_name and not normalized_address:
+        raise ValueError("Укажите название проекта или адрес.")
+
+    if not normalized_project_name:
+        normalized_project_name = normalized_address
+    if not normalized_address:
+        normalized_address = normalized_project_name
+
+    counterparty_name = ""
+    if normalized_counterparty_id:
+        for row in fetch_counterparties():
+            if int(row["id"]) == normalized_counterparty_id:
+                counterparty_name = _counterparty_display_name(row)
+                break
+
+    now = _now_iso()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO projects (
+                    project_name, address, customer, contract, date, counterparty_id, status, notes, created_at, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    normalized_project_name,
+                    normalized_address,
+                    counterparty_name,
+                    normalized_contract,
+                    normalized_contract_date,
+                    normalized_counterparty_id,
+                    normalized_status,
+                    normalized_notes,
+                    now,
+                    now,
+                ),
+            )
+            row = cur.fetchone()
+            project_id = int(row["id"])
+            cur.execute(
+                """
+                INSERT INTO project_events (project_id, event_type, event_text, author, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    project_id,
+                    "project",
+                    f"Создан проект: {normalized_project_name}",
+                    username,
+                    now,
+                ),
+            )
+        conn.commit()
+    return project_id
 
 
 def fetch_project_documents(project_id: int):
@@ -731,3 +919,119 @@ def save_project_estimate(
         conn.commit()
 
     return fetch_project_estimate(project_id)
+
+
+def ensure_web_users_table() -> None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS web_users (
+                    username TEXT PRIMARY KEY,
+                    password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'admin',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    updated_by TEXT NOT NULL
+                )
+                """
+            )
+        conn.commit()
+
+
+def fetch_web_user(username: str) -> dict | None:
+    normalized_username = str(username or "").strip()
+    if not normalized_username:
+        return None
+
+    ensure_web_users_table()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    username,
+                    password_hash,
+                    role,
+                    created_at,
+                    updated_at,
+                    updated_by
+                FROM web_users
+                WHERE username = %s
+                """,
+                (normalized_username,),
+            )
+            return cur.fetchone()
+
+
+def ensure_web_user(username: str, password_hash: str, updated_by: str) -> dict:
+    normalized_username = str(username or "").strip()
+    normalized_password_hash = str(password_hash or "").strip()
+    normalized_updated_by = str(updated_by or normalized_username or "system").strip()
+    if not normalized_username:
+        raise ValueError("Username is required.")
+    if not normalized_password_hash:
+        raise ValueError("Password hash is required.")
+
+    existing = fetch_web_user(normalized_username)
+    if existing:
+        return existing
+
+    now = _now_iso()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO web_users (
+                    username,
+                    password_hash,
+                    role,
+                    created_at,
+                    updated_at,
+                    updated_by
+                )
+                VALUES (%s, %s, 'admin', %s, %s, %s)
+                """,
+                (
+                    normalized_username,
+                    normalized_password_hash,
+                    now,
+                    now,
+                    normalized_updated_by,
+                ),
+            )
+        conn.commit()
+    return fetch_web_user(normalized_username)
+
+
+def update_web_user_password(username: str, password_hash: str, updated_by: str) -> dict | None:
+    normalized_username = str(username or "").strip()
+    normalized_password_hash = str(password_hash or "").strip()
+    normalized_updated_by = str(updated_by or normalized_username or "system").strip()
+    if not normalized_username:
+        raise ValueError("Username is required.")
+    if not normalized_password_hash:
+        raise ValueError("Password hash is required.")
+
+    ensure_web_users_table()
+    now = _now_iso()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE web_users
+                SET
+                    password_hash = %s,
+                    updated_at = %s,
+                    updated_by = %s
+                WHERE username = %s
+                """,
+                (
+                    normalized_password_hash,
+                    now,
+                    normalized_updated_by,
+                    normalized_username,
+                ),
+            )
+        conn.commit()
+    return fetch_web_user(normalized_username)

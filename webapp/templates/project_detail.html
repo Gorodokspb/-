@@ -38,9 +38,8 @@
                     Теперь карточку проекта можно редактировать прямо в браузере, а не возвращаться в desktop ради
                     каждой правки адреса, статуса или комментария.
                 </p>
-                <div class="detail-hero-actions">
-                    <a class="ghost-button-light estimate-inline-action" href="/projects">Главная CRM</a>
-                    <a class="primary-button" href="/projects/{{ project.id }}/estimate">Перейти в web-смету</a>
+                <div class="detail-hero-note">
+                    Основное действие здесь одно: проверить карточку, привязать контрагента и перейти в web-смету по кнопке в верхней панели.
                 </div>
             </div>
 
@@ -111,6 +110,17 @@
                             <input type="text" name="customer" value="{{ project.customer }}">
                         </label>
                         <label>
+                            <span class="sidebar-label">Контрагент</span>
+                            <select name="counterparty_id">
+                                <option value="">Без контрагента</option>
+                                {% for counterparty in counterparties %}
+                                <option value="{{ counterparty.id }}" {% if project.counterparty_id == counterparty.id %}selected{% endif %}>
+                                    {{ counterparty.display_name }}{% if counterparty.type %} · {{ counterparty.type }}{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
                             <span class="sidebar-label">Статус</span>
                             <select name="status_value">
                                 {% for status_option in status_options %}
@@ -134,8 +144,8 @@
 
                     <div class="detail-form-footer">
                         <div class="detail-inline-note">
-                            Карточка уже редактируется в браузере. Следующий слой после этого экрана:
-                            плотнее связать проект, смету, документы и контрагента.
+                            Если нужного контрагента еще нет в списке, сначала создайте его отдельно:
+                            <a class="inline-link" href="/counterparties/new">добавить контрагента</a>.
                         </div>
                         <button type="submit" class="primary-button">Сохранить карточку</button>
                     </div>

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Проекты | Dekorartstroy CRM{% endblock %}
+{% block title %}РџСЂРѕРµРєС‚С‹ | Dekorartstroy CRM{% endblock %}
 
 {% block body %}
 <main class="dashboard-shell dashboard-shell-v2">
@@ -8,79 +8,93 @@
         <header class="topbar-card topbar-card-projects">
             <div class="topbar-brand">
                 <span class="eyebrow">Dekorartstroy CRM</span>
-                <strong>Проекты</strong>
+                <strong>РџСЂРѕРµРєС‚С‹</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <a class="topbar-chip topbar-chip-link" href="/projects/new">+ РќРѕРІС‹Р№ РїСЂРѕРµРєС‚</a>
+                <a class="topbar-chip topbar-chip-link" href="/counterparties/new">+ РќРѕРІС‹Р№ РєРѕРЅС‚СЂР°РіРµРЅС‚</a>
+                <a class="topbar-chip topbar-chip-link" href="/account/password">Сменить пароль</a>
             </div>
 
             <div class="topbar-userbox topbar-userbox-compact">
                 <div class="topbar-usertext">
-                    <span class="sidebar-label">Пользователь</span>
+                    <span class="sidebar-label">РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ</span>
                     <strong>{{ username }}</strong>
                 </div>
                 <form method="post" action="/logout">
-                    <button type="submit" class="ghost-button">Выйти</button>
+                    <button type="submit" class="ghost-button">Р’С‹Р№С‚Рё</button>
                 </form>
             </div>
         </header>
 
+        {% if created == "counterparty" %}
+        <div class="notice-banner notice-banner-success">РќРѕРІС‹Р№ РєРѕРЅС‚СЂР°РіРµРЅС‚ СЃРѕС…СЂР°РЅРµРЅ. РўРµРїРµСЂСЊ РµРіРѕ РјРѕР¶РЅРѕ РїСЂРёРІСЏР·Р°С‚СЊ Рє РїСЂРѕРµРєС‚Сѓ РёР»Рё РІС‹Р±СЂР°С‚СЊ РїСЂРё СЃРѕР·РґР°РЅРёРё РЅРѕРІРѕРіРѕ РѕР±СЉРµРєС‚Р°.</div>
+        {% endif %}
+
         <section class="stats-grid stats-grid-v2">
             <article class="metric-panel metric-panel-blue">
-                <span class="metric-label">Проекты</span>
+                <span class="metric-label">РџСЂРѕРµРєС‚С‹</span>
                 <strong>{{ counts.projects_total }}</strong>
-                <p>Все объекты и проекты в рабочем контуре.</p>
+                <p>Р’СЃРµ РѕР±СЉРµРєС‚С‹ Рё РїСЂРѕРµРєС‚С‹ РІ СЂР°Р±РѕС‡РµРј РєРѕРЅС‚СѓСЂРµ.</p>
             </article>
             <article class="metric-panel metric-panel-green">
-                <span class="metric-label">В работе</span>
+                <span class="metric-label">Р’ СЂР°Р±РѕС‚Рµ</span>
                 <strong>{{ counts.active_projects_total }}</strong>
-                <p>Активные проекты, где сейчас идет движение.</p>
+                <p>РђРєС‚РёРІРЅС‹Рµ РїСЂРѕРµРєС‚С‹, РіРґРµ СЃРµР№С‡Р°СЃ РёРґРµС‚ РґРІРёР¶РµРЅРёРµ.</p>
             </article>
             <article class="metric-panel metric-panel-gold">
-                <span class="metric-label">Контрагенты</span>
+                <span class="metric-label">РљРѕРЅС‚СЂР°РіРµРЅС‚С‹</span>
                 <strong>{{ counts.counterparties_total }}</strong>
-                <p>Клиенты, ИП и компании, привязанные к CRM.</p>
+                <p>РљР»РёРµРЅС‚С‹, РРџ Рё РєРѕРјРїР°РЅРёРё, РїСЂРёРІСЏР·Р°РЅРЅС‹Рµ Рє CRM.</p>
             </article>
             <article class="metric-panel metric-panel-slate">
-                <span class="metric-label">Документы</span>
+                <span class="metric-label">Р”РѕРєСѓРјРµРЅС‚С‹</span>
                 <strong>{{ counts.documents_total }}</strong>
-                <p>Сметы, договоры и связанные файлы по проектам.</p>
+                <p>РЎРјРµС‚С‹, РґРѕРіРѕРІРѕСЂС‹ Рё СЃРІСЏР·Р°РЅРЅС‹Рµ С„Р°Р№Р»С‹ РїРѕ РїСЂРѕРµРєС‚Р°Рј.</p>
             </article>
         </section>
 
         <section class="panel-card panel-card-wide projects-panel">
             <div class="panel-header panel-header-wide">
                 <div class="panel-header-main">
-                    <div class="eyebrow">Рабочая витрина объектов</div>
-                    <h2>Список проектов</h2>
+                    <div class="eyebrow">Р Р°Р±РѕС‡Р°СЏ РІРёС‚СЂРёРЅР° РѕР±СЉРµРєС‚РѕРІ</div>
+                    <h2>РЎРїРёСЃРѕРє РїСЂРѕРµРєС‚РѕРІ</h2>
                     <p class="panel-lead">
-                        Открывайте проект, переходите в карточку и web-смету, отслеживайте статус и договор без лишней служебной информации на экране.
+                        РћС‚РєСЂС‹РІР°Р№С‚Рµ РїСЂРѕРµРєС‚, РїРµСЂРµС…РѕРґРёС‚Рµ РІ РєР°СЂС‚РѕС‡РєСѓ Рё web-СЃРјРµС‚Сѓ, РѕС‚СЃР»РµР¶РёРІР°Р№С‚Рµ СЃС‚Р°С‚СѓСЃ Рё РґРѕРіРѕРІРѕСЂ Р±РµР· Р»РёС€РЅРµР№ СЃР»СѓР¶РµР±РЅРѕР№ РёРЅС„РѕСЂРјР°С†РёРё РЅР° СЌРєСЂР°РЅРµ.
                     </p>
+                    <div class="panel-inline-actions">
+                        <a class="primary-button panel-inline-button" href="/projects/new">РЎРѕР·РґР°С‚СЊ РЅРѕРІС‹Р№ РїСЂРѕРµРєС‚</a>
+                        <a class="ghost-button-light panel-inline-button" href="/counterparties/new">Р”РѕР±Р°РІРёС‚СЊ РєРѕРЅС‚СЂР°РіРµРЅС‚Р° Р±РµР· РїСЂРѕРµРєС‚Р°</a>
+                    </div>
                 </div>
 
                 <div class="panel-header-side">
-                    <span class="search-label">Показано</span>
+                    <span class="search-label">РџРѕРєР°Р·Р°РЅРѕ</span>
                     <strong id="visibleProjectsCount">{{ projects|length }}</strong>
-                    <small>из {{ projects|length }}</small>
+                    <small>РёР· {{ projects|length }}</small>
                 </div>
             </div>
 
             <div class="toolbar-card toolbar-card-wide">
                 <label class="search-box">
-                    <span class="search-label">Поиск</span>
+                    <span class="search-label">РџРѕРёСЃРє</span>
                     <input
                         type="search"
                         id="projectSearch"
                         class="toolbar-input"
-                        placeholder="Адрес, проект, контрагент, договор"
+                        placeholder="РђРґСЂРµСЃ, РїСЂРѕРµРєС‚, РєРѕРЅС‚СЂР°РіРµРЅС‚, РґРѕРіРѕРІРѕСЂ"
                     >
                 </label>
 
                 <div class="filter-box">
-                    <span class="search-label">Фильтр статуса</span>
+                    <span class="search-label">Р¤РёР»СЊС‚СЂ СЃС‚Р°С‚СѓСЃР°</span>
                     <div class="filter-chips">
-                        <button class="filter-chip is-active" type="button" data-filter="all">Все</button>
-                        <button class="filter-chip" type="button" data-filter="В работе">В работе</button>
-                        <button class="filter-chip" type="button" data-filter="Пауза">Пауза</button>
-                        <button class="filter-chip" type="button" data-filter="Черновик">Черновик</button>
-                        <button class="filter-chip" type="button" data-filter="Завершен">Завершен</button>
+                        <button class="filter-chip is-active" type="button" data-filter="all">Р’СЃРµ</button>
+                        <button class="filter-chip" type="button" data-filter="Р’ СЂР°Р±РѕС‚Рµ">Р’ СЂР°Р±РѕС‚Рµ</button>
+                        <button class="filter-chip" type="button" data-filter="РџР°СѓР·Р°">РџР°СѓР·Р°</button>
+                        <button class="filter-chip" type="button" data-filter="Р§РµСЂРЅРѕРІРёРє">Р§РµСЂРЅРѕРІРёРє</button>
+                        <button class="filter-chip" type="button" data-filter="Р—Р°РІРµСЂС€РµРЅ">Р—Р°РІРµСЂС€РµРЅ</button>
                     </div>
                 </div>
             </div>
@@ -90,11 +104,11 @@
                     <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Проект</th>
-                            <th>Контрагент</th>
-                            <th>Статус</th>
-                            <th>Договор</th>
-                            <th>Обновлено</th>
+                            <th>РџСЂРѕРµРєС‚</th>
+                            <th>РљРѕРЅС‚СЂР°РіРµРЅС‚</th>
+                            <th>РЎС‚Р°С‚СѓСЃ</th>
+                            <th>Р”РѕРіРѕРІРѕСЂ</th>
+                            <th>РћР±РЅРѕРІР»РµРЅРѕ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -108,10 +122,10 @@
                             <td>
                                 <a class="project-link" href="/projects/{{ project.id }}">
                                     <span class="project-name">{{ project.project_name }}</span>
-                                    <span class="project-address">{{ project.address or "Адрес пока не заполнен" }}</span>
+                                    <span class="project-address">{{ project.address or "РђРґСЂРµСЃ РїРѕРєР° РЅРµ Р·Р°РїРѕР»РЅРµРЅ" }}</span>
                                 </a>
                             </td>
-                            <td class="cell-muted">{{ project.counterparty_name or "Не привязан" }}</td>
+                            <td class="cell-muted">{{ project.counterparty_name or "РќРµ РїСЂРёРІСЏР·Р°РЅ" }}</td>
                             <td>
                                 <span class="status-pill status-{{ project.status|status_class }}">{{ project.status }}</span>
                             </td>
@@ -119,13 +133,13 @@
                                 {% if project.contract %}
                                     <span>{{ project.contract }}</span>
                                     {% if project.contract_date %}
-                                    <small>от {{ project.contract_date }}</small>
+                                    <small>РѕС‚ {{ project.contract_date }}</small>
                                     {% endif %}
                                 {% else %}
-                                    <span class="cell-muted">Еще не оформлен</span>
+                                    <span class="cell-muted">Р•С‰Рµ РЅРµ РѕС„РѕСЂРјР»РµРЅ</span>
                                 {% endif %}
                             </td>
-                            <td class="cell-muted">{{ project.updated_at or "—" }}</td>
+                            <td class="cell-muted">{{ project.updated_at or "вЂ”" }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -133,7 +147,7 @@
             </div>
 
             <div class="empty-box table-empty" id="projectsEmptyState" hidden>
-                По текущему фильтру проектов не найдено. Попробуйте изменить запрос или сбросить фильтр статуса.
+                РџРѕ С‚РµРєСѓС‰РµРјСѓ С„РёР»СЊС‚СЂСѓ РїСЂРѕРµРєС‚РѕРІ РЅРµ РЅР°Р№РґРµРЅРѕ. РџРѕРїСЂРѕР±СѓР№С‚Рµ РёР·РјРµРЅРёС‚СЊ Р·Р°РїСЂРѕСЃ РёР»Рё СЃР±СЂРѕСЃРёС‚СЊ С„РёР»СЊС‚СЂ СЃС‚Р°С‚СѓСЃР°.
             </div>
         </section>
     </div>
