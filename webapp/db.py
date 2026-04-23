@@ -82,6 +82,60 @@ def format_tree_number(value, decimals: int = 2) -> str:
     return f"{number:.{decimals}f}".rstrip("0").rstrip(".")
 
 
+def _looks_like_broken_compat_payload(values: list) -> bool:
+    joined = " ".join(str(value or "").strip() for value in values if value not in (None, ""))
+    if not joined:
+        return False
+    normalized = joined.lower()
+    suspicious_tokens = (
+        "compatrow(",
+        "'name':",
+        '"name":',
+        "'values':",
+        '"values":',
+        "'tags':",
+        '"tags":',
+        "'row_type':",
+        '"row_type":',
+    )
+    if any(token in normalized for token in suspicious_tokens):
+        return True
+    name = str(values[0] if len(values) > 0 else "").strip()
+    unit = str(values[1] if len(values) > 1 else "").strip()
+    reference = str(values[6] if len(values) > 6 else "").strip()
+    if reference.startswith("CompatRow("):
+        return True
+    if unit in {"'name':", '"name":'}:
+        return True
+    if name and all(char in "0123456789.,- " for char in name) and (unit or reference):
+        return True
+    return False
+
+
+def _sanitize_payload_values(values: list[str]) -> list[str]:
+    normalized = [str(value or "").strip() for value in values]
+    if _looks_like_broken_compat_payload(normalized):
+        return [""] * 7
+    return normalized
+
+
+def _normalize_price_library_entries(rows: list[dict]) -> list[dict]:
+    entries_by_key = {}
+    for row in rows or []:
+        name = str((row or {}).get("name") or "").strip()
+        if not name:
+            continue
+        key = name.casefold()
+        if key in entries_by_key:
+            continue
+        entries_by_key[key] = {
+            "name": name,
+            "unit": str((row or {}).get("unit") or "").strip(),
+            "price": format_tree_number((row or {}).get("price")) if (row or {}).get("price") not in (None, "") else "",
+        }
+    return sorted(entries_by_key.values(), key=lambda item: item["name"].casefold())
+
+
 def _normalize_editor_row(row: dict, discount_value: float) -> dict:
     row_type = "section" if str(row.get("row_type") or "").strip() == "section" else "item"
     name = str(row.get("name") or "").strip()
@@ -132,7 +186,7 @@ def _normalize_editor_rows(rows: list[dict], discount_value: float) -> list[dict
 
 def _payload_item_to_editor_row(item: dict, discount_value: float) -> dict:
     tags = set(item.get("tags") or [])
-    values = list(item.get("values") or [])
+    values = _sanitize_payload_values(list(item.get("values") or []))
     if "room" in tags:
         return {
             "row_type": "section",
@@ -346,6 +400,24 @@ def fetch_counterparties():
     for row in rows:
         row["display_name"] = _counterparty_display_name(row) or "Без названия"
     return rows
+
+
+def fetch_price_library(limit: int = 200) -> list[dict]:
+    query = """
+        SELECT
+            COALESCE(name, '') AS name,
+            COALESCE(unit, '') AS unit,
+            price
+        FROM prices
+        WHERE COALESCE(name, '') <> ''
+        ORDER BY LOWER(TRIM(name)) ASC, id ASC
+        LIMIT %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, (max(1, int(limit)),))
+            rows = cur.fetchall()
+    return _normalize_price_library_entries(rows)
 
 
 def fetch_project(project_id: int):

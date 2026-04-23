@@ -1,5 +1,6 @@
 (() => {
     const initialRowsNode = document.getElementById("estimateInitialRows");
+    const initialPriceLibraryNode = document.getElementById("estimatePriceLibrary");
     const rowsBody = document.getElementById("estimateRowsBody");
     const emptyState = document.getElementById("estimateEmptyState");
     const filteredEmptyState = document.getElementById("estimateFilteredEmptyState");
@@ -114,8 +115,32 @@
         return parseNumber(discountInput ? discountInput.value : 0);
     }
 
+    const priceLibrary = (() => {
+        if (!initialPriceLibraryNode) {
+            return [];
+        }
+        try {
+            const parsed = JSON.parse(initialPriceLibraryNode.textContent || "[]");
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            console.warn("Не удалось разобрать библиотеку расценок", error);
+            return [];
+        }
+    })();
+
     function collectNameLibrary() {
         const library = new Map();
+        priceLibrary.forEach((entry) => {
+            if (!String(entry.name || "").trim()) {
+                return;
+            }
+            library.set(normalizeSearchText(entry.name), {
+                name: String(entry.name || "").trim(),
+                unit: String(entry.unit || "").trim(),
+                price: String(entry.price || "").trim(),
+                reference: String(entry.reference || "").trim(),
+            });
+        });
         rows.forEach((row) => {
             if (row.row_type !== "item" || !String(row.name || "").trim()) {
                 return;
@@ -609,31 +634,37 @@
             const haystack = normalizeText([row.name, row.reference, row.unit, row.price].join(" "));
             return !query || haystack.includes(query);
         });
+        const filteredPriceLibrary = priceLibrary.filter((entry) => {
+            const haystack = normalizeText([entry.name, entry.unit, entry.price].join(" "));
+            return !query || haystack.includes(query);
+        });
         const filteredSections = sections.filter((row) => {
             const haystack = normalizeText(row.name);
             return !query || haystack.includes(query);
         });
 
-        if (!filteredItems.length) {
+        if (!filteredPriceLibrary.length) {
             ratesLibrary.innerHTML = '<div class="estimate-section-empty">По текущему фильтру подходящих расценок пока нет.</div>';
-            operationsLibrary.innerHTML = '<div class="estimate-section-empty">Нет строк для панели операций.</div>';
         } else {
-            filteredItems.slice(0, 24).forEach((row) => {
+            filteredPriceLibrary.slice(0, 60).forEach((entry) => {
                 ratesLibrary.appendChild(
                     libraryCard({
-                        title: row.name || "Позиция без названия",
-                        description: row.reference
-                            ? `Код: ${row.reference}`
-                            : "Пока без кода. Дальше сюда подключим отдельную базу расценок.",
+                        title: entry.name || "Позиция без названия",
+                        description: entry.reference
+                            ? `Код: ${entry.reference}`
+                            : "Расценка из серверной базы. Можно использовать как ориентир для новой строки.",
                         pills: [
-                            row.unit ? `Ед.: ${row.unit}` : "Ед. не указана",
-                            `Цена: ${row.price || "0"}`,
-                            `Количество: ${row.quantity || "0"}`,
+                            entry.unit ? `Ед.: ${entry.unit}` : "Ед. не указана",
+                            `Цена: ${entry.price || "0"}`,
                         ],
                     }),
                 );
             });
+        }
 
+        if (!filteredItems.length) {
+            operationsLibrary.innerHTML = '<div class="estimate-section-empty">Нет строк для панели операций.</div>';
+        } else {
             filteredItems.slice(0, 24).forEach((row) => {
                 operationsLibrary.appendChild(
                     libraryCard({

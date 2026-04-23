@@ -401,7 +401,7 @@
             </div>
 
             <div class="estimate-drawer-panel is-active" data-drawer-panel="rates">
-                <div class="estimate-drawer-note">Локальный справочник показывает позиции и коды из текущей сметы. Дальше подключим полноценную базу расценок.</div>
+                <div class="estimate-drawer-note">Серверная база расценок подгружается из таблицы `prices`: используйте её как ориентир при добавлении новых строк и для автоподсказок по названиям.</div>
                 <div class="estimate-library-list" id="estimateRatesLibrary"></div>
             </div>
 
@@ -467,6 +467,7 @@
 
 <datalist id="estimateRowNameLibrary"></datalist>
 <script id="estimateInitialRows" type="application/json">{{ estimate.editor_rows_json|safe }}</script>
+<script id="estimatePriceLibrary" type="application/json">{{ price_library_json|safe }}</script>
 {% endblock %}
 
 {% block extra_scripts %}

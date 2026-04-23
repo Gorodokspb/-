@@ -16,9 +16,9 @@ from webapp.db import (
     create_project,
     ensure_web_user,
     ensure_web_users_table,
-    fetch_dashboard_counts,
     fetch_counterparties,
-    fetch_document,
+    fetch_dashboard_counts,
+    fetch_price_library,
     fetch_project,
     fetch_project_documents,
     fetch_project_estimate,
@@ -26,8 +26,8 @@ from webapp.db import (
     fetch_projects,
     fetch_web_user,
     save_project_estimate,
-    update_web_user_password,
     update_project_card,
+    update_web_user_password,
 )
 from webapp.estimate_pdf import generate_estimate_pdf
 from webapp.storage import ensure_storage_dirs, resolve_storage_path
@@ -180,6 +180,7 @@ def render_estimate_editor(
         context={
             "project": estimate["project"],
             "estimate": estimate,
+            "price_library_json": json.dumps(fetch_price_library(), ensure_ascii=False),
             "username": request.session.get("username", settings.admin_username),
             "saved": saved,
             "error": error,
