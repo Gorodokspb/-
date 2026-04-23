@@ -1,154 +1,238 @@
 {% extends "base.html" %}
 
-{% block title %}РџСЂРѕРµРєС‚С‹ | Dekorartstroy CRM{% endblock %}
+{% block title %}Проекты | Dekorartstroy CRM{% endblock %}
 
 {% block body %}
+{% set focused_project = projects[0] if projects else None %}
 <main class="dashboard-shell dashboard-shell-v2">
-    <div class="workspace-frame">
-        <header class="topbar-card topbar-card-projects">
+    <div class="workspace-frame workspace-frame-desktop">
+        <header class="topbar-card topbar-card-projects topbar-card-classic">
             <div class="topbar-brand">
                 <span class="eyebrow">Dekorartstroy CRM</span>
-                <strong>РџСЂРѕРµРєС‚С‹</strong>
+                <strong>Объекты и сметы</strong>
             </div>
 
             <div class="topbar-meta">
-                <a class="topbar-chip topbar-chip-link" href="/projects/new">+ РќРѕРІС‹Р№ РїСЂРѕРµРєС‚</a>
-                <a class="topbar-chip topbar-chip-link" href="/counterparties/new">+ РќРѕРІС‹Р№ РєРѕРЅС‚СЂР°РіРµРЅС‚</a>
+                <a class="topbar-chip topbar-chip-link" href="/projects/new">+ Проект</a>
+                <a class="topbar-chip topbar-chip-link" href="/counterparties/new">+ Контрагент</a>
                 <a class="topbar-chip topbar-chip-link" href="/account/password">Сменить пароль</a>
             </div>
 
             <div class="topbar-userbox topbar-userbox-compact">
                 <div class="topbar-usertext">
-                    <span class="sidebar-label">РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ</span>
+                    <span class="sidebar-label">Пользователь</span>
                     <strong>{{ username }}</strong>
                 </div>
                 <form method="post" action="/logout">
-                    <button type="submit" class="ghost-button">Р’С‹Р№С‚Рё</button>
+                    <button type="submit" class="ghost-button">Выйти</button>
                 </form>
             </div>
         </header>
 
         {% if created == "counterparty" %}
-        <div class="notice-banner notice-banner-success">РќРѕРІС‹Р№ РєРѕРЅС‚СЂР°РіРµРЅС‚ СЃРѕС…СЂР°РЅРµРЅ. РўРµРїРµСЂСЊ РµРіРѕ РјРѕР¶РЅРѕ РїСЂРёРІСЏР·Р°С‚СЊ Рє РїСЂРѕРµРєС‚Сѓ РёР»Рё РІС‹Р±СЂР°С‚СЊ РїСЂРё СЃРѕР·РґР°РЅРёРё РЅРѕРІРѕРіРѕ РѕР±СЉРµРєС‚Р°.</div>
+        <div class="notice-banner notice-banner-success">Новый контрагент сохранен. Теперь его можно привязать к проекту или использовать в новой карточке объекта.</div>
         {% endif %}
 
-        <section class="stats-grid stats-grid-v2">
-            <article class="metric-panel metric-panel-blue">
-                <span class="metric-label">РџСЂРѕРµРєС‚С‹</span>
-                <strong>{{ counts.projects_total }}</strong>
-                <p>Р’СЃРµ РѕР±СЉРµРєС‚С‹ Рё РїСЂРѕРµРєС‚С‹ РІ СЂР°Р±РѕС‡РµРј РєРѕРЅС‚СѓСЂРµ.</p>
-            </article>
-            <article class="metric-panel metric-panel-green">
-                <span class="metric-label">Р’ СЂР°Р±РѕС‚Рµ</span>
-                <strong>{{ counts.active_projects_total }}</strong>
-                <p>РђРєС‚РёРІРЅС‹Рµ РїСЂРѕРµРєС‚С‹, РіРґРµ СЃРµР№С‡Р°СЃ РёРґРµС‚ РґРІРёР¶РµРЅРёРµ.</p>
-            </article>
-            <article class="metric-panel metric-panel-gold">
-                <span class="metric-label">РљРѕРЅС‚СЂР°РіРµРЅС‚С‹</span>
-                <strong>{{ counts.counterparties_total }}</strong>
-                <p>РљР»РёРµРЅС‚С‹, РРџ Рё РєРѕРјРїР°РЅРёРё, РїСЂРёРІСЏР·Р°РЅРЅС‹Рµ Рє CRM.</p>
-            </article>
-            <article class="metric-panel metric-panel-slate">
-                <span class="metric-label">Р”РѕРєСѓРјРµРЅС‚С‹</span>
-                <strong>{{ counts.documents_total }}</strong>
-                <p>РЎРјРµС‚С‹, РґРѕРіРѕРІРѕСЂС‹ Рё СЃРІСЏР·Р°РЅРЅС‹Рµ С„Р°Р№Р»С‹ РїРѕ РїСЂРѕРµРєС‚Р°Рј.</p>
-            </article>
-        </section>
+        <section class="classic-layout">
+            <aside class="classic-sidebar">
+                <div class="classic-sidebar-card">
+                    <div class="classic-sidebar-head">
+                        <div>
+                            <strong>Dekorartstroy</strong>
+                            <p>Объекты и сметы</p>
+                        </div>
+                        <span class="status-pill status-active">Синхронизация OK</span>
+                    </div>
 
-        <section class="panel-card panel-card-wide projects-panel">
-            <div class="panel-header panel-header-wide">
-                <div class="panel-header-main">
-                    <div class="eyebrow">Р Р°Р±РѕС‡Р°СЏ РІРёС‚СЂРёРЅР° РѕР±СЉРµРєС‚РѕРІ</div>
-                    <h2>РЎРїРёСЃРѕРє РїСЂРѕРµРєС‚РѕРІ</h2>
-                    <p class="panel-lead">
-                        РћС‚РєСЂС‹РІР°Р№С‚Рµ РїСЂРѕРµРєС‚, РїРµСЂРµС…РѕРґРёС‚Рµ РІ РєР°СЂС‚РѕС‡РєСѓ Рё web-СЃРјРµС‚Сѓ, РѕС‚СЃР»РµР¶РёРІР°Р№С‚Рµ СЃС‚Р°С‚СѓСЃ Рё РґРѕРіРѕРІРѕСЂ Р±РµР· Р»РёС€РЅРµР№ СЃР»СѓР¶РµР±РЅРѕР№ РёРЅС„РѕСЂРјР°С†РёРё РЅР° СЌРєСЂР°РЅРµ.
-                    </p>
-                    <div class="panel-inline-actions">
-                        <a class="primary-button panel-inline-button" href="/projects/new">РЎРѕР·РґР°С‚СЊ РЅРѕРІС‹Р№ РїСЂРѕРµРєС‚</a>
-                        <a class="ghost-button-light panel-inline-button" href="/counterparties/new">Р”РѕР±Р°РІРёС‚СЊ РєРѕРЅС‚СЂР°РіРµРЅС‚Р° Р±РµР· РїСЂРѕРµРєС‚Р°</a>
+                    <div class="classic-sidebar-block">
+                        <span class="sidebar-label">Мои объекты</span>
+                        {% if projects %}
+                        <div class="classic-project-list">
+                            {% for project in projects[:6] %}
+                            <a class="classic-project-pill status-{{ project.status|status_class }}" href="/projects/{{ project.id }}">
+                                <strong>{{ project.project_name }}</strong>
+                                <span>{{ project.counterparty_name or "Контрагент не привязан" }}</span>
+                                <small>Статус: {{ project.status }}</small>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="empty-box">Пока нет созданных проектов.</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="classic-sidebar-block">
+                        <span class="sidebar-label">Быстрые действия</span>
+                        <div class="classic-actions">
+                            <a class="primary-button classic-action-button" href="/projects/new">+ Новый проект</a>
+                            <a class="ghost-button-light classic-action-button" href="/counterparties/new">+ Новый контрагент</a>
+                            {% if focused_project %}
+                            <a class="classic-secondary-button classic-action-button" href="/projects/{{ focused_project.id }}">Открыть проект</a>
+                            <a class="classic-warning-button classic-action-button" href="/projects/{{ focused_project.id }}/estimate">Открыть смету</a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
+            </aside>
 
-                <div class="panel-header-side">
-                    <span class="search-label">РџРѕРєР°Р·Р°РЅРѕ</span>
-                    <strong id="visibleProjectsCount">{{ projects|length }}</strong>
-                    <small>РёР· {{ projects|length }}</small>
-                </div>
-            </div>
+            <section class="classic-main">
+                <article class="hero-card classic-hero-card">
+                    <div class="hero-grid classic-hero-grid">
+                        <div class="hero-copy-wrap">
+                            <span class="eyebrow">Центр управления объектами</span>
+                            <h2>Все ключевое по проектам в одном экране</h2>
+                            <p class="hero-copy">
+                                Здесь собраны проекты, сметы, договоры и контрагенты без лишнего перегруза. Логика снова ближе к той desktop-версии, где всё было наглядно: слева объекты, справа текущий фокус и рабочая таблица.
+                            </p>
+                            <div class="panel-inline-actions">
+                                <a class="primary-button panel-inline-button" href="/projects/new">Создать проект</a>
+                                <a class="ghost-button-light panel-inline-button" href="/counterparties/new">Добавить контрагента без проекта</a>
+                            </div>
+                        </div>
 
-            <div class="toolbar-card toolbar-card-wide">
-                <label class="search-box">
-                    <span class="search-label">РџРѕРёСЃРє</span>
-                    <input
-                        type="search"
-                        id="projectSearch"
-                        class="toolbar-input"
-                        placeholder="РђРґСЂРµСЃ, РїСЂРѕРµРєС‚, РєРѕРЅС‚СЂР°РіРµРЅС‚, РґРѕРіРѕРІРѕСЂ"
-                    >
-                </label>
-
-                <div class="filter-box">
-                    <span class="search-label">Р¤РёР»СЊС‚СЂ СЃС‚Р°С‚СѓСЃР°</span>
-                    <div class="filter-chips">
-                        <button class="filter-chip is-active" type="button" data-filter="all">Р’СЃРµ</button>
-                        <button class="filter-chip" type="button" data-filter="Р’ СЂР°Р±РѕС‚Рµ">Р’ СЂР°Р±РѕС‚Рµ</button>
-                        <button class="filter-chip" type="button" data-filter="РџР°СѓР·Р°">РџР°СѓР·Р°</button>
-                        <button class="filter-chip" type="button" data-filter="Р§РµСЂРЅРѕРІРёРє">Р§РµСЂРЅРѕРІРёРє</button>
-                        <button class="filter-chip" type="button" data-filter="Р—Р°РІРµСЂС€РµРЅ">Р—Р°РІРµСЂС€РµРЅ</button>
+                        <div class="classic-focus-box">
+                            <span class="search-label">Текущий фокус</span>
+                            {% if focused_project %}
+                            <strong>{{ focused_project.project_name }}</strong>
+                            <p>{{ focused_project.address or focused_project.project_name }}</p>
+                            <div class="classic-focus-links">
+                                <a href="/projects/{{ focused_project.id }}">Карточка проекта</a>
+                                <a href="/projects/{{ focused_project.id }}/estimate">Открыть смету</a>
+                            </div>
+                            {% else %}
+                            <strong>Проектов пока нет</strong>
+                            <p>Начните с создания нового объекта.</p>
+                            {% endif %}
+                        </div>
                     </div>
-                </div>
-            </div>
+                </article>
 
-            <div class="projects-table-wrap projects-table-wrap-wide">
-                <table class="projects-table" id="projectsTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>РџСЂРѕРµРєС‚</th>
-                            <th>РљРѕРЅС‚СЂР°РіРµРЅС‚</th>
-                            <th>РЎС‚Р°С‚СѓСЃ</th>
-                            <th>Р”РѕРіРѕРІРѕСЂ</th>
-                            <th>РћР±РЅРѕРІР»РµРЅРѕ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for project in projects %}
-                        <tr
-                            class="project-row"
-                            data-status="{{ project.status }}"
-                            data-search="{{ project.id }} {{ project.project_name }} {{ project.address }} {{ project.counterparty_name }} {{ project.contract }}"
-                        >
-                            <td class="cell-id">{{ project.id }}</td>
-                            <td>
-                                <a class="project-link" href="/projects/{{ project.id }}">
-                                    <span class="project-name">{{ project.project_name }}</span>
-                                    <span class="project-address">{{ project.address or "РђРґСЂРµСЃ РїРѕРєР° РЅРµ Р·Р°РїРѕР»РЅРµРЅ" }}</span>
-                                </a>
-                            </td>
-                            <td class="cell-muted">{{ project.counterparty_name or "РќРµ РїСЂРёРІСЏР·Р°РЅ" }}</td>
-                            <td>
-                                <span class="status-pill status-{{ project.status|status_class }}">{{ project.status }}</span>
-                            </td>
-                            <td class="cell-contract">
-                                {% if project.contract %}
-                                    <span>{{ project.contract }}</span>
-                                    {% if project.contract_date %}
-                                    <small>РѕС‚ {{ project.contract_date }}</small>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="cell-muted">Р•С‰Рµ РЅРµ РѕС„РѕСЂРјР»РµРЅ</span>
-                                {% endif %}
-                            </td>
-                            <td class="cell-muted">{{ project.updated_at or "вЂ”" }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                <section class="stats-grid stats-grid-v2 stats-grid-compact">
+                    <article class="metric-panel metric-panel-blue">
+                        <span class="metric-label">Проекты</span>
+                        <strong>{{ counts.projects_total }}</strong>
+                        <p>Все объекты, заведенные в CRM.</p>
+                    </article>
+                    <article class="metric-panel metric-panel-green">
+                        <span class="metric-label">В работе</span>
+                        <strong>{{ counts.active_projects_total }}</strong>
+                        <p>Активные объекты, по которым идет движение.</p>
+                    </article>
+                    <article class="metric-panel metric-panel-gold">
+                        <span class="metric-label">Контрагенты</span>
+                        <strong>{{ counts.counterparties_total }}</strong>
+                        <p>База клиентов, ИП и компаний.</p>
+                    </article>
+                    <article class="metric-panel metric-panel-slate">
+                        <span class="metric-label">Документы</span>
+                        <strong>{{ counts.documents_total }}</strong>
+                        <p>Сметы, договоры и связанные файлы.</p>
+                    </article>
+                </section>
 
-            <div class="empty-box table-empty" id="projectsEmptyState" hidden>
-                РџРѕ С‚РµРєСѓС‰РµРјСѓ С„РёР»СЊС‚СЂСѓ РїСЂРѕРµРєС‚РѕРІ РЅРµ РЅР°Р№РґРµРЅРѕ. РџРѕРїСЂРѕР±СѓР№С‚Рµ РёР·РјРµРЅРёС‚СЊ Р·Р°РїСЂРѕСЃ РёР»Рё СЃР±СЂРѕСЃРёС‚СЊ С„РёР»СЊС‚СЂ СЃС‚Р°С‚СѓСЃР°.
-            </div>
+                {% if focused_project %}
+                <section class="panel-card panel-card-wide classic-focus-panel">
+                    <div class="classic-focus-panel-head">
+                        <div>
+                            <div class="eyebrow">Выбранный объект</div>
+                            <h3>{{ focused_project.project_name }}</h3>
+                            <p>{{ focused_project.counterparty_name or "Контрагент не привязан" }}</p>
+                            <small>{{ focused_project.contract or "Договор не указан" }}{% if focused_project.contract_date %} • {{ focused_project.contract_date }}{% endif %}</small>
+                        </div>
+
+                        <div class="classic-focus-panel-actions">
+                            <a class="classic-success-button" href="/projects/{{ focused_project.id }}/estimate">Открыть смету</a>
+                            <a class="classic-secondary-button" href="/projects/{{ focused_project.id }}">Карточка проекта</a>
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
+
+                <section class="panel-card panel-card-wide projects-panel projects-panel-classic">
+                    <div class="panel-header panel-header-wide projects-panel-classic-header">
+                        <div class="panel-header-main">
+                            <div class="eyebrow">Проекты по объектам</div>
+                            <h3>Рабочая таблица проектов</h3>
+                            <p class="panel-lead">Открывайте карточку, смету и контрагента напрямую из списка.</p>
+                        </div>
+
+                        <div class="panel-header-side projects-counter-card projects-counter-card-compact">
+                            <span class="search-label">Показано</span>
+                            <strong id="visibleProjectsCount">{{ projects|length }}</strong>
+                            <small>из {{ projects|length }}</small>
+                        </div>
+                    </div>
+
+                    <div class="toolbar-card toolbar-card-wide projects-toolbar-classic">
+                        <label class="search-box">
+                            <span class="search-label">Поиск</span>
+                            <input
+                                type="search"
+                                id="projectSearch"
+                                class="toolbar-input"
+                                placeholder="Адрес, проект, контрагент, договор"
+                            >
+                        </label>
+
+                        <div class="filter-box">
+                            <span class="search-label">Фильтр статуса</span>
+                            <div class="filter-chips">
+                                <button class="filter-chip is-active" type="button" data-filter="all">Все</button>
+                                <button class="filter-chip" type="button" data-filter="В работе">В работе</button>
+                                <button class="filter-chip" type="button" data-filter="Пауза">Пауза</button>
+                                <button class="filter-chip" type="button" data-filter="Черновик">Черновик</button>
+                                <button class="filter-chip" type="button" data-filter="Завершен">Завершен</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="projects-table-wrap projects-table-wrap-wide">
+                        <table class="projects-table" id="projectsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Проект / адрес</th>
+                                    <th>Контрагент</th>
+                                    <th>Статус</th>
+                                    <th>Договор</th>
+                                    <th>Дата</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for project in projects %}
+                                <tr
+                                    class="project-row"
+                                    data-status="{{ project.status }}"
+                                    data-search="{{ project.id }} {{ project.project_name }} {{ project.address }} {{ project.counterparty_name }} {{ project.contract }}"
+                                >
+                                    <td class="cell-id">{{ project.id }}</td>
+                                    <td>
+                                        <a class="project-link" href="/projects/{{ project.id }}">
+                                            <span class="project-name">{{ project.project_name }}</span>
+                                            <span class="project-address">{{ project.address or "Адрес пока не заполнен" }}</span>
+                                        </a>
+                                    </td>
+                                    <td class="cell-muted">{{ project.counterparty_name or "Не привязан" }}</td>
+                                    <td><span class="status-pill status-{{ project.status|status_class }}">{{ project.status }}</span></td>
+                                    <td class="cell-contract">
+                                        {% if project.contract %}
+                                            <span>{{ project.contract }}</span>
+                                        {% else %}
+                                            <span class="cell-muted">Не оформлен</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="cell-muted">{{ project.contract_date or project.updated_at or "—" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="empty-box table-empty" id="projectsEmptyState" hidden>
+                        По текущему фильтру проектов ничего не найдено. Попробуйте изменить запрос или сбросить фильтр статуса.
+                    </div>
+                </section>
+            </section>
         </section>
     </div>
 </main>
