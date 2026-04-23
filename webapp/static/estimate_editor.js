@@ -588,7 +588,7 @@
         drawer.dataset.open = "false";
     }
 
-    function libraryCard({ title, description, pills = [] }) {
+    function libraryCard({ title, description, pills = [], actionLabel = "", onAction = null }) {
         const card = document.createElement("article");
         card.className = "estimate-library-card";
 
@@ -614,7 +614,66 @@
             card.appendChild(meta);
         }
 
+        if (actionLabel && typeof onAction === "function") {
+            const actions = document.createElement("div");
+            actions.className = "estimate-library-actions";
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "estimate-library-action-button";
+            button.textContent = actionLabel;
+            button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                onAction();
+            });
+            actions.appendChild(button);
+            card.appendChild(actions);
+        }
+
         return card;
+    }
+
+    function updateQuickAddHint(message) {
+        if (quickAddHint) {
+            quickAddHint.textContent = message;
+        }
+    }
+
+    function fillQuickAddFromLibrary(entry) {
+        if (!entry) {
+            return;
+        }
+        if (quickAddRowType) {
+            quickAddRowType.value = "item";
+        }
+        if (quickAddName) {
+            quickAddName.value = entry.name || "";
+        }
+        if (quickAddUnit) {
+            quickAddUnit.value = entry.unit || "";
+        }
+        if (quickAddPrice) {
+            quickAddPrice.value = entry.price || "";
+        }
+        if (quickAddReference && entry.reference) {
+            quickAddReference.value = entry.reference;
+        }
+        syncQuickAddFieldVisibility();
+        updateQuickAddHint(`Расценка «${entry.name || "позиция"}» подставлена в быстрое добавление. Укажи количество и нажми «Добавить в смету».`);
+        quickAddQuantity?.focus();
+    }
+
+    function insertSectionFromTemplate(entry) {
+        const row = normalizeRow({
+            row_type: "section",
+            name: entry?.name || "Новый раздел",
+        });
+        const insertIndex = findInsertIndex();
+        rows.splice(insertIndex, 0, row);
+        selectedIndex = insertIndex;
+        activeActionMenuIndex = -1;
+        setDirtyState(true);
+        renderRows();
+        updateQuickAddHint(`Раздел «${row.name}» добавлен в таблицу. Теперь можно сразу добавлять в него позиции.`);
     }
 
     function renderDrawerLibraries() {
@@ -657,6 +716,8 @@
                             entry.unit ? `Ед.: ${entry.unit}` : "Ед. не указана",
                             `Цена: ${entry.price || "0"}`,
                         ],
+                        actionLabel: "В быстрый ввод",
+                        onAction: () => fillQuickAddFromLibrary(entry),
                     }),
                 );
             });
@@ -674,6 +735,15 @@
                             row.total ? `Стоимость: ${row.total}` : "Стоимость: 0",
                             row.discounted_total ? `Со скидкой: ${row.discounted_total}` : "Со скидкой: 0",
                         ],
+                        actionLabel: "Выделить строку",
+                        onAction: () => {
+                            const index = rows.findIndex((candidate) => candidate.client_id === row.client_id);
+                            if (index >= 0) {
+                                selectedIndex = index;
+                                activeActionMenuIndex = -1;
+                                renderRows();
+                            }
+                        },
                     }),
                 );
             });
@@ -692,6 +762,8 @@
                             summary ? `Позиций: ${summary.itemCount}` : "Позиций: 0",
                             summary ? `Итого: ${formatMoneyLabel(summary.discounted)}` : "Итого: 0",
                         ],
+                        actionLabel: "Добавить раздел",
+                        onAction: () => insertSectionFromTemplate(row),
                     }),
                 );
             });
