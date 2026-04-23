@@ -444,33 +444,33 @@
             const parts = [];
             if (summary) {
                 parts.push(`${summary.itemCount} поз.`);
-                parts.push(`итого: ${formatMoneyLabel(summary.total)}`);
-                parts.push(`со скидкой: ${formatMoneyLabel(summary.discounted)}`);
+                parts.push(`${formatMoneyLabel(summary.total)}`);
+                parts.push(`со скидкой ${formatMoneyLabel(summary.discounted)}`);
             }
             selectionTitle.textContent = row.name || "Раздел";
             selectionMeta.textContent = parts.length
-                ? parts.join(" | ")
-                : "Раздел без позиций. В него можно быстро добавлять строки.";
+                ? parts.join(" · ")
+                : "Раздел без позиций.";
             return;
         }
 
         const parts = [];
         if (row.unit) {
-            parts.push(`ед.: ${row.unit}`);
+            parts.push(row.unit);
         }
         if (row.quantity) {
-            parts.push(`кол-во: ${row.quantity}`);
+            parts.push(`× ${row.quantity}`);
         }
         if (row.price) {
-            parts.push(`цена: ${row.price}`);
+            parts.push(`${row.price}`);
         }
         if (row.discounted_total) {
-            parts.push(`со скидкой: ${row.discounted_total}`);
+            parts.push(`итог ${row.discounted_total}`);
         }
         selectionTitle.textContent = row.name || "Позиция";
         selectionMeta.textContent = parts.length
-            ? parts.join(" | ")
-            : "Позиция без заполненных числовых полей.";
+            ? parts.join(" · ")
+            : "Заполни единицу, количество и цену.";
     }
 
     function updateActionButtons() {
@@ -918,12 +918,6 @@
         nameNode.className = "estimate-row-name";
         nameNode.textContent = row.name || "—";
         nameWrap.appendChild(nameNode);
-        if (row.reference) {
-            const refNode = document.createElement("div");
-            refNode.className = "estimate-row-muted";
-            refNode.textContent = `Артикул: ${row.reference}`;
-            nameWrap.appendChild(refNode);
-        }
 
         tr.appendChild(createCell(typeBadge, "estimate-row-type"));
         tr.appendChild(createCell(row.reference || "—", "estimate-row-reference"));
