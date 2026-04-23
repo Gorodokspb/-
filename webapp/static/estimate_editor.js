@@ -26,6 +26,7 @@
     const form = document.getElementById("estimateEditorForm");
     const addSectionButton = document.getElementById("addSectionButton");
     const addItemButton = document.getElementById("addItemButton");
+    const addBelowButton = document.getElementById("addBelowButton");
     const editRowButton = document.getElementById("editRowButton");
     const duplicateRowButton = document.getElementById("duplicateRowButton");
     const collapseAllButton = document.getElementById("collapseAllButton");
@@ -74,6 +75,7 @@
     const cancelEstimateDialog = document.getElementById("cancelEstimateDialog");
     const closeEstimateDialog = document.getElementById("closeEstimateDialog");
     const itemFields = Array.from(document.querySelectorAll(".dialog-item-field"));
+    const rowNameLibrary = document.getElementById("estimateRowNameLibrary");
 
     if (!initialRowsNode || !rowsBody || !itemsPayloadInput || !form) {
         return;
@@ -104,8 +106,86 @@
         return String(value || "").toLowerCase().replace(/\s+/g, " ").trim();
     }
 
+    function normalizeSearchText(value) {
+        return normalizeText(value).replace(/ё/g, "е");
+    }
+
     function currentDiscount() {
         return parseNumber(discountInput ? discountInput.value : 0);
+    }
+
+    function collectNameLibrary() {
+        const library = new Map();
+        rows.forEach((row) => {
+            if (row.row_type !== "item" || !String(row.name || "").trim()) {
+                return;
+            }
+            const key = normalizeSearchText(row.name);
+            if (!library.has(key)) {
+                library.set(key, {
+                    name: String(row.name || "").trim(),
+                    unit: String(row.unit || "").trim(),
+                    price: String(row.price || "").trim(),
+                    reference: String(row.reference || "").trim(),
+                });
+            }
+        });
+        return Array.from(library.values()).sort((left, right) => left.name.localeCompare(right.name, "ru"));
+    }
+
+    function renderNameLibrary() {
+        if (!rowNameLibrary) {
+            return;
+        }
+        rowNameLibrary.innerHTML = "";
+        collectNameLibrary().forEach((entry) => {
+            const option = document.createElement("option");
+            option.value = entry.name;
+            rowNameLibrary.appendChild(option);
+        });
+    }
+
+    function findLibraryMatch(value) {
+        const query = normalizeSearchText(value);
+        if (!query || query.length < 2) {
+            return null;
+        }
+        const library = collectNameLibrary();
+        const exact = library.find((entry) => normalizeSearchText(entry.name) === query);
+        if (exact) {
+            return exact;
+        }
+        const startsWith = library.filter((entry) => normalizeSearchText(entry.name).startsWith(query));
+        if (startsWith.length === 1) {
+            return startsWith[0];
+        }
+        const contains = library.filter((entry) => normalizeSearchText(entry.name).includes(query));
+        if (contains.length === 1) {
+            return contains[0];
+        }
+        return null;
+    }
+
+    function applySuggestedValues(nameField, unitField, priceField, referenceField) {
+        if (!nameField) {
+            return;
+        }
+        const match = findLibraryMatch(nameField.value);
+        if (!match) {
+            return;
+        }
+        if (normalizeSearchText(nameField.value) !== normalizeSearchText(match.name)) {
+            nameField.value = match.name;
+        }
+        if (unitField && !String(unitField.value || "").trim() && match.unit) {
+            unitField.value = match.unit;
+        }
+        if (priceField && !String(priceField.value || "").trim() && match.price) {
+            priceField.value = match.price;
+        }
+        if (referenceField && !String(referenceField.value || "").trim() && match.reference) {
+            referenceField.value = match.reference;
+        }
     }
 
     function isEditableElement(target) {
@@ -191,6 +271,8 @@
 
     let selectedIndex = -1;
     let editingIndex = -1;
+    let pendingInsertAfterIndex = -1;
+    let activeActionMenuIndex = -1;
     let activeFilter = "all";
     let isDirty = false;
     let activeDrawerTab = "rates";
@@ -227,21 +309,23 @@
 
     function closeDialog() {
         editingIndex = -1;
+        pendingInsertAfterIndex = -1;
         if (dialog.open) {
             dialog.close();
         }
     }
 
     function openDialog(mode, rowType, index = -1) {
-        editingIndex = index;
+        editingIndex = mode === "edit" ? index : -1;
+        pendingInsertAfterIndex = mode === "create" ? index : -1;
         const existing = index >= 0 ? rows[index] : null;
         dialogTitle.textContent = mode === "edit" ? "Редактирование строки" : "Новая строка";
-        dialogRowType.value = existing ? existing.row_type : rowType;
-        dialogRowName.value = existing ? existing.name : "";
-        dialogRowUnit.value = existing ? existing.unit : "";
-        dialogRowQuantity.value = existing ? existing.quantity : "";
-        dialogRowPrice.value = existing ? existing.price : "";
-        dialogRowReference.value = existing ? existing.reference : "";
+        dialogRowType.value = mode === "edit" && existing ? existing.row_type : rowType;
+        dialogRowName.value = mode === "edit" && existing ? existing.name : "";
+        dialogRowUnit.value = mode === "edit" && existing ? existing.unit : "";
+        dialogRowQuantity.value = mode === "edit" && existing ? existing.quantity : "";
+        dialogRowPrice.value = mode === "edit" && existing ? existing.price : "";
+        dialogRowReference.value = mode === "edit" && existing ? existing.reference : "";
         syncDialogFieldVisibility();
         if (typeof dialog.showModal === "function") {
             dialog.showModal();
@@ -596,6 +680,55 @@
         return cell;
     }
 
+    function buildMenuItem(label, handler, className = "") {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `estimate-row-menu-item ${className}`.trim();
+        button.textContent = label;
+        button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            activeActionMenuIndex = -1;
+            handler();
+        });
+        return button;
+    }
+
+    function createRowActionWrap(index, row) {
+        const actionWrap = document.createElement("div");
+        actionWrap.className = "estimate-row-actions";
+
+        const actionButton = document.createElement("button");
+        actionButton.type = "button";
+        actionButton.className = "estimate-row-menu";
+        actionButton.textContent = "⋮";
+        actionButton.title = "Действия по строке";
+        actionButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            selectedIndex = index;
+            activeActionMenuIndex = activeActionMenuIndex === index ? -1 : index;
+            renderRows();
+        });
+        actionWrap.appendChild(actionButton);
+
+        if (activeActionMenuIndex === index) {
+            const menu = document.createElement("div");
+            menu.className = "estimate-row-menu-panel";
+            menu.addEventListener("click", (event) => event.stopPropagation());
+
+            menu.appendChild(buildMenuItem("Изменить", () => openDialog("edit", row.row_type, index)));
+            menu.appendChild(buildMenuItem("Добавить позицию ниже", () => openDialog("create", "item", index)));
+            if (row.row_type === "section") {
+                menu.appendChild(buildMenuItem("Добавить раздел ниже", () => openDialog("create", "section", index)));
+            }
+            menu.appendChild(buildMenuItem("Дублировать", duplicateSelectedRow));
+            menu.appendChild(buildMenuItem("Удалить", () => deleteRowButton?.click(), "is-danger"));
+
+            actionWrap.appendChild(menu);
+        }
+
+        return actionWrap;
+    }
+
     function createSectionRow(row, index, summary, queryActive) {
         const tr = document.createElement("tr");
         const isCollapsed = collapsedSections.has(row.client_id) && !queryActive;
@@ -604,6 +737,7 @@
         tr.classList.toggle("estimate-row-selected", index === selectedIndex);
         tr.addEventListener("click", () => {
             selectedIndex = index;
+            activeActionMenuIndex = -1;
             renderRows();
         });
         tr.addEventListener("dblclick", () => {
@@ -641,20 +775,8 @@
 
         const typeBadge = document.createElement("span");
         typeBadge.className = "estimate-row-type-badge is-section";
-        typeBadge.textContent = "Э";
-
-        const actionWrap = document.createElement("div");
-        actionWrap.className = "estimate-row-actions";
-        const actionButton = document.createElement("button");
-        actionButton.type = "button";
-        actionButton.className = "estimate-row-menu";
-        actionButton.textContent = "⋮";
-        actionButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            selectedIndex = index;
-            renderRows();
-        });
-        actionWrap.appendChild(actionButton);
+        typeBadge.textContent = "Раздел";
+        typeBadge.title = "Раздел сметы";
 
         tr.appendChild(createCell(typeBadge, "estimate-row-type"));
         tr.appendChild(createCell("—", "estimate-row-reference"));
@@ -664,7 +786,7 @@
         tr.appendChild(createCell("—", "estimate-row-muted"));
         tr.appendChild(createCell(formatMoneyLabel(summary.total), "estimate-row-muted"));
         tr.appendChild(createCell(formatMoneyLabel(summary.discounted), "estimate-row-muted"));
-        tr.appendChild(createCell(actionWrap, "estimate-row-actions"));
+        tr.appendChild(createCell(createRowActionWrap(index, row), "estimate-row-actions"));
         return tr;
     }
 
@@ -674,6 +796,7 @@
         tr.classList.toggle("estimate-row-selected", index === selectedIndex);
         tr.addEventListener("click", () => {
             selectedIndex = index;
+            activeActionMenuIndex = -1;
             renderRows();
         });
         tr.addEventListener("dblclick", () => {
@@ -683,7 +806,8 @@
 
         const typeBadge = document.createElement("span");
         typeBadge.className = "estimate-row-type-badge";
-        typeBadge.textContent = "П";
+        typeBadge.textContent = "Позиция";
+        typeBadge.title = "Позиция сметы";
 
         const nameWrap = document.createElement("div");
         nameWrap.className = "estimate-row-name-wrap";
@@ -698,19 +822,6 @@
             nameWrap.appendChild(refNode);
         }
 
-        const actionWrap = document.createElement("div");
-        actionWrap.className = "estimate-row-actions";
-        const actionButton = document.createElement("button");
-        actionButton.type = "button";
-        actionButton.className = "estimate-row-menu";
-        actionButton.textContent = "⋮";
-        actionButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            selectedIndex = index;
-            renderRows();
-        });
-        actionWrap.appendChild(actionButton);
-
         tr.appendChild(createCell(typeBadge, "estimate-row-type"));
         tr.appendChild(createCell(row.reference || "—", "estimate-row-reference"));
         tr.appendChild(createCell(nameWrap, ""));
@@ -719,7 +830,7 @@
         tr.appendChild(createCell(row.price || "0"));
         tr.appendChild(createCell(row.total || "0"));
         tr.appendChild(createCell(row.discounted_total || "0"));
-        tr.appendChild(createCell(actionWrap, "estimate-row-actions"));
+        tr.appendChild(createCell(createRowActionWrap(index, row), "estimate-row-actions"));
         return tr;
     }
 
@@ -788,6 +899,7 @@
         discountedValueNodes.forEach((node) => {
             node.textContent = formatNumber(discountedSum);
         });
+        renderNameLibrary();
         renderSectionNavigator(sectionSummaries);
         renderDrawerLibraries();
         updateSelectionSummary(sectionSummaries);
@@ -815,6 +927,7 @@
         const [current] = rows.splice(selectedIndex, 1);
         rows.splice(targetIndex, 0, current);
         selectedIndex = targetIndex;
+        activeActionMenuIndex = -1;
         setDirtyState(true);
         renderRows();
     }
@@ -831,12 +944,14 @@
         });
         rows.splice(selectedIndex + 1, 0, duplicate);
         selectedIndex += 1;
+        activeActionMenuIndex = -1;
         setDirtyState(true);
         renderRows();
     }
 
     function clearSelection() {
         selectedIndex = -1;
+        activeActionMenuIndex = -1;
         renderRows();
     }
 
@@ -850,6 +965,7 @@
     }
 
     function buildQuickAddRow() {
+        applySuggestedValues(quickAddName, quickAddUnit, quickAddPrice, quickAddReference);
         return normalizeRow({
             row_type: quickAddRowType ? quickAddRowType.value : "item",
             name: quickAddName ? quickAddName.value : "",
@@ -870,6 +986,7 @@
         const insertIndex = findInsertIndex();
         rows.splice(insertIndex, 0, draftRow);
         selectedIndex = insertIndex;
+        activeActionMenuIndex = -1;
         setDirtyState(true);
         clearQuickAddFields();
         renderRows();
@@ -879,6 +996,13 @@
     addSectionButton?.addEventListener("click", () => openDialog("create", "section"));
     addItemButton?.addEventListener("click", () => openDialog("create", "item"));
     quickAddButton?.addEventListener("click", () => openDialog("create", "item"));
+    addBelowButton?.addEventListener("click", () => {
+        const row = selectedRowOrAlert();
+        if (!row) {
+            return;
+        }
+        openDialog("create", "item", selectedIndex);
+    });
 
     editRowButton?.addEventListener("click", () => {
         const row = selectedRowOrAlert();
@@ -914,6 +1038,7 @@
         }
         rows.splice(selectedIndex, 1);
         selectedIndex = -1;
+        activeActionMenuIndex = -1;
         setDirtyState(true);
         renderRows();
     });
@@ -940,6 +1065,10 @@
     searchInput?.addEventListener("input", renderRows);
     drawerSearch?.addEventListener("input", renderDrawerLibraries);
     dialogRowType?.addEventListener("change", syncDialogFieldVisibility);
+    dialogRowName?.addEventListener("change", () => applySuggestedValues(dialogRowName, dialogRowUnit, dialogRowPrice, dialogRowReference));
+    dialogRowName?.addEventListener("blur", () => applySuggestedValues(dialogRowName, dialogRowUnit, dialogRowPrice, dialogRowReference));
+    quickAddName?.addEventListener("change", () => applySuggestedValues(quickAddName, quickAddUnit, quickAddPrice, quickAddReference));
+    quickAddName?.addEventListener("blur", () => applySuggestedValues(quickAddName, quickAddUnit, quickAddPrice, quickAddReference));
     cancelEstimateDialog?.addEventListener("click", closeDialog);
     closeEstimateDialog?.addEventListener("click", closeDialog);
     drawerCloseButton?.addEventListener("click", closeDrawer);
@@ -955,6 +1084,7 @@
     });
 
     saveEstimateRow?.addEventListener("click", () => {
+        applySuggestedValues(dialogRowName, dialogRowUnit, dialogRowPrice, dialogRowReference);
         const draftRow = normalizeRow({
             client_id: editingIndex >= 0 && rows[editingIndex] ? rows[editingIndex].client_id : generateRowId(),
             row_type: dialogRowType.value,
@@ -975,11 +1105,12 @@
             rows[editingIndex] = draftRow;
             selectedIndex = editingIndex;
         } else {
-            const insertIndex = findInsertIndex();
+            const insertIndex = pendingInsertAfterIndex >= 0 ? pendingInsertAfterIndex + 1 : findInsertIndex();
             rows.splice(insertIndex, 0, draftRow);
             selectedIndex = insertIndex;
         }
 
+        activeActionMenuIndex = -1;
         setDirtyState(true);
         closeDialog();
         renderRows();
@@ -1059,6 +1190,15 @@
         }
         event.preventDefault();
         event.returnValue = "";
+    });
+
+    document.addEventListener("click", (event) => {
+        if (!event.target.closest(".estimate-row-actions")) {
+            if (activeActionMenuIndex !== -1) {
+                activeActionMenuIndex = -1;
+                renderRows();
+            }
+        }
     });
 
     renderRows();

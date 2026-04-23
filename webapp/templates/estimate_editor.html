@@ -50,6 +50,15 @@
                 <span class="estimate-rail-label">Текущая строка</span>
                 <strong id="estimateSelectionTitle">Ничего не выбрано</strong>
                 <p id="estimateSelectionMeta">Выберите строку в таблице или добавьте новую.</p>
+                <div class="estimate-selected-actions">
+                    <button type="button" class="estimate-rail-button estimate-rail-button-primary" id="addBelowButton">+ Ниже строку</button>
+                    <button type="button" class="estimate-rail-button" id="editRowButton">Изменить</button>
+                    <button type="button" class="estimate-rail-button" id="duplicateRowButton">Дублировать</button>
+                    <button type="button" class="estimate-rail-button estimate-rail-button-danger" id="deleteRowButton">Удалить</button>
+                </div>
+                <div class="estimate-rail-selection-note">
+                    По клику на строку мы теперь держим под рукой все основные действия: изменить, добавить ниже, дублировать или удалить.
+                </div>
             </section>
 
             <div class="estimate-rail-footer">
@@ -189,9 +198,9 @@
                         {% if estimate.has_pdf_file and estimate.document %}
                         <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=pdf">Скачать PDF</a>
                         {% endif %}
-                        <button type="button" class="ghost-button-light estimate-inline-action" id="editRowButton">Изменить строку</button>
-                        <button type="button" class="ghost-button-light estimate-inline-action" id="duplicateRowButton">Дублировать</button>
-                        <button type="button" class="ghost-button-light estimate-inline-action" id="deleteRowButton">Удалить</button>
+                        <div class="estimate-inline-note-block">
+                            Создание и удаление строк теперь вынесено в левую колонку и в меню строки, чтобы не приходилось искать действия по всей странице.
+                        </div>
                     </aside>
 
                     <input type="hidden" name="items_payload" id="estimateItemsPayload" value="">
@@ -256,7 +265,7 @@
                             </label>
                             <label class="estimate-quick-add-name">
                                 <span class="sidebar-label">Название</span>
-                                <input type="text" id="quickAddName" placeholder="Например: Шпаклевка стен">
+                                <input type="text" id="quickAddName" list="estimateRowNameLibrary" placeholder="Например: Шпаклевка стен">
                             </label>
                             <label class="quick-add-item-field">
                                 <span class="sidebar-label">Ед.</span>
@@ -429,7 +438,7 @@
             </label>
             <label class="estimate-dialog-row estimate-dialog-span-2">
                 <span class="sidebar-label">Название</span>
-                <input type="text" id="dialogRowName" placeholder="Например: Кухня или Грунтовка потолка">
+                <input type="text" id="dialogRowName" list="estimateRowNameLibrary" placeholder="Например: Кухня или Грунтовка потолка">
             </label>
             <label class="estimate-dialog-row dialog-item-field">
                 <span class="sidebar-label">Ед.</span>
@@ -456,6 +465,7 @@
     </form>
 </dialog>
 
+<datalist id="estimateRowNameLibrary"></datalist>
 <script id="estimateInitialRows" type="application/json">{{ estimate.editor_rows_json|safe }}</script>
 {% endblock %}
 

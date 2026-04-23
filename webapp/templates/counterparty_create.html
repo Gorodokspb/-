@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Новый контрагент | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="dashboard-shell dashboard-shell-v2">
+    <div class="workspace-frame">
+        <header class="topbar-card topbar-card-projects">
+            <div class="topbar-brand">
+                <span class="eyebrow">Dekorartstroy CRM</span>
+                <strong>Новый контрагент</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <a class="topbar-chip topbar-chip-link" href="/projects">Главная CRM</a>
+                <a class="topbar-chip topbar-chip-link" href="/projects">Назад к проектам</a>
+                <a class="topbar-chip topbar-chip-link" href="/projects/new">+ Новый проект</a>
+            </div>
+
+            <div class="topbar-userbox topbar-userbox-compact">
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        {% if error %}
+        <div class="error-box">{{ error }}</div>
+        {% endif %}
+
+        <section class="panel-card panel-card-wide form-panel">
+            <div class="panel-header panel-header-compact">
+                <div>
+                    <div class="eyebrow">Создание</div>
+                    <h2>Добавить контрагента без проекта</h2>
+                </div>
+                <p class="panel-note">Контрагент создается отдельно, а потом его можно привязать к одному или нескольким проектам.</p>
+            </div>
+
+            <form class="detail-form" method="post" action="/counterparties/new">
+                <div class="detail-form-grid">
+                    <label>
+                        <span class="sidebar-label">Тип</span>
+                        <select name="counterparty_type">
+                            {% for item in ["Физлицо", "ООО", "ИП"] %}
+                            <option value="{{ item }}" {% if form_data.counterparty_type == item %}selected{% endif %}>{{ item }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Короткое имя</span>
+                        <input type="text" name="display_name" value="{{ form_data.display_name }}" placeholder="Как видеть контрагента в списках CRM">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">ФИО</span>
+                        <input type="text" name="full_name" value="{{ form_data.full_name }}" placeholder="Для физлица или директора">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Название компании / ИП</span>
+                        <input type="text" name="company_name" value="{{ form_data.company_name }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Телефон</span>
+                        <input type="text" name="phone" value="{{ form_data.phone }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Email</span>
+                        <input type="text" name="email" value="{{ form_data.email }}">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">ИНН</span>
+                        <input type="text" name="inn" value="{{ form_data.inn }}">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Заметки</span>
+                        <textarea name="notes" rows="5" placeholder="Контакты, особенности по договору, комментарии.">{{ form_data.notes }}</textarea>
+                    </label>
+                </div>
+
+                <div class="detail-form-footer">
+                    <div class="detail-inline-note">После сохранения контрагент появится в web-формах проекта и его можно будет выбирать без возврата в desktop-версию.</div>
+                    <div class="form-actions-inline">
+                        <a class="ghost-button-light" href="/projects">Отмена</a>
+                        <button type="submit" class="primary-button">Создать контрагента</button>
+                    </div>
+                </div>
+            </form>
+        </section>
+    </div>
+</main>
+{% endblock %}

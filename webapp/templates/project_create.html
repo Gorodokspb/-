@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Новый проект | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="dashboard-shell dashboard-shell-v2">
+    <div class="workspace-frame">
+        <header class="topbar-card topbar-card-projects">
+            <div class="topbar-brand">
+                <span class="eyebrow">Dekorartstroy CRM</span>
+                <strong>Новый проект</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <a class="topbar-chip topbar-chip-link" href="/projects">Главная CRM</a>
+                <a class="topbar-chip topbar-chip-link" href="/projects">Назад к проектам</a>
+                <a class="topbar-chip topbar-chip-link" href="/counterparties/new">+ Новый контрагент</a>
+            </div>
+
+            <div class="topbar-userbox topbar-userbox-compact">
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        {% if error %}
+        <div class="error-box">{{ error }}</div>
+        {% endif %}
+
+        <section class="panel-card panel-card-wide form-panel">
+            <div class="panel-header panel-header-compact">
+                <div>
+                    <div class="eyebrow">Создание</div>
+                    <h2>Добавить новый проект</h2>
+                </div>
+                <p class="panel-note">Проект можно создать сразу без контрагента, а привязать его уже позже в карточке проекта.</p>
+            </div>
+
+            <form class="detail-form" method="post" action="/projects/new">
+                <div class="detail-form-grid">
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Название проекта</span>
+                        <input type="text" name="project_name" value="{{ form_data.project_name }}" placeholder="Например: Белоостровская 10, корп. 3, кв. 365">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Адрес</span>
+                        <input type="text" name="address" value="{{ form_data.address }}" placeholder="Если адрес и есть название, можно заполнить только одно поле">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Контрагент</span>
+                        <select name="counterparty_id">
+                            <option value="">Без контрагента</option>
+                            {% for counterparty in counterparties %}
+                            <option value="{{ counterparty.id }}" {% if form_data.counterparty_id|int == counterparty.id %}selected{% endif %}>
+                                {{ counterparty.display_name }}{% if counterparty.type %} · {{ counterparty.type }}{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Статус</span>
+                        <select name="status_value">
+                            {% for status_option in status_options %}
+                            <option value="{{ status_option }}" {% if form_data.status == status_option %}selected{% endif %}>{{ status_option }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Номер договора</span>
+                        <input type="text" name="contract" value="{{ form_data.contract }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Дата договора</span>
+                        <input type="text" name="contract_date" value="{{ form_data.contract_date }}" placeholder="23.03.2026">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Заметки</span>
+                        <textarea name="notes" rows="5" placeholder="Короткий контекст по объекту, особенностям и договоренностям.">{{ form_data.notes }}</textarea>
+                    </label>
+                </div>
+
+                <div class="detail-form-footer">
+                    <div class="detail-inline-note">После сохранения проект сразу откроется в web-карточке, где можно будет привязать документы, контрагента и перейти в web-смету.</div>
+                    <div class="form-actions-inline">
+                        <a class="ghost-button-light" href="/projects">Отмена</a>
+                        <button type="submit" class="primary-button">Создать проект</button>
+                    </div>
+                </div>
+            </form>
+        </section>
+    </div>
+</main>
+{% endblock %}
