@@ -181,6 +181,7 @@ def render_estimate_editor(
             "project": estimate["project"],
             "estimate": estimate,
             "price_library_json": json.dumps(fetch_price_library(), ensure_ascii=False),
+            "estimate_calc_state_json": json.dumps(estimate.get("calc_state") or {}, ensure_ascii=False),
             "username": request.session.get("username", settings.admin_username),
             "saved": saved,
             "error": error,
@@ -216,12 +217,20 @@ def normalize_estimate_form_data(
     contract_label: str,
     discount: str,
     items_payload: str,
+    calc_state_payload: str,
     watermark: str | None,
-) -> tuple[dict, list[dict]]:
+) -> tuple[dict, list[dict], dict]:
     try:
         editor_rows = json.loads(items_payload or "[]")
     except json.JSONDecodeError:
         editor_rows = []
+
+    try:
+        calc_state = json.loads(calc_state_payload or "{}")
+    except json.JSONDecodeError:
+        calc_state = estimate.get("calc_state") or {}
+    if not isinstance(calc_state, dict):
+        calc_state = estimate.get("calc_state") or {}
 
     normalized_object_name = (
         (object_name or "").strip()
@@ -240,10 +249,11 @@ def normalize_estimate_form_data(
         "contract_label": normalized_contract_label,
         "discount": discount,
         "watermark": bool(watermark),
+        "calc_state": calc_state,
         "editor_rows": editor_rows,
         "editor_rows_json": json.dumps(editor_rows, ensure_ascii=False),
     }
-    return draft_estimate, editor_rows
+    return draft_estimate, editor_rows, calc_state
 
 
 @app.get("/")
@@ -629,6 +639,7 @@ def project_estimate_save(
     contract_label: str = Form(""),
     discount: str = Form(""),
     items_payload: str = Form("[]"),
+    calc_state_payload: str = Form("{}"),
     watermark: str | None = Form(None),
 ):
     require_auth(request)
@@ -636,7 +647,7 @@ def project_estimate_save(
     if not estimate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
 
-    draft_estimate, editor_rows = normalize_estimate_form_data(
+    draft_estimate, editor_rows, calc_state = normalize_estimate_form_data(
         estimate,
         company_name,
         object_name,
@@ -644,6 +655,7 @@ def project_estimate_save(
         contract_label,
         discount,
         items_payload,
+        calc_state_payload,
         watermark,
     )
 
@@ -665,6 +677,7 @@ def project_estimate_save(
         discount_raw=draft_estimate["discount"],
         watermark=draft_estimate["watermark"],
         editor_rows=editor_rows,
+        calc_state=calc_state,
     )
     return RedirectResponse(
         url=f"/projects/{project_id}/estimate?saved=1",
@@ -682,6 +695,7 @@ def project_estimate_pdf(
     contract_label: str = Form(""),
     discount: str = Form(""),
     items_payload: str = Form("[]"),
+    calc_state_payload: str = Form("{}"),
     watermark: str | None = Form(None),
 ):
     require_auth(request)
@@ -689,7 +703,7 @@ def project_estimate_pdf(
     if not estimate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
 
-    draft_estimate, editor_rows = normalize_estimate_form_data(
+    draft_estimate, editor_rows, calc_state = normalize_estimate_form_data(
         estimate,
         company_name,
         object_name,
@@ -697,6 +711,7 @@ def project_estimate_pdf(
         contract_label,
         discount,
         items_payload,
+        calc_state_payload,
         watermark,
     )
 
@@ -726,6 +741,7 @@ def project_estimate_pdf(
         discount_raw=draft_estimate["discount"],
         watermark=draft_estimate["watermark"],
         editor_rows=editor_rows,
+        calc_state=calc_state,
     )
     if not saved_estimate:
         raise HTTPException(

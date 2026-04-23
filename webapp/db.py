@@ -803,6 +803,8 @@ def fetch_project_estimate(project_id: int):
         "saved_at": saved_at,
         "editor_rows": editor_rows,
         "editor_rows_json": json.dumps(editor_rows, ensure_ascii=False),
+        "calc_state": payload.get("calc_state") if isinstance(payload.get("calc_state"), dict) else {},
+        "calc_state_json": json.dumps(payload.get("calc_state") if isinstance(payload.get("calc_state"), dict) else {}, ensure_ascii=False),
         "section_count": stats["section_count"],
         "item_count": stats["item_count"],
         "total_sum": format_tree_number(stats["total_sum"]) if stats["total_sum"] else "0",
@@ -824,6 +826,7 @@ def save_project_estimate(
     discount_raw: str,
     watermark: bool,
     editor_rows: list[dict],
+    calc_state: dict | None = None,
 ):
     project = fetch_project(project_id)
     if not project:
@@ -845,12 +848,7 @@ def save_project_estimate(
             "object": object_name,
             "discount": format_tree_number(discount_value) if discount_value else "",
             "watermark": bool(watermark),
-            "calc_state": {
-                "section_count": stats["section_count"],
-                "item_count": stats["item_count"],
-                "total_sum": format_tree_number(stats["total_sum"]),
-                "discounted_sum": format_tree_number(stats["discounted_sum"]),
-            },
+            "calc_state": calc_state if isinstance(calc_state, dict) else (payload.get("calc_state") if isinstance(payload.get("calc_state"), dict) else {}),
             "items": [_editor_row_to_payload_item(row) for row in normalized_rows],
             "draft_user": username,
             "saved_at": now,

@@ -1,10 +1,12 @@
 (() => {
     const initialRowsNode = document.getElementById("estimateInitialRows");
     const initialPriceLibraryNode = document.getElementById("estimatePriceLibrary");
+    const initialCalcStateNode = document.getElementById("estimateInitialCalcState");
     const rowsBody = document.getElementById("estimateRowsBody");
     const emptyState = document.getElementById("estimateEmptyState");
     const filteredEmptyState = document.getElementById("estimateFilteredEmptyState");
     const itemsPayloadInput = document.getElementById("estimateItemsPayload");
+    const calcStatePayloadInput = document.getElementById("estimateCalcStatePayload");
     const discountInput = document.getElementById("estimateDiscountInput");
     const sectionCountNode = document.getElementById("estimateSectionCount");
     const itemCountNode = document.getElementById("estimateItemCount");
@@ -44,6 +46,8 @@
     const quickAddPrice = document.getElementById("quickAddPrice");
     const quickAddReference = document.getElementById("quickAddReference");
     const quickAddButton = document.getElementById("quickAddButton");
+    const openEstimateCalculatorButton = document.getElementById("openEstimateCalculator");
+    const openEstimateCalculatorInlineButton = document.getElementById("openEstimateCalculatorInline");
     const quickAddInlineButton = document.getElementById("quickAddInlineButton");
     const quickAddClearButton = document.getElementById("quickAddClearButton");
     const quickAddHint = document.getElementById("estimateQuickAddHint");
@@ -78,6 +82,25 @@
     const closeEstimateDialog = document.getElementById("closeEstimateDialog");
     const itemFields = Array.from(document.querySelectorAll(".dialog-item-field"));
     const rowNameLibrary = document.getElementById("estimateRowNameLibrary");
+    const calculatorDialog = document.getElementById("estimateCalculatorDialog");
+    const closeEstimateCalculator = document.getElementById("closeEstimateCalculator");
+    const addCalculatorWall = document.getElementById("addCalculatorWall");
+    const addCalculatorWindow = document.getElementById("addCalculatorWindow");
+    const addCalculatorDoor = document.getElementById("addCalculatorDoor");
+    const addCalculatorBox = document.getElementById("addCalculatorBox");
+    const addCalculatorNiche = document.getElementById("addCalculatorNiche");
+    const calcWallHeight = document.getElementById("calcWallHeight");
+    const calcFloorLength = document.getElementById("calcFloorLength");
+    const calcFloorWidth = document.getElementById("calcFloorWidth");
+    const calcWallsContainer = document.getElementById("estimateCalculatorWalls");
+    const calcOpeningsContainer = document.getElementById("estimateCalculatorOpenings");
+    const calcFloorModsContainer = document.getElementById("estimateCalculatorFloorMods");
+    const calcInsertButtons = Array.from(document.querySelectorAll("[data-calc-insert]"));
+    const calcFloorResult = document.getElementById("calcFloorResult");
+    const calcWallsResult = document.getElementById("calcWallsResult");
+    const calcPlinthResult = document.getElementById("calcPlinthResult");
+    const calcWindowSlopesResult = document.getElementById("calcWindowSlopesResult");
+    const calcDoorSlopesResult = document.getElementById("calcDoorSlopesResult");
 
     if (!initialRowsNode || !rowsBody || !itemsPayloadInput || !form) {
         return;
@@ -128,6 +151,69 @@
             return [];
         }
     })();
+
+    function defaultCalcState() {
+        return {
+            wall_height: "2.7",
+            floor_length: "",
+            floor_width: "",
+            walls: ["0", "0", "0", "0"],
+            openings: [],
+            floor_mods: [],
+        };
+    }
+
+    function normalizeCalcState(payload) {
+        const base = defaultCalcState();
+        if (!payload || typeof payload !== "object") {
+            return base;
+        }
+        base.wall_height = String(payload.wall_height ?? payload.wallHeight ?? base.wall_height);
+        base.floor_length = String(payload.floor_length ?? payload.floorLength ?? base.floor_length);
+        base.floor_width = String(payload.floor_width ?? payload.floorWidth ?? base.floor_width);
+        base.walls = Array.isArray(payload.walls) && payload.walls.length
+            ? payload.walls.map((value) => String(value ?? "0"))
+            : base.walls;
+        base.openings = Array.isArray(payload.openings)
+            ? payload.openings
+                .filter((entry) => entry && typeof entry === "object")
+                .map((entry) => ({
+                    type: entry.type === "door" ? "door" : "window",
+                    w: String(entry.w ?? entry.width ?? "0"),
+                    h: String(entry.h ?? entry.height ?? "0"),
+                }))
+            : [];
+        base.floor_mods = Array.isArray(payload.floor_mods || payload.floorMods)
+            ? (payload.floor_mods || payload.floorMods)
+                .filter((entry) => entry && typeof entry === "object")
+                .map((entry) => ({
+                    type: entry.type === "box" ? "box" : "niche",
+                    w: String(entry.w ?? entry.width ?? "0"),
+                    h: String(entry.h ?? entry.height ?? "0"),
+                }))
+            : [];
+        return base;
+    }
+
+    const calcState = (() => {
+        if (!initialCalcStateNode) {
+            return defaultCalcState();
+        }
+        try {
+            return normalizeCalcState(JSON.parse(initialCalcStateNode.textContent || "{}"));
+        } catch (error) {
+            console.warn("Не удалось разобрать состояние калькулятора", error);
+            return defaultCalcState();
+        }
+    })();
+
+    let calculatorResults = {
+        floor: 0,
+        walls: 0,
+        plinth: 0,
+        window_slopes: 0,
+        door_slopes: 0,
+    };
 
     function collectNameLibrary() {
         const library = new Map();
@@ -433,6 +519,9 @@
     }
 
     function updateSelectionSummary(sectionSummaries) {
+        if (!selectionTitle || !selectionMeta) {
+            return;
+        }
         const row = selectedRow();
         if (!row) {
             selectionTitle.textContent = "Ничего не выбрано";
@@ -685,6 +774,14 @@
         const query = normalizeText(drawerSearch ? drawerSearch.value : "");
         const items = rows.filter((row) => row.row_type === "item");
         const sections = rows.filter((row) => row.row_type === "section");
+        const activePriceLibrary = priceLibrary.length
+            ? priceLibrary
+            : collectNameLibrary().map((entry) => ({
+                name: entry.name,
+                unit: entry.unit,
+                price: entry.price,
+                reference: entry.reference,
+            }));
 
         ratesLibrary.innerHTML = "";
         operationsLibrary.innerHTML = "";
@@ -694,7 +791,7 @@
             const haystack = normalizeText([row.name, row.reference, row.unit, row.price].join(" "));
             return !query || haystack.includes(query);
         });
-        const filteredPriceLibrary = priceLibrary.filter((entry) => {
+        const filteredPriceLibrary = activePriceLibrary.filter((entry) => {
             const haystack = normalizeText([entry.name, entry.unit, entry.price].join(" "));
             return !query || haystack.includes(query);
         });
@@ -704,7 +801,7 @@
         });
 
         if (ratesCountNode) {
-            ratesCountNode.textContent = query ? `${filteredPriceLibrary.length} из ${priceLibrary.length}` : String(priceLibrary.length);
+            ratesCountNode.textContent = query ? `${filteredPriceLibrary.length} из ${activePriceLibrary.length}` : String(activePriceLibrary.length);
         }
 
         if (!filteredPriceLibrary.length) {
@@ -887,7 +984,6 @@
         typeBadge.title = "Раздел сметы";
 
         tr.appendChild(createCell(typeBadge, "estimate-row-type"));
-        tr.appendChild(createCell("—", "estimate-row-reference"));
         tr.appendChild(createCell(titleWrap, "estimate-row-name"));
         tr.appendChild(createCell("—", "estimate-row-muted"));
         tr.appendChild(createCell(String(summary.itemCount || 0), "estimate-row-muted"));
@@ -925,7 +1021,6 @@
         nameWrap.appendChild(nameNode);
 
         tr.appendChild(createCell(typeBadge, "estimate-row-type"));
-        tr.appendChild(createCell(row.reference || "—", "estimate-row-reference"));
         tr.appendChild(createCell(nameWrap, ""));
         tr.appendChild(createCell(row.unit || "—"));
         tr.appendChild(createCell(row.quantity || "0"));
@@ -1095,6 +1190,198 @@
         quickAddName?.focus();
     }
 
+    function syncCalcStatePayload() {
+        if (calcStatePayloadInput) {
+            calcStatePayloadInput.value = JSON.stringify(calcState);
+        }
+    }
+
+    function renderCalculatorSimpleList(container, entries, titleBuilder, onChange) {
+        if (!container) {
+            return;
+        }
+        container.innerHTML = "";
+        if (!entries.length) {
+            const empty = document.createElement("div");
+            empty.className = "estimate-calculator-empty";
+            empty.textContent = "Пока пусто";
+            container.appendChild(empty);
+            return;
+        }
+        entries.forEach((entry, index) => {
+            const row = document.createElement("div");
+            row.className = "estimate-calculator-row";
+            const title = document.createElement("strong");
+            title.textContent = titleBuilder(entry, index);
+            row.appendChild(title);
+            onChange(row, entry, index);
+            container.appendChild(row);
+        });
+    }
+
+    function renderCalculatorRows() {
+        if (calcWallHeight) calcWallHeight.value = calcState.wall_height;
+        if (calcFloorLength) calcFloorLength.value = calcState.floor_length;
+        if (calcFloorWidth) calcFloorWidth.value = calcState.floor_width;
+
+        renderCalculatorSimpleList(calcWallsContainer, calcState.walls, (_entry, index) => `Стена ${index + 1}`, (row, _entry, index) => {
+            const input = document.createElement("input");
+            input.type = "text";
+            input.value = calcState.walls[index];
+            input.placeholder = "0";
+            input.addEventListener("input", () => {
+                calcState.walls[index] = input.value;
+                recalculateCalculator();
+            });
+            row.appendChild(input);
+            if (calcState.walls.length > 1) {
+                const remove = document.createElement("button");
+                remove.type = "button";
+                remove.className = "ghost-button-light estimate-inline-action estimate-inline-action-danger";
+                remove.textContent = "Удалить";
+                remove.addEventListener("click", () => {
+                    calcState.walls.splice(index, 1);
+                    renderCalculatorRows();
+                    recalculateCalculator();
+                });
+                row.appendChild(remove);
+            }
+        });
+
+        renderCalculatorSimpleList(calcOpeningsContainer, calcState.openings, (entry, index) => `${entry.type === "door" ? "Дверь" : "Окно"} ${index + 1}`, (row, entry, index) => {
+            const width = document.createElement("input");
+            width.type = "text";
+            width.value = entry.w;
+            width.placeholder = "Ширина";
+            width.addEventListener("input", () => {
+                calcState.openings[index].w = width.value;
+                recalculateCalculator();
+            });
+            row.appendChild(width);
+            const height = document.createElement("input");
+            height.type = "text";
+            height.value = entry.h;
+            height.placeholder = "Высота";
+            height.addEventListener("input", () => {
+                calcState.openings[index].h = height.value;
+                recalculateCalculator();
+            });
+            row.appendChild(height);
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "ghost-button-light estimate-inline-action estimate-inline-action-danger";
+            remove.textContent = "Удалить";
+            remove.addEventListener("click", () => {
+                calcState.openings.splice(index, 1);
+                renderCalculatorRows();
+                recalculateCalculator();
+            });
+            row.appendChild(remove);
+        });
+
+        renderCalculatorSimpleList(calcFloorModsContainer, calcState.floor_mods, (entry, index) => `${entry.type === "box" ? "Короб (-)" : "Ниша (+)"} ${index + 1}`, (row, entry, index) => {
+            const width = document.createElement("input");
+            width.type = "text";
+            width.value = entry.w;
+            width.placeholder = "Ширина";
+            width.addEventListener("input", () => {
+                calcState.floor_mods[index].w = width.value;
+                recalculateCalculator();
+            });
+            row.appendChild(width);
+            const height = document.createElement("input");
+            height.type = "text";
+            height.value = entry.h;
+            height.placeholder = "Высота";
+            height.addEventListener("input", () => {
+                calcState.floor_mods[index].h = height.value;
+                recalculateCalculator();
+            });
+            row.appendChild(height);
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "ghost-button-light estimate-inline-action estimate-inline-action-danger";
+            remove.textContent = "Удалить";
+            remove.addEventListener("click", () => {
+                calcState.floor_mods.splice(index, 1);
+                renderCalculatorRows();
+                recalculateCalculator();
+            });
+            row.appendChild(remove);
+        });
+    }
+
+    function recalculateCalculator() {
+        calcState.wall_height = calcWallHeight ? calcWallHeight.value : calcState.wall_height;
+        calcState.floor_length = calcFloorLength ? calcFloorLength.value : calcState.floor_length;
+        calcState.floor_width = calcFloorWidth ? calcFloorWidth.value : calcState.floor_width;
+
+        const perimeter = calcState.walls.reduce((sum, value) => sum + parseNumber(value), 0);
+        const height = parseNumber(calcState.wall_height);
+        let floorArea = parseNumber(calcState.floor_length) * parseNumber(calcState.floor_width);
+        calcState.floor_mods.forEach((entry) => {
+            const area = parseNumber(entry.w) * parseNumber(entry.h);
+            floorArea += entry.type === "box" ? -area : area;
+        });
+
+        let wallsArea = perimeter * height;
+        let doorsWidth = 0;
+        let windowSlopes = 0;
+        let doorSlopes = 0;
+        calcState.openings.forEach((entry) => {
+            const width = parseNumber(entry.w);
+            const openingHeight = parseNumber(entry.h);
+            wallsArea -= width * openingHeight;
+            if (entry.type === "door") {
+                doorsWidth += width;
+                doorSlopes += (2 * openingHeight + width);
+            } else {
+                windowSlopes += (2 * openingHeight + width);
+            }
+        });
+
+        calculatorResults = {
+            floor: Math.max(0, floorArea),
+            walls: Math.max(0, wallsArea),
+            plinth: Math.max(0, perimeter - doorsWidth),
+            window_slopes: Math.max(0, windowSlopes),
+            door_slopes: Math.max(0, doorSlopes),
+        };
+
+        if (calcFloorResult) calcFloorResult.textContent = `${formatNumber(calculatorResults.floor)} м.кв`;
+        if (calcWallsResult) calcWallsResult.textContent = `${formatNumber(calculatorResults.walls)} м.кв`;
+        if (calcPlinthResult) calcPlinthResult.textContent = `${formatNumber(calculatorResults.plinth)} м.пог`;
+        if (calcWindowSlopesResult) calcWindowSlopesResult.textContent = `${formatNumber(calculatorResults.window_slopes)} м.пог`;
+        if (calcDoorSlopesResult) calcDoorSlopesResult.textContent = `${formatNumber(calculatorResults.door_slopes)} м.пог`;
+        syncCalcStatePayload();
+    }
+
+    function openCalculator() {
+        if (!calculatorDialog) {
+            return;
+        }
+        renderCalculatorRows();
+        recalculateCalculator();
+        calculatorDialog.showModal();
+    }
+
+    function closeCalculator() {
+        syncCalcStatePayload();
+        if (calculatorDialog?.open) {
+            calculatorDialog.close();
+        }
+    }
+
+    function insertCalculatorValue(key) {
+        const value = calculatorResults[key];
+        if (quickAddQuantity) {
+            quickAddQuantity.value = formatNumber(value);
+            quickAddQuantity.focus();
+        }
+        updateQuickAddHint(`Результат калькулятора подставлен в количество: ${formatNumber(value)}.`);
+        closeCalculator();
+    }
+
     addSectionButton?.addEventListener("click", () => openDialog("create", "section"));
     addItemButton?.addEventListener("click", () => openDialog("create", "item"));
     quickAddButton?.addEventListener("click", () => openDialog("create", "item"));
@@ -1157,6 +1444,40 @@
     quickAddRowType?.addEventListener("change", syncQuickAddFieldVisibility);
     quickAddInlineButton?.addEventListener("click", addQuickRow);
     quickAddClearButton?.addEventListener("click", clearQuickAddFields);
+    openEstimateCalculatorButton?.addEventListener("click", openCalculator);
+    openEstimateCalculatorInlineButton?.addEventListener("click", openCalculator);
+    closeEstimateCalculator?.addEventListener("click", closeCalculator);
+    calcWallHeight?.addEventListener("input", recalculateCalculator);
+    calcFloorLength?.addEventListener("input", recalculateCalculator);
+    calcFloorWidth?.addEventListener("input", recalculateCalculator);
+    addCalculatorWall?.addEventListener("click", () => {
+        calcState.walls.push("0");
+        renderCalculatorRows();
+        recalculateCalculator();
+    });
+    addCalculatorWindow?.addEventListener("click", () => {
+        calcState.openings.push({ type: "window", w: "0", h: "0" });
+        renderCalculatorRows();
+        recalculateCalculator();
+    });
+    addCalculatorDoor?.addEventListener("click", () => {
+        calcState.openings.push({ type: "door", w: "0", h: "0" });
+        renderCalculatorRows();
+        recalculateCalculator();
+    });
+    addCalculatorBox?.addEventListener("click", () => {
+        calcState.floor_mods.push({ type: "box", w: "0", h: "0" });
+        renderCalculatorRows();
+        recalculateCalculator();
+    });
+    addCalculatorNiche?.addEventListener("click", () => {
+        calcState.floor_mods.push({ type: "niche", w: "0", h: "0" });
+        renderCalculatorRows();
+        recalculateCalculator();
+    });
+    calcInsertButtons.forEach((button) => {
+        button.addEventListener("click", () => insertCalculatorValue(button.dataset.calcInsert));
+    });
     quickAddName?.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
             event.preventDefault();
@@ -1231,6 +1552,7 @@
     form.addEventListener("submit", () => {
         recalcRows();
         itemsPayloadInput.value = JSON.stringify(serializeRowsForSubmit());
+        syncCalcStatePayload();
         setDirtyState(false);
     });
 
@@ -1281,6 +1603,11 @@
             }
         }
 
+        if (event.key === "Escape" && calculatorDialog?.open) {
+            closeCalculator();
+            return;
+        }
+
         if (event.key === "Escape" && drawer?.dataset.open === "true") {
             closeDrawer();
         }
@@ -1303,5 +1630,6 @@
         }
     });
 
+    syncCalcStatePayload();
     renderRows();
 })();
