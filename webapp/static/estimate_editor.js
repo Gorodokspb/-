@@ -53,6 +53,7 @@
     const bottomStatus = document.getElementById("estimateBottomStatus");
     const drawer = document.getElementById("estimateDrawer");
     const drawerSearch = document.getElementById("estimateDrawerSearch");
+    const ratesCountNode = document.getElementById("estimateRatesCount");
     const drawerCloseButton = document.getElementById("closeEstimateDrawer");
     const drawerTabs = Array.from(document.querySelectorAll(".estimate-drawer-tab"));
     const drawerPanels = Array.from(document.querySelectorAll(".estimate-drawer-panel"));
@@ -658,7 +659,7 @@
             quickAddReference.value = entry.reference;
         }
         syncQuickAddFieldVisibility();
-        updateQuickAddHint(`Расценка «${entry.name || "позиция"}» подставлена в быстрое добавление. Укажи количество и нажми «Добавить в смету».`);
+        updateQuickAddHint(`Расценка «${entry.name || "позиция"}» подставлена в быстрое добавление. Укажи количество и нажми «Добавить сразу».`);
         quickAddQuantity?.focus();
     }
 
@@ -702,10 +703,14 @@
             return !query || haystack.includes(query);
         });
 
+        if (ratesCountNode) {
+            ratesCountNode.textContent = query ? `${filteredPriceLibrary.length} из ${priceLibrary.length}` : String(priceLibrary.length);
+        }
+
         if (!filteredPriceLibrary.length) {
             ratesLibrary.innerHTML = '<div class="estimate-section-empty">По текущему фильтру подходящих расценок пока нет.</div>';
         } else {
-            filteredPriceLibrary.slice(0, 60).forEach((entry) => {
+            filteredPriceLibrary.forEach((entry) => {
                 ratesLibrary.appendChild(
                     libraryCard({
                         title: entry.name || "Позиция без названия",

@@ -21,7 +21,6 @@
                     <span>{{ project.address or project.project_name }}</span>
                 </div>
                 <div class="estimate-rail-badges">
-                    <span class="estimate-rail-badge">Проект ID {{ project.id }}</span>
                     <span class="estimate-rail-badge">Статус: {{ project.status }}</span>
                 </div>
             </section>
@@ -90,22 +89,15 @@
 
             <section class="estimate-summary-board">
                 <div class="estimate-summary-main">
-                    <div class="eyebrow">Web-смета</div>
+                    <div class="eyebrow">Смета</div>
                     <h1>{{ estimate.object_name or project.project_name }}</h1>
-                    <p>
-                        Переделываем смету в плотный браузерный рабочий экран: всё ключевое перед глазами,
-                        разделы слева, большая таблица по центру и справочники в выезжающей панели справа.
-                    </p>
 
                     <div class="estimate-summary-meta">
                         <div class="estimate-summary-chip">
-                            <span>Сохранено</span>
+                            <span>Сохранение</span>
                             <strong>{{ estimate.saved_at or "Пока нет сохранения" }}</strong>
                         </div>
-                        <div class="estimate-summary-chip">
-                            <span>Черновик</span>
-                            <strong>{{ estimate.draft_path or "Будет создан после первого сохранения" }}</strong>
-                        </div>
+                        <div class="estimate-summary-chip estimate-summary-chip-muted">Рабочий экран сметы без лишних блоков</div>
                     </div>
                 </div>
 
@@ -146,8 +138,8 @@
                     <div class="estimate-document-main">
                         <div class="estimate-document-title-row">
                             <div>
-                                <div class="eyebrow">Паспорт сметы</div>
-                                <h2>Общие данные</h2>
+                                <div class="eyebrow">Параметры</div>
+                                <h2>Настройки сметы</h2>
                             </div>
                             <span class="estimate-dirty-badge" id="estimateDirtyBadge" hidden>Есть несохраненные изменения</span>
                         </div>
@@ -198,9 +190,6 @@
                         {% if estimate.has_pdf_file and estimate.document %}
                         <a class="ghost-button-light estimate-inline-action" href="/documents/{{ estimate.document.id }}/download?kind=pdf">Скачать PDF</a>
                         {% endif %}
-                        <div class="estimate-inline-note-block">
-                            Создание и удаление строк теперь вынесено в левую колонку и в меню строки, чтобы не приходилось искать действия по всей странице.
-                        </div>
                     </aside>
 
                     <input type="hidden" name="items_payload" id="estimateItemsPayload" value="">
@@ -209,9 +198,8 @@
                 <section class="estimate-stage-board">
                     <div class="estimate-stage-head">
                         <div class="estimate-stage-title">
-                            <div class="estimate-stage-order">1</div>
                             <div>
-                                <span class="eyebrow">Этап работы</span>
+                                <span class="eyebrow">Таблица</span>
                                 <h3>Редактор таблицы сметы</h3>
                             </div>
                         </div>
@@ -227,6 +215,8 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="estimate-inline-status" id="estimateBottomStatus">Смета готова к редактированию</div>
 
                     <div class="estimate-tool-row">
                         <div class="estimate-tool-tabs">
@@ -250,8 +240,7 @@
 
                     <div class="estimate-quick-add-panel">
                         <div class="estimate-quick-add-panel-copy">
-                            <div class="eyebrow">Быстрое добавление</div>
-                            <h4>Добавляй разделы и позиции без лишних окон</h4>
+                            <strong>Быстрое добавление</strong>
                             <p id="estimateQuickAddHint">Новая строка добавится после выделенной позиции или в конец сметы.</p>
                         </div>
 
@@ -276,7 +265,7 @@
                                 <input type="text" id="quickAddPrice" placeholder="0">
                             </label>
                             <label class="quick-add-item-field">
-                                <span class="sidebar-label">Код</span>
+                                <span class="sidebar-label">Арт.</span>
                                 <input type="text" id="quickAddReference" placeholder="Необязательно">
                             </label>
                         </div>
@@ -312,7 +301,7 @@
                             <thead>
                                 <tr>
                                     <th>Тип</th>
-                                    <th>Код</th>
+                                    <th>Арт.</th>
                                     <th>Позиция</th>
                                     <th>Ед.</th>
                                     <th>Кол-во</th>
@@ -334,40 +323,19 @@
                     </div>
                 </section>
 
-                <section class="estimate-final-board">
-                    <div class="estimate-final-summary">
-                        <div class="estimate-final-head">
-                            <h3>Итоги по смете</h3>
-                            <span class="estimate-final-pill">Рабочий браузерный режим</span>
+                <section class="estimate-submit-strip estimate-layout-span">
+                    <div class="estimate-submit-summary">
+                        <div class="estimate-submit-total">
+                            <span>До скидки</span>
+                            <strong id="estimateTotalFooterValue">{{ estimate.total_sum }}</strong>
                         </div>
-
-                        <div class="estimate-final-grid">
-                            <div class="estimate-final-row">
-                                <span>Итого без скидки</span>
-                                <strong id="estimateTotalFooterValue">{{ estimate.total_sum }}</strong>
-                            </div>
-                            <div class="estimate-final-row">
-                                <span>Итого со скидкой</span>
-                                <strong id="estimateDiscountedFooterValue">{{ estimate.discounted_sum }}</strong>
-                            </div>
+                        <div class="estimate-submit-total">
+                            <span>После скидки</span>
+                            <strong id="estimateDiscountedFooterValue">{{ estimate.discounted_sum }}</strong>
                         </div>
                     </div>
 
-                    <div class="estimate-comment-card">
-                        <div class="eyebrow">Комментарий к смете</div>
-                        <h4>Внутренний контекст и пояснения</h4>
-                        <textarea rows="7" placeholder="Сюда можно выносить важные замечания по объекту, условиям расчета и договоренностям с заказчиком."></textarea>
-                    </div>
-                </section>
-
-                <section class="estimate-bottom-bar estimate-layout-span">
-                    <div class="estimate-bottom-bar-copy">
-                        <span class="sidebar-label">Быстрые действия</span>
-                        <strong id="estimateBottomStatus">Смета готова к редактированию</strong>
-                        <p>Нижняя панель всегда под рукой: сохраняем изменения, держим фокус на таблице и сразу отдаем PDF.</p>
-                    </div>
-
-                    <div class="estimate-bottom-bar-actions">
+                    <div class="estimate-submit-actions">
                         <button type="submit" class="primary-button">Сохранить черновик</button>
                         <button
                             type="submit"
@@ -401,7 +369,7 @@
             </div>
 
             <div class="estimate-drawer-panel is-active" data-drawer-panel="rates">
-                <div class="estimate-drawer-note">База расценок подгружается с сервера. Выбирай позицию, подставляй её в быстрое добавление и сразу указывай количество.</div>
+                <div class="estimate-drawer-note">Серверная база расценок. <strong id="estimateRatesCount">0</strong> позиций. Выбери нужную и отправь в быстрый ввод.</div>
                 <div class="estimate-library-list" id="estimateRatesLibrary"></div>
             </div>
 
