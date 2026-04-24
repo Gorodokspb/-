@@ -17,7 +17,7 @@ from webapp.db import (
     ensure_web_user,
     ensure_web_users_table,
     fetch_counterparties,
-    fetch_dashboard_counts,
+    fetch_dashboard_finance,
     fetch_price_library,
     fetch_project,
     fetch_project_documents,
@@ -355,12 +355,13 @@ def password_change_submit(
 @app.get("/projects")
 def projects_page(request: Request):
     require_auth(request)
+    projects = fetch_projects()
     return templates.TemplateResponse(
         request=request,
         name="projects.html",
         context={
-            "projects": fetch_projects(),
-            "counts": fetch_dashboard_counts(),
+            "projects": projects,
+            "finance": fetch_dashboard_finance(projects),
             "username": request.session.get("username", settings.admin_username),
             "created": request.query_params.get("created", ""),
         },

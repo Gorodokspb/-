@@ -374,6 +374,73 @@ def fetch_dashboard_counts():
             return cur.fetchone()
 
 
+def _format_rubles(value: float) -> str:
+    return f"{round(value):,} ₽".replace(",", " ")
+
+
+def _parse_dashboard_date(raw_value: str | None) -> datetime | None:
+    if not raw_value:
+        return None
+    value = str(raw_value).strip()
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def fetch_dashboard_finance(projects: list[dict] | None = None) -> dict:
+    """Build the projects-dashboard finance strip from saved estimate totals.
+
+    The CRM does not yet have a separate payments/costs module, so this summary
+    is deliberately tied to real estimate drafts/documents: work done and debt
+    use saved estimate totals, while profit remains zero until expenses/payments
+    are implemented.
+    """
+    projects = projects if projects is not None else fetch_projects()
+    now = datetime.now()
+    today_total = 0.0
+    month_total = 0.0
+    all_estimates_total = 0.0
+    latest_update: datetime | None = None
+
+    for project in projects or []:
+        try:
+            estimate = fetch_project_estimate(int(project.get("id")))
+        except (TypeError, ValueError):
+            continue
+        if not estimate:
+            continue
+        estimate_total = parse_tree_number(estimate.get("discounted_sum") or estimate.get("total_sum"))
+        all_estimates_total += estimate_total
+        saved_at = _parse_dashboard_date(estimate.get("saved_at") or project.get("updated_at"))
+        if saved_at:
+            latest_update = max(latest_update, saved_at) if latest_update else saved_at
+            if saved_at.date() == now.date():
+                today_total += estimate_total
+            if saved_at.year == now.year and saved_at.month == now.month:
+                month_total += estimate_total
+
+    last_updated = latest_update.strftime("%Y-%m-%d в %H:%M") if latest_update else "нет сохранённых смет"
+    return {
+        "today": {
+            "work_done": _format_rubles(today_total),
+            "profit": _format_rubles(0),
+            "last_updated": last_updated,
+        },
+        "month": {
+            "work_done": _format_rubles(month_total),
+            "profit": _format_rubles(0),
+            "profit_percent": "0 %",
+            "last_updated": last_updated,
+        },
+        "customer_debt": _format_rubles(all_estimates_total),
+        "debt_project": (projects or [{}])[0].get("project_name", "Объекты") if projects else "Объекты",
+        "last_updated": last_updated,
+    }
+
+
 def fetch_counterparties():
     query = """
         SELECT

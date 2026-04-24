@@ -7,10 +7,9 @@
 <main class="dashboard-shell dashboard-shell-v2">
     <div class="workspace-frame workspace-frame-desktop">
         <header class="topbar-card topbar-card-projects topbar-card-classic">
-            <div class="topbar-brand">
-                <span class="eyebrow">Dekorartstroy CRM</span>
-                <strong>Объекты и сметы</strong>
-            </div>
+            <a class="topbar-logo-slot" href="/projects" aria-label="CRM198.ru">
+                <img src="/static/img/crm198-logo.jpg" alt="CRM198.ru">
+            </a>
 
             <div class="topbar-meta projects-topbar-actions">
                 <a class="topbar-chip topbar-primary-action" href="/projects/new">+ Проект</a>
@@ -72,27 +71,71 @@
             </aside>
 
             <section class="classic-main">
-                <section class="stats-grid stats-grid-v2 stats-grid-compact">
-                    <article class="metric-panel metric-panel-blue">
-                        <span class="metric-label">Проекты</span>
-                        <strong>{{ counts.projects_total }}</strong>
-                        <p>Все объекты, заведенные в CRM.</p>
-                    </article>
-                    <article class="metric-panel metric-panel-green">
-                        <span class="metric-label">В работе</span>
-                        <strong>{{ counts.active_projects_total }}</strong>
-                        <p>Активные объекты, по которым идет движение.</p>
-                    </article>
-                    <article class="metric-panel metric-panel-gold">
-                        <span class="metric-label">Контрагенты</span>
-                        <strong>{{ counts.counterparties_total }}</strong>
-                        <p>База клиентов, ИП и компаний.</p>
-                    </article>
-                    <article class="metric-panel metric-panel-slate">
-                        <span class="metric-label">Документы</span>
-                        <strong>{{ counts.documents_total }}</strong>
-                        <p>Сметы, договоры и связанные файлы.</p>
-                    </article>
+                <section class="finance-dashboard-strip" aria-label="Финансы">
+                    <div class="finance-strip-head">
+                        <div>
+                            <span class="eyebrow">Финансы</span>
+                            <h2>Финансовая часть</h2>
+                        </div>
+                        <a class="inline-link" href="/projects/{{ focused_project.id if focused_project else '' }}#project-finance">см. все →</a>
+                    </div>
+
+                    <div class="finance-card-grid">
+                        <article class="finance-card finance-card-chart">
+                            <div class="finance-card-head">
+                                <span class="metric-label">За сегодня</span>
+                                <button class="finance-refresh" type="button" disabled>↻ Обновить</button>
+                            </div>
+                            <dl class="finance-values">
+                                <div>
+                                    <dt>Выполнение</dt>
+                                    <dd>{{ finance.today.work_done }}</dd>
+                                </div>
+                                <div>
+                                    <dt>Прибыль</dt>
+                                    <dd>{{ finance.today.profit }}</dd>
+                                </div>
+                            </dl>
+                            <p class="finance-updated">Последнее обновление: {{ finance.today.last_updated }}</p>
+                            <div class="finance-mini-chart finance-mini-chart-flat" aria-hidden="true">
+                                <span></span><span></span><span></span><span></span>
+                            </div>
+                        </article>
+
+                        <article class="finance-card finance-card-chart">
+                            <div class="finance-card-head">
+                                <span class="metric-label">За месяц</span>
+                                <span class="finance-percent">{{ finance.month.profit_percent }}</span>
+                            </div>
+                            <dl class="finance-values">
+                                <div>
+                                    <dt>Выполнение</dt>
+                                    <dd>{{ finance.month.work_done }}</dd>
+                                </div>
+                                <div>
+                                    <dt>Прибыль</dt>
+                                    <dd>{{ finance.month.profit }}</dd>
+                                </div>
+                            </dl>
+                            <p class="finance-updated">Последнее обновление: {{ finance.month.last_updated }}</p>
+                            <div class="finance-mini-chart finance-mini-chart-rise" aria-hidden="true">
+                                <span></span><span></span><span></span><span></span>
+                            </div>
+                        </article>
+
+                        <article class="finance-card finance-card-debt">
+                            <div class="finance-card-head">
+                                <span class="metric-label">Задолженность заказчиков</span>
+                                <button class="finance-refresh" type="button" disabled>↻ Обновить</button>
+                            </div>
+                            <strong class="finance-debt-total">{{ finance.customer_debt }}</strong>
+                            <p class="finance-updated">Последнее обновление: {{ finance.last_updated }}</p>
+                            <div class="finance-debt-bar" aria-label="Долг по объектам">
+                                <span class="finance-debt-name">{{ finance.debt_project }}</span>
+                                <strong>{{ finance.customer_debt }}</strong>
+                            </div>
+                        </article>
+                    </div>
                 </section>
 
                 <section class="panel-card panel-card-wide projects-panel projects-panel-classic">

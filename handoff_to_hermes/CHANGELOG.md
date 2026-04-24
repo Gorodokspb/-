@@ -1,5 +1,12 @@
 # Changelog — handoff_to_hermes
 
+## 2026-04-24 21:19 UTC
+- По новому скриншоту заменён левый текстовый бренд в topbar `/projects` на логотип `crm198.ru` (`webapp/static/img/crm198-logo.jpg`).
+- Вместо верхних статистических карточек добавлен финансовый блок: `За сегодня`, `За месяц`, `Задолженность заказчиков`.
+- Добавлена серверная функция `fetch_dashboard_finance()`: финансовый блок берёт суммы из сохранённых смет; прибыль пока `0 ₽` до отдельного учёта расходов/платежей.
+- Расширен regression test `tests/test_projects_dashboard_template.py`.
+- Проверено: 7 unittest OK, `py_compile` OK, `dekorcrm-web` active, authenticated smoke `/login`, `/projects`, `/projects/7/estimate` 200; на `/projects` есть логотип и finance strip, старых метрик нет.
+
 ## 2026-04-24 20:56 UTC
 - По следующему скриншоту доработана страница `/projects`.
 - Убран `Синхронизация OK` из sidebar.
