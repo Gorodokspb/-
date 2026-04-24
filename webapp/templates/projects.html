@@ -21,10 +21,10 @@
                 <a class="topbar-chip topbar-finance-action" href="/projects/{{ focused_project.id }}#project-finance">Финансы</a>
                 <a class="topbar-chip topbar-price-action" href="/projects/{{ focused_project.id }}/estimate#estimateRatesDrawer">Прайс-лист</a>
                 {% endif %}
-                <a class="topbar-chip topbar-chip-link" href="/account/password">Сменить пароль</a>
             </div>
 
             <div class="topbar-userbox topbar-userbox-compact">
+                <a class="topbar-chip topbar-chip-link topbar-password-action" href="/account/password">Сменить пароль</a>
                 <div class="topbar-usertext">
                     <span class="sidebar-label">Пользователь</span>
                     <strong>{{ username }}</strong>
@@ -47,19 +47,20 @@
                             <strong>Dekorartstroy</strong>
                             <p>Объекты и сметы</p>
                         </div>
-                        <span class="status-pill status-active">Синхронизация OK</span>
                     </div>
 
                     <div class="classic-sidebar-block">
                         <span class="sidebar-label">Мои объекты</span>
                         {% if projects %}
                         <div class="classic-project-list">
-                            {% for project in projects[:6] %}
+                            {% for project in projects %}
+                            {% if project.status != "Завершен" %}
                             <a class="classic-project-pill status-{{ project.status|status_class }}" href="/projects/{{ project.id }}">
                                 <strong>{{ project.project_name }}</strong>
                                 <span>{{ project.counterparty_name or "Контрагент не привязан" }}</span>
                                 <small>Статус: {{ project.status }}</small>
                             </a>
+                            {% endif %}
                             {% endfor %}
                         </div>
                         {% else %}

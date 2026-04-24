@@ -29,6 +29,15 @@ class ProjectsDashboardTemplateTests(unittest.TestCase):
         self.assertIn(".projects-topbar-actions", css)
         self.assertIn(".topbar-primary-action", css)
         self.assertIn(".topbar-finance-action", css)
+        self.assertIn("flex-wrap: nowrap;", css)
+        self.assertIn("justify-content: center;", css)
+
+    def test_sidebar_omits_sync_status_and_completed_projects(self):
+        template = PROJECTS_TEMPLATE.read_text(encoding="utf-8")
+
+        self.assertNotIn("Синхронизация OK", template)
+        self.assertIn('project.status != "Завершен"', template)
+        self.assertNotIn("projects[:6]", template)
 
 
 if __name__ == "__main__":

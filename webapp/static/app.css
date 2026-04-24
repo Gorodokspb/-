@@ -900,6 +900,14 @@ input:focus {
 
 .topbar-userbox-compact {
     justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: nowrap;
+}
+
+.topbar-password-action {
+    min-height: 36px;
+    padding: 0 12px;
+    white-space: nowrap;
 }
 
 .topbar-brand {
@@ -3783,22 +3791,25 @@ textarea:focus {
 }
 
 .topbar-card-projects.topbar-card-classic {
-    grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.8fr) auto;
+    grid-template-columns: minmax(210px, 0.6fr) minmax(720px, 1fr) minmax(230px, 0.55fr);
 }
 
 .projects-topbar-actions {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
     gap: 8px;
-    max-width: 760px;
+    max-width: none;
+    width: 100%;
 }
 
 .projects-topbar-actions .topbar-chip {
     min-height: 38px;
-    padding: 0 14px;
+    padding: 0 13px;
     border-radius: 13px;
     font-weight: 800;
+    white-space: nowrap;
     box-shadow: 0 8px 18px rgba(23, 36, 52, 0.08);
 }
 
