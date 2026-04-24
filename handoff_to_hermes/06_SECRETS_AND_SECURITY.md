@@ -28,3 +28,21 @@
 
 ## .env.web
 Файл `.env.web` должен оставаться вне Git. В репозитории допустим только безопасный пример вроде `.env.web.example`.
+
+Текущее безопасное состояние на сервере после hardening:
+```text
+.env.web: 600 crmadmin:crmadmin
+```
+
+## Server hardening status — 2026-04-24
+Сделано без изменения root/SSH password login:
+- установлен и включён `fail2ban`;
+- включён jail `sshd`;
+- nginx получил базовые security headers: HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy;
+- `.env.web` ужат до прав `600`.
+
+Осознанно НЕ трогали без отдельной команды пользователя:
+- `PermitRootLogin yes`;
+- `PasswordAuthentication yes`.
+
+Причина: нельзя рисковать потерей SSH-доступа. Сначала нужно подтвердить вход по SSH-ключу для нужного пользователя.
