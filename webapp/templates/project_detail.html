@@ -5,16 +5,9 @@
 {% block body %}
 <main class="detail-shell detail-shell-v2">
     <div class="workspace-frame workspace-frame-desktop">
-        <header class="topbar-card detail-topbar detail-topbar-classic">
-            <div class="topbar-brand">
-                <span class="eyebrow">Dekorartstroy CRM</span>
-                <strong>Проект: {{ project.project_name }}</strong>
-            </div>
-
-            <div class="topbar-meta">
-                <a class="topbar-chip topbar-chip-link" href="/projects">Назад к проектам</a>
-                <a class="topbar-chip topbar-chip-link" href="/counterparties/new">Создать контрагента</a>
-                <a class="topbar-chip topbar-chip-link" href="/projects/{{ project.id }}/estimate">Открыть смету</a>
+        <header class="topbar-card detail-topbar detail-topbar-classic detail-topbar-slim">
+            <div class="topbar-meta detail-home-only">
+                <a class="topbar-chip topbar-chip-link" href="/projects">На главную</a>
             </div>
 
             <div class="topbar-userbox">
@@ -36,7 +29,7 @@
         <div class="error-box">{{ error }}</div>
         {% endif %}
 
-        <section class="project-classic-head">
+        <section class="project-classic-head detail-project-compact">
             <div class="project-classic-title">
                 <h1>{{ project.project_name }}</h1>
                 <p>
@@ -46,27 +39,25 @@
                     | Статус: {{ project.status }}
                 </p>
             </div>
-
-            <div class="project-classic-actions">
-                <a class="classic-success-button" href="/counterparties/new">Создать контрагента</a>
-                <a class="classic-secondary-button" href="#project-edit-card">Привязать контрагента</a>
-                {% if project.counterparty_id %}
-                <a class="classic-secondary-button" href="#project-passport-card">Открыть контрагента</a>
-                {% endif %}
-                <a class="classic-warning-button" href="/projects/{{ project.id }}/estimate">Открыть смету</a>
-            </div>
         </section>
 
-        <section class="project-progress-grid">
+        <section class="project-progress-grid project-progress-grid-compact">
             <article class="project-progress-card project-progress-card-ready">
-                <span class="project-progress-step">1. Смета</span>
-                <strong>{% if documents %}Готова{% else %}Ожидает создания{% endif %}</strong>
-                <p>{% if documents %}По проекту уже есть файл или черновик сметы.{% else %}Перейдите в web-смету и создайте первый черновик.{% endif %}</p>
+                <span class="project-progress-step">1. Статус сметы</span>
+                <strong>{% if documents %}{{ documents[0].status }}{% else %}Черновик{% endif %}</strong>
+                <p>{% if documents %}Текущий статус сохранённой сметы по объекту.{% else %}Смета ещё не создана; стартовый статус — черновик.{% endif %}</p>
             </article>
-            <article class="project-progress-card project-progress-card-warn">
-                <span class="project-progress-step">2. Контрагент</span>
-                <strong>{% if project.counterparty_name %}{{ project.counterparty_name }}{% else %}Добавить контрагента{% endif %}</strong>
-                <p>{% if project.counterparty_name %}Контрагент уже привязан к объекту.{% else %}Создайте или привяжите клиента к этой карточке.{% endif %}</p>
+            <article class="project-progress-card project-progress-card-finance">
+                <span class="project-progress-step">2. Финансы</span>
+                <strong>Смета / оплачено / расход</strong>
+                <div class="project-finance-visual" aria-hidden="true">
+                    <span class="project-finance-dot project-finance-dot-blue"></span>
+                    <span class="project-finance-line"></span>
+                    <span class="project-finance-dot project-finance-dot-green"></span>
+                    <span class="project-finance-line project-finance-line-gold"></span>
+                    <span class="project-finance-dot project-finance-dot-gold"></span>
+                </div>
+                <p>Финансовая сводка проекта: сумма сметы, оплаты и затраты.</p>
             </article>
             <article class="project-progress-card project-progress-card-warn">
                 <span class="project-progress-step">3. Договор</span>

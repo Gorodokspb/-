@@ -4283,6 +4283,114 @@ textarea:focus {
     align-items: center;
 }
 
+.detail-topbar-slim {
+    grid-template-columns: minmax(160px, 1fr) auto;
+    padding-top: 14px;
+    padding-bottom: 14px;
+}
+
+.detail-home-only {
+    justify-content: flex-start;
+}
+
+.detail-project-compact {
+    display: block;
+    padding: 4px 2px 0;
+}
+
+.detail-project-compact .project-classic-title h1 {
+    font-size: clamp(24px, 2.1vw, 34px);
+    line-height: 1.15;
+    max-width: 1120px;
+}
+
+.detail-project-compact .project-classic-title p {
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.detail-shell-v2 .panel-card-wide {
+    padding: 18px;
+}
+
+.detail-shell-v2 .panel-header-compact h3 {
+    font-size: 22px;
+    line-height: 1.15;
+}
+
+.detail-shell-v2 .project-tab-link {
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
+}
+
+.detail-shell-v2 .metric-panel {
+    min-height: 112px;
+    padding: 16px;
+}
+
+.detail-shell-v2 .metric-panel strong,
+.detail-shell-v2 .mini-balance-card strong,
+.detail-shell-v2 .project-finance-amount strong {
+    font-size: 26px;
+}
+
+.detail-shell-v2 .project-detail-grid,
+.detail-shell-v2 .project-balance-row {
+    gap: 12px;
+}
+
+.project-progress-grid-compact .project-progress-card {
+    min-height: 138px;
+    padding: 18px;
+}
+
+.project-progress-grid-compact .project-progress-card strong {
+    font-size: 24px;
+}
+
+.project-progress-card-finance {
+    border-top: 4px solid #1569d8;
+}
+
+.project-finance-visual {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.project-finance-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    box-shadow: 0 6px 14px rgba(23, 36, 52, 0.12);
+}
+
+.project-finance-dot-blue {
+    background: #1569d8;
+}
+
+.project-finance-dot-green {
+    background: #1f9465;
+}
+
+.project-finance-dot-gold {
+    background: #c47a0c;
+}
+
+.project-finance-line {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #1569d8, #1f9465);
+}
+
+.project-finance-line-gold {
+    background: linear-gradient(90deg, #1f9465, #c47a0c);
+}
+
 .project-classic-head {
     display: flex;
     align-items: start;

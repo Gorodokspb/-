@@ -1,5 +1,13 @@
 # Changelog — handoff_to_hermes
 
+## 2026-04-24 21:49 UTC
+- По скриншоту пользователя доработана карточка проекта `/projects/<id>`.
+- Убрана верхняя строка с `Dekorartstroy CRM / Проект: ...`; в topbar оставлена только кнопка `На главную` и пользовательский блок.
+- Убран правый блок быстрых действий возле заголовка проекта.
+- Уменьшены крупные шрифты и отступы на странице карточки проекта.
+- Карточка `1. Смета` теперь показывает `Статус сметы`; карточка `Контрагент` заменена на визуальный блок `Финансы`.
+- Добавлен `tests/test_project_detail_template.py`; проверено 10 unittest OK, `py_compile` OK, `dekorcrm-web` active, authenticated smoke `/login`, `/projects/6`, `/projects/6/estimate` 200.
+
 ## 2026-04-24 21:26 UTC
 - По просьбе пользователя заменён файл логотипа в topbar `/projects` на новый вариант без текстовой части (`webapp/static/img/crm198-logo.jpg`).
 - Проверено: template regression test OK, `py_compile` OK, `dekorcrm-web` active, `/login` и `/projects` 200, статический логотип отдаётся как `image/jpeg`.
