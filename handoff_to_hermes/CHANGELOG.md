@@ -1,5 +1,9 @@
 # Changelog — handoff_to_hermes
 
+## 2026-04-24 21:26 UTC
+- По просьбе пользователя заменён файл логотипа в topbar `/projects` на новый вариант без текстовой части (`webapp/static/img/crm198-logo.jpg`).
+- Проверено: template regression test OK, `py_compile` OK, `dekorcrm-web` active, `/login` и `/projects` 200, статический логотип отдаётся как `image/jpeg`.
+
 ## 2026-04-24 21:19 UTC
 - По новому скриншоту заменён левый текстовый бренд в topbar `/projects` на логотип `crm198.ru` (`webapp/static/img/crm198-logo.jpg`).
 - Вместо верхних статистических карточек добавлен финансовый блок: `За сегодня`, `За месяц`, `Задолженность заказчиков`.
