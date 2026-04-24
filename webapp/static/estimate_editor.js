@@ -904,6 +904,10 @@
         return cell;
     }
 
+    function createNumberCell(value, extraClass = "") {
+        return createCell(value, ["estimate-row-number", extraClass].filter(Boolean).join(" "));
+    }
+
     function buildMenuItem(label, handler, className = "") {
         const button = document.createElement("button");
         button.type = "button";
@@ -1003,13 +1007,13 @@
         typeBadge.title = "Раздел сметы";
 
         tr.appendChild(createCell(typeBadge, "estimate-row-type"));
-        tr.appendChild(createCell(titleWrap, "estimate-row-name"));
-        tr.appendChild(createCell("—", "estimate-row-muted"));
-        tr.appendChild(createCell(String(summary.itemCount || 0), "estimate-row-muted"));
-        tr.appendChild(createCell("—", "estimate-row-muted"));
-        tr.appendChild(createCell(formatMoneyLabel(summary.total), "estimate-row-muted"));
-        tr.appendChild(createCell(formatMoneyLabel(summary.discounted), "estimate-row-muted"));
-        tr.appendChild(createCell(createRowActionWrap(index, row), "estimate-row-actions"));
+        tr.appendChild(createCell(titleWrap, "estimate-row-name-cell"));
+        tr.appendChild(createCell("—", "estimate-row-muted estimate-col-unit-cell"));
+        tr.appendChild(createNumberCell(String(summary.itemCount || 0)));
+        tr.appendChild(createCell("—", "estimate-row-muted estimate-row-number"));
+        tr.appendChild(createNumberCell(formatMoneyLabel(summary.total)));
+        tr.appendChild(createNumberCell(formatMoneyLabel(summary.discounted)));
+        tr.appendChild(createCell(createRowActionWrap(index, row), "estimate-row-actions estimate-col-actions-cell"));
         return tr;
     }
 
@@ -1040,13 +1044,13 @@
         nameWrap.appendChild(nameNode);
 
         tr.appendChild(createCell(typeBadge, "estimate-row-type"));
-        tr.appendChild(createCell(nameWrap, ""));
-        tr.appendChild(createCell(row.unit || "—"));
-        tr.appendChild(createCell(row.quantity || "0"));
-        tr.appendChild(createCell(row.price || "0"));
-        tr.appendChild(createCell(row.total || "0"));
-        tr.appendChild(createCell(row.discounted_total || "0"));
-        tr.appendChild(createCell(createRowActionWrap(index, row), "estimate-row-actions"));
+        tr.appendChild(createCell(nameWrap, "estimate-row-name-cell"));
+        tr.appendChild(createCell(row.unit || "—", "estimate-col-unit-cell"));
+        tr.appendChild(createNumberCell(row.quantity || "0"));
+        tr.appendChild(createNumberCell(row.price || "0"));
+        tr.appendChild(createNumberCell(row.total || "0"));
+        tr.appendChild(createNumberCell(row.discounted_total || "0"));
+        tr.appendChild(createCell(createRowActionWrap(index, row), "estimate-row-actions estimate-col-actions-cell"));
         return tr;
     }
 

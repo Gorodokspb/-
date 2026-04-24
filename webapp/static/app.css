@@ -3180,9 +3180,38 @@ textarea:focus {
 }
 
 .estimate-table-toolbar-v3 {
-    margin-top: 10px;
-    margin-bottom: 10px;
-    padding: 10px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    margin-top: 8px;
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(18, 33, 52, 0.08);
+    box-shadow: 0 8px 20px rgba(18, 33, 52, 0.06);
+}
+
+.estimate-table-toolbar-note {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    color: #738293;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.estimate-table-toolbar-note span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: #f4f7fb;
+    border: 1px solid rgba(18, 33, 52, 0.06);
 }
 
 .estimate-shortcuts-inline {
@@ -3195,6 +3224,7 @@ textarea:focus {
     overflow: auto;
     background: #fff;
     border: 1px solid rgba(18, 33, 52, 0.08);
+    max-height: calc(100vh - 220px);
 }
 
 .estimate-table-v3 {
@@ -3202,6 +3232,13 @@ textarea:focus {
 }
 
 .estimate-table-v3 thead {
+    background: #f4f7fb;
+}
+
+.estimate-table-v3 thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     background: #f4f7fb;
 }
 
@@ -3215,7 +3252,7 @@ textarea:focus {
 
 .estimate-table-v3 td,
 .estimate-table-v3 th {
-    padding: 8px 8px;
+    padding: 7px 8px;
 }
 
 .estimate-table-v3 tbody tr:hover {
@@ -3240,9 +3277,9 @@ textarea:focus {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 58px;
-    min-height: 24px;
-    padding: 0 8px;
+    min-width: 54px;
+    min-height: 22px;
+    padding: 0 7px;
     border-radius: 8px;
     font-size: 9px;
     font-weight: 800;
@@ -3256,6 +3293,42 @@ textarea:focus {
     background: #3a4a5f;
 }
 
+.estimate-col-type {
+    width: 72px;
+}
+
+.estimate-col-name {
+    min-width: 320px;
+}
+
+.estimate-col-unit,
+.estimate-col-unit-cell {
+    width: 74px;
+    white-space: nowrap;
+}
+
+.estimate-col-number,
+.estimate-row-number {
+    min-width: 104px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.estimate-col-actions,
+.estimate-col-actions-cell {
+    width: 72px;
+    min-width: 72px;
+}
+
+.estimate-table-v3 th.estimate-col-actions,
+.estimate-table-v3 td.estimate-col-actions-cell {
+    position: sticky;
+    right: 0;
+    z-index: 3;
+    background: inherit;
+}
+
 .estimate-row-reference {
     color: #708194;
     font-weight: 700;
@@ -3266,6 +3339,10 @@ textarea:focus {
 .estimate-row-name-wrap {
     display: grid;
     gap: 2px;
+}
+
+.estimate-row-name-cell {
+    min-width: 280px;
 }
 
 .estimate-row-name {
@@ -3290,15 +3367,15 @@ textarea:focus {
 .estimate-row-menu {
     appearance: none;
     border: 1px solid rgba(18, 33, 52, 0.08);
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     border-radius: 8px;
     background: #fff;
     color: #77879a;
     font: inherit;
     font-weight: 800;
     cursor: pointer;
-    box-shadow: 0 6px 14px rgba(18, 33, 52, 0.08);
+    box-shadow: 0 4px 12px rgba(18, 33, 52, 0.08);
 }
 
 .estimate-row-menu:hover {
