@@ -3782,6 +3782,58 @@ textarea:focus {
     align-items: center;
 }
 
+.topbar-card-projects.topbar-card-classic {
+    grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.8fr) auto;
+}
+
+.projects-topbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    max-width: 760px;
+}
+
+.projects-topbar-actions .topbar-chip {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 13px;
+    font-weight: 800;
+    box-shadow: 0 8px 18px rgba(23, 36, 52, 0.08);
+}
+
+.topbar-primary-action {
+    background: #1569d8;
+    color: #fff;
+    border-color: #1569d8;
+}
+
+.topbar-open-action {
+    background: #10233b;
+    color: #fff;
+    border-color: #10233b;
+}
+
+.topbar-finance-action {
+    background: #1f9465;
+    color: #fff;
+    border-color: #1f9465;
+}
+
+.topbar-price-action {
+    background: #c47a0c;
+    color: #fff;
+    border-color: #c47a0c;
+}
+
+.topbar-primary-action:hover,
+.topbar-open-action:hover,
+.topbar-finance-action:hover,
+.topbar-price-action:hover {
+    transform: translateY(-1px);
+    filter: brightness(0.97);
+}
+
 .classic-layout {
     display: grid;
     grid-template-columns: 290px minmax(0, 1fr);

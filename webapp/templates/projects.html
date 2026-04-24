@@ -12,9 +12,15 @@
                 <strong>Объекты и сметы</strong>
             </div>
 
-            <div class="topbar-meta">
-                <a class="topbar-chip topbar-chip-link" href="/projects/new">+ Проект</a>
-                <a class="topbar-chip topbar-chip-link" href="/counterparties/new">+ Контрагент</a>
+            <div class="topbar-meta projects-topbar-actions">
+                <a class="topbar-chip topbar-primary-action" href="/projects/new">+ Проект</a>
+                <a class="topbar-chip topbar-primary-action" href="/counterparties/new">+ Контрагент</a>
+                {% if focused_project %}
+                <a class="topbar-chip topbar-open-action" href="/projects/{{ focused_project.id }}/estimate">Открыть смету</a>
+                <a class="topbar-chip topbar-open-action" href="/projects/{{ focused_project.id }}">Карточка проекта</a>
+                <a class="topbar-chip topbar-finance-action" href="/projects/{{ focused_project.id }}#project-finance">Финансы</a>
+                <a class="topbar-chip topbar-price-action" href="/projects/{{ focused_project.id }}/estimate#estimateRatesDrawer">Прайс-лист</a>
+                {% endif %}
                 <a class="topbar-chip topbar-chip-link" href="/account/password">Сменить пароль</a>
             </div>
 
@@ -61,52 +67,10 @@
                         {% endif %}
                     </div>
 
-                    <div class="classic-sidebar-block">
-                        <span class="sidebar-label">Быстрые действия</span>
-                        <div class="classic-actions">
-                            <a class="primary-button classic-action-button" href="/projects/new">+ Новый проект</a>
-                            <a class="ghost-button-light classic-action-button" href="/counterparties/new">+ Новый контрагент</a>
-                            {% if focused_project %}
-                            <a class="classic-secondary-button classic-action-button" href="/projects/{{ focused_project.id }}">Открыть проект</a>
-                            <a class="classic-warning-button classic-action-button" href="/projects/{{ focused_project.id }}/estimate">Открыть смету</a>
-                            {% endif %}
-                        </div>
-                    </div>
                 </div>
             </aside>
 
             <section class="classic-main">
-                <article class="hero-card classic-hero-card">
-                    <div class="hero-grid classic-hero-grid">
-                        <div class="hero-copy-wrap">
-                            <span class="eyebrow">Центр управления объектами</span>
-                            <h2>Все ключевое по проектам в одном экране</h2>
-                            <p class="hero-copy">
-                                Здесь собраны проекты, сметы, договоры и контрагенты без лишнего перегруза. Логика снова ближе к той desktop-версии, где всё было наглядно: слева объекты, справа текущий фокус и рабочая таблица.
-                            </p>
-                            <div class="panel-inline-actions">
-                                <a class="primary-button panel-inline-button" href="/projects/new">Создать проект</a>
-                                <a class="ghost-button-light panel-inline-button" href="/counterparties/new">Добавить контрагента без проекта</a>
-                            </div>
-                        </div>
-
-                        <div class="classic-focus-box">
-                            <span class="search-label">Текущий фокус</span>
-                            {% if focused_project %}
-                            <strong>{{ focused_project.project_name }}</strong>
-                            <p>{{ focused_project.address or focused_project.project_name }}</p>
-                            <div class="classic-focus-links">
-                                <a href="/projects/{{ focused_project.id }}">Карточка проекта</a>
-                                <a href="/projects/{{ focused_project.id }}/estimate">Открыть смету</a>
-                            </div>
-                            {% else %}
-                            <strong>Проектов пока нет</strong>
-                            <p>Начните с создания нового объекта.</p>
-                            {% endif %}
-                        </div>
-                    </div>
-                </article>
-
                 <section class="stats-grid stats-grid-v2 stats-grid-compact">
                     <article class="metric-panel metric-panel-blue">
                         <span class="metric-label">Проекты</span>
@@ -129,24 +93,6 @@
                         <p>Сметы, договоры и связанные файлы.</p>
                     </article>
                 </section>
-
-                {% if focused_project %}
-                <section class="panel-card panel-card-wide classic-focus-panel">
-                    <div class="classic-focus-panel-head">
-                        <div>
-                            <div class="eyebrow">Выбранный объект</div>
-                            <h3>{{ focused_project.project_name }}</h3>
-                            <p>{{ focused_project.counterparty_name or "Контрагент не привязан" }}</p>
-                            <small>{{ focused_project.contract or "Договор не указан" }}{% if focused_project.contract_date %} • {{ focused_project.contract_date }}{% endif %}</small>
-                        </div>
-
-                        <div class="classic-focus-panel-actions">
-                            <a class="classic-success-button" href="/projects/{{ focused_project.id }}/estimate">Открыть смету</a>
-                            <a class="classic-secondary-button" href="/projects/{{ focused_project.id }}">Карточка проекта</a>
-                        </div>
-                    </div>
-                </section>
-                {% endif %}
 
                 <section class="panel-card panel-card-wide projects-panel projects-panel-classic">
                     <div class="panel-header panel-header-wide projects-panel-classic-header">
