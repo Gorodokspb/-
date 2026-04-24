@@ -39,6 +39,10 @@ body {
         linear-gradient(180deg, #f8f4ee 0%, var(--bg) 100%);
 }
 
+body.estimate-modal-open {
+    overflow: hidden;
+}
+
 a {
     color: inherit;
     text-decoration: none;
@@ -3076,7 +3080,7 @@ textarea:focus {
 
 .estimate-tool-search {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 130px auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
     align-items: end;
 }
@@ -3085,57 +3089,84 @@ textarea:focus {
     white-space: nowrap;
 }
 
-.estimate-inline-qty {
-    display: grid;
-    gap: 8px;
-    font-weight: 600;
-}
-
-.estimate-quick-add-panel {
+.estimate-inline-composer-wrap {
     margin-top: 10px;
-    padding: 12px;
-    border-radius: 14px;
-    background: #f8fbff;
-    border: 1px solid rgba(18, 33, 52, 0.08);
 }
 
-.estimate-quick-add-panel-copy {
+.estimate-inline-composer-copy {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
+    margin-bottom: 8px;
 }
 
-.estimate-quick-add-panel-copy strong {
+.estimate-inline-composer-copy strong {
     font-size: 14px;
     line-height: 1.2;
     color: #172434;
 }
 
-.estimate-quick-add-panel-copy p {
+.estimate-inline-composer-copy p {
     color: #58677a;
     line-height: 1.35;
     font-size: 12px;
 }
 
-.estimate-quick-add-panel-fields {
-    margin-top: 10px;
+.estimate-inline-composer {
     display: grid;
-    grid-template-columns: 118px minmax(0, 1.5fr) 92px 110px;
-    gap: 8px;
+    grid-template-columns: 120px minmax(0, 1.8fr) 100px 110px 120px 132px;
+    gap: 0;
+    border: 1px solid rgba(18, 33, 52, 0.08);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
 }
 
-.estimate-quick-add-panel-fields label {
-    display: grid;
-    gap: 8px;
-    font-weight: 600;
+.estimate-inline-composer-cell {
+    border-right: 1px solid rgba(18, 33, 52, 0.08);
+    background: #fff;
 }
 
-.estimate-quick-add-inline-actions {
-    margin-top: 10px;
+.estimate-inline-composer-cell:last-child {
+    border-right: none;
+}
+
+.estimate-inline-composer input,
+.estimate-inline-composer select {
+    height: 100%;
+    min-height: 48px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 12px 14px;
+    box-shadow: none;
+}
+
+.estimate-inline-composer input:focus,
+.estimate-inline-composer select:focus {
+    box-shadow: inset 0 0 0 2px rgba(21, 105, 216, 0.16);
+}
+
+.estimate-inline-composer-action {
     display: flex;
-    flex-wrap: wrap;
+    align-items: stretch;
+}
+
+.estimate-inline-composer-action .primary-button {
+    width: 100%;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.estimate-inline-composer-meta {
+    display: flex;
     gap: 8px;
+    margin-top: 8px;
+}
+
+.estimate-inline-composer-meta .estimate-inline-action {
+    width: auto;
 }
 
 .estimate-inline-action-danger {
@@ -3599,13 +3630,17 @@ textarea:focus {
     .estimate-tool-search,
     .estimate-document-grid,
     .estimate-kpi-grid,
-    .estimate-quick-add-panel-fields {
+    .estimate-inline-composer,
+    .estimate-calculator-layout,
+    .estimate-calculator-base-grid,
+    .estimate-calculator-results-grid {
         grid-template-columns: 1fr;
     }
 
     .estimate-stage-head,
     .estimate-submit-strip,
-    .estimate-quick-add-panel-copy {
+    .estimate-quick-add-panel-copy,
+    .estimate-inline-composer-copy {
         flex-direction: column;
         align-items: start;
     }

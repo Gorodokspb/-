@@ -202,54 +202,53 @@
                                 <span class="sidebar-label">Поиск по смете</span>
                                 <input type="text" id="estimateSearchInput" placeholder="Найдите раздел, работу или единицу измерения">
                             </label>
-                            <label class="estimate-inline-qty">
-                                <span class="sidebar-label">Быстрое кол-во</span>
-                                <input type="text" id="quickAddQuantity" placeholder="1">
-                            </label>
                             <button type="button" class="estimate-tool-tab estimate-tool-tab-primary estimate-tool-tab-compact" id="openEstimateCalculatorInline">Калькулятор</button>
                         </div>
                     </div>
 
-                    <div class="estimate-quick-add-panel">
-                        <div class="estimate-quick-add-panel-copy">
-                            <strong>Быстрое добавление работ</strong>
-                            <p id="estimateQuickAddHint">Новая строка добавится после выделенной позиции или в конец сметы.</p>
+                    <div class="estimate-inline-composer-wrap">
+                        <div class="estimate-inline-composer-copy">
+                            <strong>Новая строка</strong>
+                            <p id="estimateQuickAddHint">Нажми на пустую строку, начни вводить название работы и выбери похожую позицию из справочника. Enter — добавить.</p>
                         </div>
-
-                        <div class="estimate-quick-add-panel-fields">
-                            <label>
-                                <span class="sidebar-label">Тип</span>
+                        <div class="estimate-inline-composer" id="estimateInlineComposer">
+                            <div class="estimate-inline-composer-cell estimate-inline-composer-type">
                                 <select id="quickAddRowType">
                                     <option value="item">Позиция</option>
                                     <option value="section">Раздел</option>
                                 </select>
-                            </label>
-                            <label class="estimate-quick-add-name">
-                                <span class="sidebar-label">Название</span>
-                                <input type="text" id="quickAddName" list="estimateRowNameLibrary" placeholder="Например: Шпаклевка стен">
-                            </label>
-                            <label class="quick-add-item-field">
-                                <span class="sidebar-label">Ед.</span>
-                                <input type="text" id="quickAddUnit" placeholder="м2">
-                            </label>
-                            <label class="quick-add-item-field">
-                                <span class="sidebar-label">Цена</span>
-                                <input type="text" id="quickAddPrice" placeholder="0">
-                            </label>
+                            </div>
+                            <div class="estimate-inline-composer-cell estimate-inline-composer-name">
+                                <input type="text" id="quickAddName" list="estimateRowNameLibrary" placeholder="Начни вводить работу: например, Шпаклевка стен">
+                            </div>
+                            <div class="estimate-inline-composer-cell quick-add-item-field">
+                                <input type="text" id="quickAddUnit" placeholder="Ед.">
+                            </div>
+                            <div class="estimate-inline-composer-cell estimate-inline-composer-qty quick-add-item-field">
+                                <input type="text" id="quickAddQuantity" placeholder="Кол-во">
+                            </div>
+                            <div class="estimate-inline-composer-cell quick-add-item-field">
+                                <input type="text" id="quickAddPrice" placeholder="Цена">
+                            </div>
+                            <div class="estimate-inline-composer-cell estimate-inline-composer-action">
+                                <button type="button" class="primary-button" id="quickAddInlineButton">Добавить</button>
+                            </div>
                             <input type="hidden" id="quickAddReference" value="">
                         </div>
-
-                        <div class="estimate-quick-add-inline-actions">
-                            <button type="button" class="primary-button" id="quickAddInlineButton">Добавить сразу</button>
-                            <button type="button" class="ghost-button-light estimate-inline-action" id="quickAddClearButton">Очистить поля</button>
-                            <button type="button" class="ghost-button-light estimate-inline-action" id="moveUpButton">Выше</button>
-                            <button type="button" class="ghost-button-light estimate-inline-action" id="moveDownButton">Ниже</button>
-                            <button type="button" class="ghost-button-light estimate-inline-action" id="clearSelectionButton">Снять выделение</button>
-                            <button type="button" class="ghost-button-light estimate-inline-action" id="addBelowButton">+ Ниже строку</button>
-                            <button type="button" class="ghost-button-light estimate-inline-action" id="editRowButton">Изменить</button>
-                            <button type="button" class="ghost-button-light estimate-inline-action" id="duplicateRowButton">Дублировать</button>
-                            <button type="button" class="ghost-button-light estimate-inline-action estimate-inline-action-danger" id="deleteRowButton">Удалить</button>
+                        <div class="estimate-inline-composer-meta">
+                            <button type="button" class="ghost-button-light estimate-inline-action" id="quickAddClearButton">Очистить</button>
+                            <button type="button" class="ghost-button-light estimate-inline-action" id="openDrawerRatesInline">Показать похожие из прайса</button>
                         </div>
+                    </div>
+
+                    <div class="estimate-hidden-actions" hidden>
+                        <button type="button" id="moveUpButton">Выше</button>
+                        <button type="button" id="moveDownButton">Ниже</button>
+                        <button type="button" id="clearSelectionButton">Снять выделение</button>
+                        <button type="button" id="addBelowButton">Ниже строку</button>
+                        <button type="button" id="editRowButton">Изменить</button>
+                        <button type="button" id="duplicateRowButton">Дублировать</button>
+                        <button type="button" id="deleteRowButton">Удалить</button>
                     </div>
 
                     <div class="estimate-table-toolbar estimate-table-toolbar-v3">

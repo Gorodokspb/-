@@ -65,7 +65,7 @@
     const operationsLibrary = document.getElementById("estimateOperationsLibrary");
     const templatesLibrary = document.getElementById("estimateTemplatesLibrary");
     const drawerOpeners = {
-        rates: Array.from(document.querySelectorAll("#openDrawerRates, #openDrawerRatesTop")),
+        rates: Array.from(document.querySelectorAll("#openDrawerRates, #openDrawerRatesTop, #openDrawerRatesInline")),
         operations: Array.from(document.querySelectorAll("#openDrawerOperations, #openDrawerOperationsTop")),
         templates: Array.from(document.querySelectorAll("#openDrawerTemplates, #openDrawerTemplatesTop")),
     };
@@ -125,6 +125,25 @@
 
     function formatMoneyLabel(value) {
         return formatNumber(value || 0);
+    }
+
+    function normalizeDecimalDisplay(value) {
+        const raw = String(value ?? "").trim();
+        if (!raw) {
+            return "";
+        }
+                return raw
+            .replace(/^,/, "0,")
+            .replace(/^\./, "0.")
+            .replace(/^-\,/, "-0,")
+            .replace(/^-\./, "-0.");
+    }
+
+    function normalizeDecimalInputValue(input) {
+        if (!input) {
+            return;
+        }
+        input.value = normalizeDecimalDisplay(input.value);
     }
 
     function normalizeText(value) {
@@ -1161,6 +1180,17 @@
         syncQuickAddFieldVisibility();
     }
 
+    function addQuickRowFromEnter(event) {
+        if (event.key !== "Enter") {
+            return;
+        }
+        if (event.target === quickAddRowType) {
+            return;
+        }
+        event.preventDefault();
+        addQuickRow();
+    }
+
     function buildQuickAddRow() {
         applySuggestedValues(quickAddName, quickAddUnit, quickAddPrice, quickAddReference);
         return normalizeRow({
@@ -1227,9 +1257,14 @@
         renderCalculatorSimpleList(calcWallsContainer, calcState.walls, (_entry, index) => `Стена ${index + 1}`, (row, _entry, index) => {
             const input = document.createElement("input");
             input.type = "text";
-            input.value = calcState.walls[index];
+            input.value = normalizeDecimalDisplay(calcState.walls[index]);
             input.placeholder = "0";
             input.addEventListener("input", () => {
+                calcState.walls[index] = input.value;
+                recalculateCalculator();
+            });
+            input.addEventListener("blur", () => {
+                normalizeDecimalInputValue(input);
                 calcState.walls[index] = input.value;
                 recalculateCalculator();
             });
@@ -1251,18 +1286,28 @@
         renderCalculatorSimpleList(calcOpeningsContainer, calcState.openings, (entry, index) => `${entry.type === "door" ? "Дверь" : "Окно"} ${index + 1}`, (row, entry, index) => {
             const width = document.createElement("input");
             width.type = "text";
-            width.value = entry.w;
+            width.value = normalizeDecimalDisplay(entry.w);
             width.placeholder = "Ширина";
             width.addEventListener("input", () => {
+                calcState.openings[index].w = width.value;
+                recalculateCalculator();
+            });
+            width.addEventListener("blur", () => {
+                normalizeDecimalInputValue(width);
                 calcState.openings[index].w = width.value;
                 recalculateCalculator();
             });
             row.appendChild(width);
             const height = document.createElement("input");
             height.type = "text";
-            height.value = entry.h;
+            height.value = normalizeDecimalDisplay(entry.h);
             height.placeholder = "Высота";
             height.addEventListener("input", () => {
+                calcState.openings[index].h = height.value;
+                recalculateCalculator();
+            });
+            height.addEventListener("blur", () => {
+                normalizeDecimalInputValue(height);
                 calcState.openings[index].h = height.value;
                 recalculateCalculator();
             });
@@ -1282,18 +1327,28 @@
         renderCalculatorSimpleList(calcFloorModsContainer, calcState.floor_mods, (entry, index) => `${entry.type === "box" ? "Короб (-)" : "Ниша (+)"} ${index + 1}`, (row, entry, index) => {
             const width = document.createElement("input");
             width.type = "text";
-            width.value = entry.w;
+            width.value = normalizeDecimalDisplay(entry.w);
             width.placeholder = "Ширина";
             width.addEventListener("input", () => {
+                calcState.floor_mods[index].w = width.value;
+                recalculateCalculator();
+            });
+            width.addEventListener("blur", () => {
+                normalizeDecimalInputValue(width);
                 calcState.floor_mods[index].w = width.value;
                 recalculateCalculator();
             });
             row.appendChild(width);
             const height = document.createElement("input");
             height.type = "text";
-            height.value = entry.h;
+            height.value = normalizeDecimalDisplay(entry.h);
             height.placeholder = "Высота";
             height.addEventListener("input", () => {
+                calcState.floor_mods[index].h = height.value;
+                recalculateCalculator();
+            });
+            height.addEventListener("blur", () => {
+                normalizeDecimalInputValue(height);
                 calcState.floor_mods[index].h = height.value;
                 recalculateCalculator();
             });
@@ -1312,9 +1367,12 @@
     }
 
     function recalculateCalculator() {
-        calcState.wall_height = calcWallHeight ? calcWallHeight.value : calcState.wall_height;
-        calcState.floor_length = calcFloorLength ? calcFloorLength.value : calcState.floor_length;
-        calcState.floor_width = calcFloorWidth ? calcFloorWidth.value : calcState.floor_width;
+        calcState.wall_height = calcWallHeight ? normalizeDecimalDisplay(calcWallHeight.value) : calcState.wall_height;
+        calcState.floor_length = calcFloorLength ? normalizeDecimalDisplay(calcFloorLength.value) : calcState.floor_length;
+        calcState.floor_width = calcFloorWidth ? normalizeDecimalDisplay(calcFloorWidth.value) : calcState.floor_width;
+        if (calcWallHeight) calcWallHeight.value = calcState.wall_height;
+        if (calcFloorLength) calcFloorLength.value = calcState.floor_length;
+        if (calcFloorWidth) calcFloorWidth.value = calcState.floor_width;
 
         const perimeter = calcState.walls.reduce((sum, value) => sum + parseNumber(value), 0);
         const height = parseNumber(calcState.wall_height);
@@ -1360,6 +1418,7 @@
         if (!calculatorDialog) {
             return;
         }
+        document.body.classList.add("estimate-modal-open");
         renderCalculatorRows();
         recalculateCalculator();
         calculatorDialog.showModal();
@@ -1367,6 +1426,7 @@
 
     function closeCalculator() {
         syncCalcStatePayload();
+        document.body.classList.remove("estimate-modal-open");
         if (calculatorDialog?.open) {
             calculatorDialog.close();
         }
@@ -1450,6 +1510,9 @@
     calcWallHeight?.addEventListener("input", recalculateCalculator);
     calcFloorLength?.addEventListener("input", recalculateCalculator);
     calcFloorWidth?.addEventListener("input", recalculateCalculator);
+    calcWallHeight?.addEventListener("blur", () => { normalizeDecimalInputValue(calcWallHeight); recalculateCalculator(); });
+    calcFloorLength?.addEventListener("blur", () => { normalizeDecimalInputValue(calcFloorLength); recalculateCalculator(); });
+    calcFloorWidth?.addEventListener("blur", () => { normalizeDecimalInputValue(calcFloorWidth); recalculateCalculator(); });
     addCalculatorWall?.addEventListener("click", () => {
         calcState.walls.push("0");
         renderCalculatorRows();
@@ -1478,12 +1541,10 @@
     calcInsertButtons.forEach((button) => {
         button.addEventListener("click", () => insertCalculatorValue(button.dataset.calcInsert));
     });
-    quickAddName?.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-            event.preventDefault();
-            addQuickRow();
-        }
-    });
+    quickAddName?.addEventListener("keydown", addQuickRowFromEnter);
+    quickAddUnit?.addEventListener("keydown", addQuickRowFromEnter);
+    quickAddQuantity?.addEventListener("keydown", addQuickRowFromEnter);
+    quickAddPrice?.addEventListener("keydown", addQuickRowFromEnter);
 
     searchInput?.addEventListener("input", renderRows);
     drawerSearch?.addEventListener("input", renderDrawerLibraries);
