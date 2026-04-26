@@ -1,5 +1,13 @@
 # Changelog — handoff_to_hermes
 
+## 2026-04-26 20:02 UTC
+- Добавлен глобальный `base.html`: sticky header, логотип `Декорартстрой`, навигация, `+ Действие`, flash messages и единая модалка создания транзакции.
+- Реализован модуль `/finance` со сквозной кассой: `transactions`, баланс = доходы − расходы, добавление транзакций из любого раздела.
+- Таблица `transactions` использует `amount DECIMAL(12, 2)`, `status DEFAULT 'completed'`, `project_id ... ON DELETE SET NULL`, индекс `idx_transactions_project_id`.
+- Карточка проекта `/projects/<id>` показывает `Финансы объекта`: только транзакции этого проекта и прибыль/ROI = доходы − расходы; модалка автоподставляет текущий проект.
+- Добавлены `tests/test_finance_module.py`; проверено 24 unittest OK, `py_compile` OK, `dekorcrm-web` active, live smoke `/finance` и зеркалирование транзакции в проект с последующим удалением smoke-записи.
+- Детали сохранены в `09_FINANCE_MODULE_NOTES.md`; секреты не сохранялись.
+
 ## 2026-04-26 18:49 UTC
 - Реализован структурированный справочник работ `/catalog`: категории, CRUD, копирование, живой поиск, компактная таблица, sticky header/category rows.
 - `catalog_items` расширен полем `category`; обеспечены `name UNIQUE` и миграция автокатегоризации существующих строк.

@@ -7,8 +7,85 @@
     <title>{% block title %}Dekorartstroy CRM{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
 </head>
-<body>
+<body data-current-project-id="{{ current_project_id or '' }}">
+    <header class="global-header">
+        <a class="global-logo" href="/projects" aria-label="Декорартстрой — проекты">Декорартстрой</a>
+        <nav class="global-nav" aria-label="Главное меню">
+            <a class="global-nav-link {% if active_section == 'projects' %}is-active{% endif %}" href="/projects">Проекты</a>
+            <a class="global-nav-link {% if active_section == 'estimates' %}is-active{% endif %}" href="/projects">Сметы</a>
+            <a class="global-nav-link {% if active_section == 'catalog' %}is-active{% endif %}" href="/catalog">Справочник</a>
+            <a class="global-nav-link {% if active_section == 'calculator' %}is-active{% endif %}" href="/projects">Калькулятор</a>
+            <a class="global-nav-link {% if active_section == 'finance' %}is-active{% endif %}" href="/finance">Финансы</a>
+        </nav>
+        <div class="global-actions">
+            <button class="global-action-button global-action-open" type="button" data-open-modal="quickTransactionModal">+ Действие</button>
+        </div>
+    </header>
+
+    {% set flash_messages = flash_messages or [] %}
+    {% if flash_messages %}
+    <section class="flash-stack" aria-live="polite">
+        {% for message in flash_messages %}
+        <div class="flash-message flash-message-{{ message.type or 'info' }}">{{ message.text }}</div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
     {% block body %}{% endblock %}
+
+    <div class="modal-backdrop quick-action-modal" id="quickTransactionModal" hidden>
+        <div class="catalog-modal-card finance-modal-card" role="dialog" aria-modal="true" aria-labelledby="quickTransactionTitle">
+            <div class="catalog-modal-head">
+                <div>
+                    <span class="eyebrow">Сквозная касса</span>
+                    <h3 id="quickTransactionTitle">Добавить транзакцию</h3>
+                </div>
+                <button class="icon-button" type="button" data-close-modal="quickTransactionModal" aria-label="Закрыть">×</button>
+            </div>
+            <form class="catalog-modal-form finance-transaction-form" method="post" action="/finance/transactions">
+                <input type="hidden" name="return_to" value="{{ request.url.path if request is defined else '/finance' }}">
+                <div class="catalog-modal-grid">
+                    <label>
+                        <span class="sidebar-label">Тип</span>
+                        <select name="transaction_type" required>
+                            <option value="income">Доход</option>
+                            <option value="expense">Расход</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Сумма</span>
+                        <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required>
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Категория</span>
+                        <select name="category">
+                            {% for category in finance_categories or ['Материалы', 'Зарплата', 'Аванс', 'Налоги', 'Оплата', 'Прочее'] %}
+                            <option value="{{ category }}">{{ category }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Привязать к проекту</span>
+                        <select name="project_id" data-project-autoselect>
+                            <option value="">Без привязки</option>
+                            {% for project_option in quick_action_projects or [] %}
+                            <option value="{{ project_option.id }}" {% if current_project_id and current_project_id == project_option.id %}selected{% endif %}>{{ project_option.project_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="catalog-modal-span-2">
+                        <span class="sidebar-label">Описание</span>
+                        <textarea name="description" rows="3" placeholder="Например: аванс, закупка материалов, зарплата бригаде"></textarea>
+                    </label>
+                </div>
+                <div class="catalog-modal-actions">
+                    <button class="ghost-button" type="button" data-close-modal="quickTransactionModal">Отмена</button>
+                    <button class="primary-button" type="submit">Сохранить транзакцию</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', path='/app.js') }}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>

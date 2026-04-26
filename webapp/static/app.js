@@ -172,10 +172,17 @@
         });
     }
 
-    document.querySelectorAll("[data-open-modal]").forEach((button) => {
+    document.querySelectorAll(".global-action-open[data-open-modal], [data-open-modal]").forEach((button) => {
         button.addEventListener("click", () => {
             const modal = document.getElementById(button.dataset.openModal);
-            if (modal) modal.hidden = false;
+            if (modal) {
+                const currentProjectId = document.body ? document.body.dataset.currentProjectId : "";
+                const projectSelect = modal.querySelector("[data-project-autoselect]");
+                if (currentProjectId && projectSelect && Array.from(projectSelect.options).some((option) => option.value === currentProjectId)) {
+                    projectSelect.value = currentProjectId;
+                }
+                modal.hidden = false;
+            }
         });
     });
     document.querySelectorAll("[data-close-modal]").forEach((button) => {

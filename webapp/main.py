@@ -15,8 +15,10 @@ from webapp.db import (
     create_counterparty,
     create_project,
     create_catalog_item,
+    create_transaction,
     delete_catalog_item,
     duplicate_catalog_item,
+    ensure_transactions_table,
     ensure_catalog_items_table,
     migrate_catalog_item_categories,
     fetch_catalog_items,
@@ -34,9 +36,12 @@ from webapp.db import (
     fetch_project_documents,
     fetch_project_estimate,
     fetch_project_events,
+    fetch_project_transactions,
     fetch_projects,
+    fetch_transactions,
     fetch_web_user,
     save_project_estimate,
+    summarize_transactions,
     update_project_card,
     update_web_user_password,
 )
@@ -78,6 +83,7 @@ app.mount(
 @app.on_event("startup")
 def startup_web_auth() -> None:
     ensure_auth_bootstrap()
+    ensure_transactions_table()
     ensure_catalog_items_table()
     migrate_catalog_item_categories()
 
@@ -147,6 +153,19 @@ def require_auth(request: Request) -> None:
         )
 
 
+def common_template_context(request: Request, active_section: str = "") -> dict:
+    try:
+        quick_projects = [project for project in fetch_projects() if project.get("status") != "Завершен"]
+    except Exception:
+        quick_projects = []
+    return {
+        "username": request.session.get("username", settings.admin_username),
+        "active_section": active_section,
+        "quick_action_projects": quick_projects,
+        "finance_categories": ["Материалы", "Зарплата", "Аванс", "Налоги", "Оплата", "Прочее"],
+    }
+
+
 def render_project_detail(
     request: Request,
     project: dict,
@@ -167,18 +186,25 @@ def render_project_detail(
         document["has_draft"] = bool(resolve_storage_path(document.get("draft_path")))
         document["has_pdf"] = bool(resolve_storage_path(document.get("pdf_path")))
 
+    project_transactions = fetch_project_transactions(int(project["id"]))
+    project_finance_summary = summarize_transactions(project_transactions)
+
     return templates.TemplateResponse(
         request=request,
         name="project_detail.html",
         context={
+            **common_template_context(request, "projects"),
+            "current_project_id": project.get("id"),
             "project": project,
             "counterparties": counterparties,
             "documents": documents,
             "events": events,
             "status_options": PROJECT_STATUS_OPTIONS,
-            "username": request.session.get("username", settings.admin_username),
+            "project_transactions": project_transactions,
+            "project_finance_summary": project_finance_summary,
             "saved": saved,
             "error": error,
+            "flash_messages": ([{"type": "success", "text": request.query_params.get("message", "")}] if request.query_params.get("message", "") else []),
         },
         status_code=status_code,
     )
@@ -378,12 +404,50 @@ def projects_page(request: Request):
         request=request,
         name="projects.html",
         context={
+            **common_template_context(request, "projects"),
             "projects": projects,
             "finance": fetch_dashboard_finance(projects),
-            "username": request.session.get("username", settings.admin_username),
             "created": request.query_params.get("created", ""),
         },
     )
+
+
+@app.get("/finance")
+def finance_page(request: Request):
+    require_auth(request)
+    transactions = fetch_transactions()
+    flash = request.query_params.get("message", "")
+    return templates.TemplateResponse(
+        request=request,
+        name="finance.html",
+        context={
+            **common_template_context(request, "finance"),
+            "transactions": transactions,
+            "finance_summary": summarize_transactions(transactions),
+            "flash_messages": ([{"type": "success", "text": flash}] if flash else []),
+        },
+    )
+
+
+@app.post("/finance/transactions")
+def finance_transaction_create(
+    request: Request,
+    transaction_type: str = Form("expense"),
+    amount: str = Form(""),
+    description: str = Form(""),
+    category: str = Form("Прочее"),
+    project_id: str = Form(""),
+    return_to: str = Form("/finance"),
+):
+    require_auth(request)
+    safe_return = return_to if str(return_to or "").startswith("/") and not str(return_to or "").startswith("//") else "/finance"
+    try:
+        create_transaction(transaction_type, amount, description, category, project_id)
+    except Exception as exc:
+        separator = "&" if "?" in safe_return else "?"
+        return RedirectResponse(url=f"{safe_return}{separator}message=Ошибка: {str(exc)}", status_code=status.HTTP_302_FOUND)
+    separator = "&" if "?" in safe_return else "?"
+    return RedirectResponse(url=f"{safe_return}{separator}message=Транзакция успешно добавлена", status_code=status.HTTP_302_FOUND)
 
 
 @app.get("/catalog")
@@ -399,10 +463,10 @@ def catalog_page(request: Request):
         request=request,
         name="catalog.html",
         context={
+            **common_template_context(request, "catalog"),
             "items": items,
             "grouped_items": grouped,
             "categories": CATEGORY_OPTIONS,
-            "username": request.session.get("username", settings.admin_username),
             "message": request.query_params.get("message", ""),
         },
     )

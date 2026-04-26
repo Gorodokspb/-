@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Финансы | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="dashboard-shell finance-shell">
+    <div class="workspace-frame workspace-frame-desktop">
+        <section class="panel-card panel-card-wide finance-panel">
+            <div class="panel-header panel-header-wide">
+                <div>
+                    <div class="eyebrow">Сквозная касса</div>
+                    <h1>Общая касса</h1>
+                    <p class="panel-lead">Все доходы и расходы компании. Записи с проектом автоматически видны в карточке объекта.</p>
+                </div>
+                <button class="primary-button global-action-open" type="button" data-open-modal="quickTransactionModal">+ Добавить транзакцию</button>
+            </div>
+
+            <div class="finance-summary-row">
+                <article><span>Доходы</span><strong>{{ finance_summary.income_label }}</strong></article>
+                <article><span>Расходы</span><strong>{{ finance_summary.expense_label }}</strong></article>
+                <article><span>Баланс</span><strong>{{ finance_summary.balance_label }}</strong></article>
+            </div>
+
+            <div class="finance-table-wrap">
+                <table class="finance-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Дата</th>
+                            <th>Тип</th>
+                            <th>Категория</th>
+                            <th>Описание</th>
+                            <th>Проект</th>
+                            <th>Статус</th>
+                            <th>Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                        <tr class="transaction-row transaction-{{ transaction.type }}">
+                            <td class="cell-id">{{ transaction.id }}</td>
+                            <td>{{ transaction.date or "—" }}</td>
+                            <td>{{ transaction.type_label }}</td>
+                            <td>{{ transaction.category }}</td>
+                            <td>{{ transaction.description or "—" }}</td>
+                            <td>
+                                {% if transaction.project_id %}
+                                <a class="inline-link" href="/projects/{{ transaction.project_id }}#project-finance">{{ transaction.project_name or ('Проект #' ~ transaction.project_id) }}</a>
+                                {% else %}
+                                <span class="cell-muted">Без привязки</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ transaction.status or "completed" }}</td>
+                            <td class="finance-amount-cell">{{ transaction.amount_label }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="8" class="cell-muted">Транзакций пока нет. Добавьте первую запись через «+ Действие».</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</main>
+{% endblock %}

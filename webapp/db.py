@@ -1174,6 +1174,142 @@ def update_web_user_password(username: str, password_hash: str, updated_by: str)
     return fetch_web_user(normalized_username)
 
 
+# --- Finance transactions -----------------------------------------------------
+
+FINANCE_CATEGORIES = ["Материалы", "Зарплата", "Аванс", "Налоги", "Оплата", "Прочее"]
+TRANSACTION_TYPES = {"income", "expense"}
+_TRANSACTIONS_TABLE_READY = False
+
+
+def ensure_transactions_table() -> None:
+    global _TRANSACTIONS_TABLE_READY
+    if _TRANSACTIONS_TABLE_READY:
+        return
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id SERIAL PRIMARY KEY,
+                    type VARCHAR(20) NOT NULL,
+                    amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+                    description TEXT,
+                    date TIMESTAMP NOT NULL DEFAULT NOW(),
+                    project_id INTEGER NULL REFERENCES projects(id) ON DELETE SET NULL,
+                    category VARCHAR(100) NOT NULL DEFAULT 'Прочее',
+                    status VARCHAR(30) NOT NULL DEFAULT 'completed'
+                )
+                """
+            )
+            cur.execute("ALTER TABLE transactions ALTER COLUMN amount TYPE DECIMAL(12, 2) USING amount::DECIMAL(12, 2)")
+            cur.execute("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'completed'")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date DESC, id DESC)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_transactions_project_id ON transactions(project_id)")
+        conn.commit()
+    _TRANSACTIONS_TABLE_READY = True
+
+
+def _normalize_transaction_type(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized not in TRANSACTION_TYPES:
+        raise ValueError("Тип транзакции должен быть income или expense.")
+    return normalized
+
+
+def _normalize_transaction_category(value: str) -> str:
+    category = str(value or "").strip()
+    return category or "Прочее"
+
+
+def create_transaction(transaction_type: str, amount, description: str, category: str, project_id=None, tx_status: str = "completed") -> int:
+    ensure_transactions_table()
+    normalized_type = _normalize_transaction_type(transaction_type)
+    amount_value = parse_tree_number(amount)
+    if amount_value <= 0:
+        raise ValueError("Сумма должна быть больше нуля.")
+    normalized_project_id = int(project_id) if str(project_id or "").strip() else None
+    normalized_status = str(tx_status or "completed").strip() or "completed"
+    now = datetime.now()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO transactions (type, amount, description, category, project_id, status, date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    normalized_type,
+                    amount_value,
+                    str(description or "").strip(),
+                    _normalize_transaction_category(category),
+                    normalized_project_id,
+                    normalized_status,
+                    now,
+                ),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return int(row["id"] if isinstance(row, dict) else row[0])
+
+
+def fetch_transactions(project_id: int | None = None) -> list[dict]:
+    ensure_transactions_table()
+    where = ""
+    params: tuple = ()
+    if project_id is not None:
+        where = "WHERE t.project_id = %s"
+        params = (int(project_id),)
+    query = f"""
+        SELECT
+            t.id,
+            t.type,
+            t.amount,
+            COALESCE(t.description, '') AS description,
+            t.date,
+            t.project_id,
+            COALESCE(t.category, 'Прочее') AS category,
+            COALESCE(t.status, 'completed') AS status,
+            COALESCE(NULLIF(p.project_name, ''), NULLIF(p.address, ''), '') AS project_name
+        FROM transactions t
+        LEFT JOIN projects p ON p.id = t.project_id
+        {where}
+        ORDER BY t.date DESC, t.id DESC
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+    for row in rows:
+        row["amount_label"] = _format_rubles(parse_tree_number(row.get("amount")))
+        row["type_label"] = "Доход" if row.get("type") == "income" else "Расход"
+    return rows
+
+
+def fetch_project_transactions(project_id: int) -> list[dict]:
+    return fetch_transactions(project_id=int(project_id))
+
+
+def summarize_transactions(transactions: list[dict]) -> dict:
+    income = 0.0
+    expense = 0.0
+    for item in transactions or []:
+        amount = parse_tree_number((item or {}).get("amount"))
+        if (item or {}).get("type") == "income":
+            income += amount
+        elif (item or {}).get("type") == "expense":
+            expense += amount
+    balance = income - expense
+    return {
+        "income": round(income, 2),
+        "expense": round(expense, 2),
+        "balance": round(balance, 2),
+        "income_label": _format_rubles(income),
+        "expense_label": _format_rubles(expense),
+        "balance_label": _format_rubles(balance),
+    }
+
+
 # --- Catalog items management -------------------------------------------------
 
 def ensure_catalog_items_table() -> None:

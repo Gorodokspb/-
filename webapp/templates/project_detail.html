@@ -148,18 +148,43 @@
             <article class="panel-card panel-card-wide project-overview-card" id="project-finance">
                 <div class="panel-header panel-header-compact">
                     <div>
-                        <div class="eyebrow">Смета и баланс</div>
-                        <h3>Смета и баланс объекта</h3>
+                        <div class="eyebrow">Финансы объекта</div>
+                        <h3>Финансы объекта</h3>
                     </div>
                 </div>
 
-                <div class="project-finance-box">
-                    <span class="cell-muted">Черновик сметы: {% if documents %}Да{% else %}Нет{% endif %} • Файлов: {{ documents|length }}</span>
+                <div class="project-finance-box project-finance-ledger" data-project-id="{{ project.id }}" data-finance-action="/finance/transactions">
+                    <span class="cell-muted">Транзакции из общей кассы автоматически отображаются здесь, если привязаны к этому объекту.</span>
                     <div class="project-finance-amount">
-                        <span>Текущая сумма по смете</span>
-                        <strong>0 руб.</strong>
+                        <span>Прибыль = Доходы − Расходы</span>
+                        <strong>{{ project_finance_summary.balance_label }}</strong>
                     </div>
-                    <a class="inline-link" href="/projects/{{ project.id }}/estimate">Баланс по объекту: 0 руб.</a>
+                    <div class="finance-summary-row finance-summary-row-compact">
+                        <div><span>Доходы</span><strong>{{ project_finance_summary.income_label }}</strong></div>
+                        <div><span>Расходы</span><strong>{{ project_finance_summary.expense_label }}</strong></div>
+                        <div><span>Прибыль</span><strong>{{ project_finance_summary.balance_label }}</strong></div>
+                    </div>
+                    <div class="finance-table-wrap project-finance-table-wrap">
+                        <table class="finance-table">
+                            <thead>
+                                <tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Описание</th><th>Сумма</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for transaction in project_transactions %}
+                                <tr class="transaction-row transaction-{{ transaction.type }}">
+                                    <td>{{ transaction.date or "—" }}</td>
+                                    <td>{{ transaction.type_label }}</td>
+                                    <td>{{ transaction.category }}</td>
+                                    <td>{{ transaction.description or "—" }}</td>
+                                    <td class="finance-amount-cell">{{ transaction.amount_label }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="5" class="cell-muted">По объекту пока нет доходов или расходов.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="inline-link inline-button-link global-action-open" type="button" data-open-modal="quickTransactionModal">+ Добавить транзакцию по объекту</button>
                 </div>
             </article>
         </section>
