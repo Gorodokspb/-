@@ -23,6 +23,7 @@ from webapp.db import (
     fetch_catalog_items_by_names,
     upsert_new_catalog_items,
     apply_catalog_conflict_items,
+    bulk_update_catalog_categories,
     update_catalog_item,
     ensure_web_user,
     ensure_web_users_table,
@@ -449,6 +450,22 @@ def catalog_item_copy(request: Request, item_id: int):
     require_auth(request)
     duplicate_catalog_item(item_id)
     return RedirectResponse(url="/catalog?message=Копия создана", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/catalog/bulk-update-categories")
+async def catalog_bulk_update_categories(request: Request):
+    require_auth(request)
+    try:
+        payload = await request.json()
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Некорректный JSON") from exc
+    if not isinstance(payload, list):
+        raise HTTPException(status_code=400, detail="Ожидается список изменений")
+    try:
+        updated = bulk_update_catalog_categories(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"updated": updated}
 
 
 @app.post("/catalog/upload")

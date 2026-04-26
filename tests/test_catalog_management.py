@@ -56,6 +56,33 @@ class CatalogManagementTests(unittest.TestCase):
         self.assertIn("/catalog/upload", template)
         self.assertIn("<select", template)
 
+    def test_catalog_template_supports_inline_bulk_category_editing(self):
+        template = Path("webapp/templates/catalog.html").read_text(encoding="utf-8")
+
+        self.assertIn("catalogBulkSaveButton", template)
+        self.assertIn("Сохранить все изменения", template)
+        self.assertIn("data-bulk-category-select", template)
+        self.assertIn("data-item-id=\"{{ item.id }}\"", template)
+        self.assertIn("data-original-category=\"{{ item.category }}\"", template)
+        self.assertIn("disabled hidden", template)
+
+    def test_catalog_bulk_category_assets_and_backend_route_exist(self):
+        script = Path("webapp/static/app.js").read_text(encoding="utf-8")
+        styles = Path("webapp/static/app.css").read_text(encoding="utf-8")
+        main = Path("webapp/main.py").read_text(encoding="utf-8")
+        db = Path("webapp/db.py").read_text(encoding="utf-8")
+
+        self.assertIn("catalogCategoryChanges", script)
+        self.assertIn("data-bulk-category-select", script)
+        self.assertIn("/catalog/bulk-update-categories", script)
+        self.assertIn("fetch(", script)
+        self.assertIn("catalog-row:nth-of-type", styles)
+        self.assertIn("catalog-category-select-borderless", styles)
+        self.assertIn("@app.post(\"/catalog/bulk-update-categories\")", main)
+        self.assertIn("bulk_update_catalog_categories", main)
+        self.assertIn("def bulk_update_catalog_categories", db)
+        self.assertIn("CASE", db)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -4796,12 +4796,12 @@ textarea:focus {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .catalog-table th,
 .catalog-table td {
-    padding: 4px 6px;
+    padding: 3px 5px;
     border-bottom: 1px solid rgba(21, 38, 57, 0.08);
     vertical-align: middle;
 }
@@ -4841,12 +4841,60 @@ textarea:focus {
 .catalog-modal-form input,
 .catalog-modal-form select {
     width: 100%;
-    min-height: 28px;
+    min-height: 24px;
     border: 1px solid rgba(21, 38, 57, 0.14);
-    border-radius: 8px;
-    padding: 4px 7px;
+    border-radius: 7px;
+    padding: 2px 6px;
     font: inherit;
     background: #fff;
+}
+
+.catalog-table tbody .catalog-row:nth-of-type(odd) {
+    background: rgba(255, 255, 255, 0.72);
+}
+
+.catalog-table tbody .catalog-row:nth-of-type(even) {
+    background: rgba(246, 240, 231, 0.72);
+}
+
+.catalog-table tbody .catalog-row:hover {
+    background: rgba(21, 105, 216, 0.06);
+}
+
+.catalog-table tbody .catalog-row.is-dirty {
+    background: rgba(209, 138, 29, 0.12);
+}
+
+.catalog-category-select-borderless {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.catalog-category-select-borderless:hover,
+.catalog-category-select-borderless:focus,
+.catalog-category-select-borderless.is-dirty {
+    border-color: rgba(21, 105, 216, 0.32);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(21, 105, 216, 0.08);
+}
+
+.catalog-bulk-save-button[hidden] {
+    display: none;
+}
+
+.catalog-bulk-save-button:disabled {
+    opacity: 0.55;
+    cursor: default;
+    transform: none;
+}
+
+.catalog-bulk-status {
+    min-width: 170px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
 }
 
 .catalog-name-input { min-width: 360px; }

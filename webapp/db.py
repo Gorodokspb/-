@@ -1322,3 +1322,43 @@ def apply_catalog_conflict_items(items: list[dict]):
     ensure_catalog_items_table()
     with get_connection() as conn:
         return upsert_catalog_items(conn, items)
+
+
+def bulk_update_catalog_categories(updates: list[dict]) -> int:
+    from import_catalog_items import CATEGORY_OPTIONS
+
+    ensure_catalog_items_table()
+    normalized: dict[int, str] = {}
+    for item in updates or []:
+        if not isinstance(item, dict):
+            raise ValueError('Каждое изменение должно быть объектом.')
+        try:
+            item_id = int(item.get('id'))
+        except (TypeError, ValueError) as exc:
+            raise ValueError('Некорректный id работы.') from exc
+        category = str(item.get('category') or '').strip()
+        if category not in CATEGORY_OPTIONS:
+            raise ValueError(f'Некорректная категория: {category}')
+        normalized[item_id] = category
+
+    if not normalized:
+        return 0
+
+    case_parts = []
+    params: list = []
+    ids = list(normalized.keys())
+    for item_id, category in normalized.items():
+        case_parts.append('WHEN %s THEN %s')
+        params.extend([item_id, category])
+    params.append(ids)
+    query = f"""
+        UPDATE catalog_items
+        SET category = CASE id {' '.join(case_parts)} ELSE category END
+        WHERE id = ANY(%s)
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, tuple(params))
+            updated = cur.rowcount if cur.rowcount is not None else 0
+        conn.commit()
+    return int(updated)

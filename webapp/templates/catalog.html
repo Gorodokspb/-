@@ -26,6 +26,8 @@
             <input id="catalogSearch" class="toolbar-input" type="search" placeholder="Название работы">
         </label>
         <button class="primary-button catalog-add-toggle" type="button" data-open-modal="catalogAddModal">Добавить работу</button>
+        <button id="catalogBulkSaveButton" class="primary-button catalog-bulk-save-button" type="button" disabled hidden>Сохранить все изменения</button>
+        <span id="catalogBulkStatus" class="catalog-bulk-status" aria-live="polite"></span>
         <form class="catalog-upload-form" method="post" action="/catalog/upload" enctype="multipart/form-data">
             <input type="file" name="file" accept=".xlsx" required>
             <button class="ghost-button" type="submit">Импорт .xlsx</button>
@@ -55,7 +57,7 @@
                         <td><input class="catalog-input catalog-unit-input" name="unit" value="{{ item.unit }}"></td>
                         <td><input class="catalog-input catalog-price-input" name="price" value="{{ item.price if item.price is not none else '' }}"></td>
                         <td>
-                            <select class="catalog-select" name="category">
+                            <select class="catalog-select catalog-category-select-borderless" name="category" data-bulk-category-select data-item-id="{{ item.id }}" data-original-category="{{ item.category }}">
                                 {% for category in categories %}
                                 <option value="{{ category }}" {% if category == item.category %}selected{% endif %}>{{ category }}</option>
                                 {% endfor %}
