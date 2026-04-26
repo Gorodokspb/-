@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Каталог работ | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="catalog-shell">
+    <header class="catalog-topbar">
+        <a class="topbar-logo-slot" href="/projects" aria-label="CRM198.ru">
+            <img src="/static/img/crm198-logo.jpg" alt="CRM198.ru">
+        </a>
+        <div>
+            <span class="eyebrow">Справочник цен</span>
+            <h1>Каталог работ</h1>
+        </div>
+        <nav class="catalog-nav">
+            <a class="topbar-chip topbar-open-action" href="/projects">Проекты</a>
+            <form method="post" action="/logout"><button class="ghost-button" type="submit">Выйти</button></form>
+        </nav>
+    </header>
+
+    {% if message %}<div class="notice-banner notice-banner-success">{{ message }}</div>{% endif %}
+
+    <section class="catalog-toolbar">
+        <label class="search-box catalog-search-box">
+            <span class="search-label">Живой поиск</span>
+            <input id="catalogSearch" class="toolbar-input" type="search" placeholder="Название работы">
+        </label>
+        <button class="primary-button catalog-add-toggle" type="button" data-open-modal="catalogAddModal">Добавить работу</button>
+        <form class="catalog-upload-form" method="post" action="/catalog/upload" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".xlsx" required>
+            <button class="ghost-button" type="submit">Импорт .xlsx</button>
+        </form>
+    </section>
+
+    <section class="catalog-table-card">
+        <table class="catalog-table compact-catalog-table">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Ед.</th>
+                    <th>Цена</th>
+                    <th>Категория</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for group in grouped_items %}
+                <tr class="catalog-category-heading" data-category="{{ group.category }}">
+                    <td colspan="5">{{ group.category }} <span>{{ group.rows|length }}</span></td>
+                </tr>
+                {% for item in group.rows %}
+                <tr class="catalog-row" data-search="{{ item.name }} {{ item.unit }} {{ item.category }}">
+                    <form method="post" action="/catalog/items/{{ item.id }}">
+                        <td><input class="catalog-input catalog-name-input" name="name" value="{{ item.name }}" required></td>
+                        <td><input class="catalog-input catalog-unit-input" name="unit" value="{{ item.unit }}"></td>
+                        <td><input class="catalog-input catalog-price-input" name="price" value="{{ item.price if item.price is not none else '' }}"></td>
+                        <td>
+                            <select class="catalog-select" name="category">
+                                {% for category in categories %}
+                                <option value="{{ category }}" {% if category == item.category %}selected{% endif %}>{{ category }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td class="catalog-actions">
+                            <button class="mini-button" type="submit">Сохранить</button>
+                    </form>
+                            <form method="post" action="/catalog/items/{{ item.id }}/copy"><button class="mini-button" type="submit">Копировать</button></form>
+                            <form method="post" action="/catalog/items/{{ item.id }}/delete" onsubmit="return confirm('Удалить работу из каталога?')"><button class="mini-button danger" type="submit">Удалить</button></form>
+                        </td>
+                </tr>
+                {% endfor %}
+            {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</main>
+
+<div class="catalog-modal" id="catalogAddModal" hidden>
+    <div class="catalog-modal-card">
+        <button class="catalog-modal-close" type="button" data-close-modal="catalogAddModal">×</button>
+        <h2>Добавить работу</h2>
+        <form method="post" action="/catalog/items" class="catalog-modal-form">
+            <label>Название<input name="name" required></label>
+            <label>Ед. изм.<input name="unit"></label>
+            <label>Цена<input name="price"></label>
+            <label>Категория
+                <select name="category">
+                    {% for category in categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}
+                </select>
+            </label>
+            <button class="primary-button" type="submit">Добавить работу</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

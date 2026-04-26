@@ -52,3 +52,48 @@
     searchInput.addEventListener("input", applyFilters);
     applyFilters();
 })();
+
+(() => {
+    const searchInput = document.getElementById("catalogSearch");
+    const rows = Array.from(document.querySelectorAll(".catalog-row"));
+    const headings = Array.from(document.querySelectorAll(".catalog-category-heading"));
+
+    function normalize(text) {
+        return (text || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+    }
+
+    if (searchInput && rows.length) {
+        searchInput.addEventListener("input", () => {
+            const query = normalize(searchInput.value);
+            rows.forEach((row) => {
+                const match = !query || normalize(row.dataset.search || row.textContent).includes(query);
+                row.hidden = !match;
+            });
+            headings.forEach((heading) => {
+                let next = heading.nextElementSibling;
+                let visible = false;
+                while (next && !next.classList.contains("catalog-category-heading")) {
+                    if (next.classList.contains("catalog-row") && !next.hidden) {
+                        visible = true;
+                        break;
+                    }
+                    next = next.nextElementSibling;
+                }
+                heading.hidden = !visible;
+            });
+        });
+    }
+
+    document.querySelectorAll("[data-open-modal]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const modal = document.getElementById(button.dataset.openModal);
+            if (modal) modal.hidden = false;
+        });
+    });
+    document.querySelectorAll("[data-close-modal]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const modal = document.getElementById(button.dataset.closeModal);
+            if (modal) modal.hidden = true;
+        });
+    });
+})();

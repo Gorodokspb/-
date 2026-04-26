@@ -4,7 +4,7 @@ import hmac
 import secrets
 from pathlib import Path
 
-from fastapi import FastAPI, Form, HTTPException, Request, status
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File, status
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -14,6 +14,16 @@ from webapp.config import get_settings
 from webapp.db import (
     create_counterparty,
     create_project,
+    create_catalog_item,
+    delete_catalog_item,
+    duplicate_catalog_item,
+    ensure_catalog_items_table,
+    migrate_catalog_item_categories,
+    fetch_catalog_items,
+    fetch_catalog_items_by_names,
+    upsert_new_catalog_items,
+    apply_catalog_conflict_items,
+    update_catalog_item,
     ensure_web_user,
     ensure_web_users_table,
     fetch_counterparties,
@@ -31,6 +41,11 @@ from webapp.db import (
 )
 from webapp.estimate_pdf import generate_estimate_pdf
 from webapp.storage import ensure_storage_dirs, resolve_storage_path
+from import_catalog_items import (
+    CATEGORY_OPTIONS,
+    compare_catalog_import,
+    read_catalog_items,
+)
 
 
 settings = get_settings()
@@ -62,6 +77,8 @@ app.mount(
 @app.on_event("startup")
 def startup_web_auth() -> None:
     ensure_auth_bootstrap()
+    ensure_catalog_items_table()
+    migrate_catalog_item_categories()
 
 
 def status_class(value: str) -> str:
@@ -365,6 +382,124 @@ def projects_page(request: Request):
             "username": request.session.get("username", settings.admin_username),
             "created": request.query_params.get("created", ""),
         },
+    )
+
+
+@app.get("/catalog")
+def catalog_page(request: Request):
+    require_auth(request)
+    items = fetch_catalog_items()
+    grouped = []
+    for category in CATEGORY_OPTIONS:
+        category_items = [item for item in items if item.get("category") == category]
+        if category_items:
+            grouped.append({"category": category, "rows": category_items})
+    return templates.TemplateResponse(
+        request=request,
+        name="catalog.html",
+        context={
+            "items": items,
+            "grouped_items": grouped,
+            "categories": CATEGORY_OPTIONS,
+            "username": request.session.get("username", settings.admin_username),
+            "message": request.query_params.get("message", ""),
+        },
+    )
+
+
+@app.post("/catalog/items")
+def catalog_item_create(
+    request: Request,
+    name: str = Form(""),
+    unit: str = Form(""),
+    price: str = Form(""),
+    category: str = Form("Прочее"),
+):
+    require_auth(request)
+    try:
+        create_catalog_item(name, unit, price, category)
+    except Exception as exc:
+        return RedirectResponse(url=f"/catalog?message=Ошибка: {str(exc)}", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url="/catalog?message=Работа добавлена", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/catalog/items/{item_id}")
+def catalog_item_update(
+    request: Request,
+    item_id: int,
+    name: str = Form(""),
+    unit: str = Form(""),
+    price: str = Form(""),
+    category: str = Form("Прочее"),
+):
+    require_auth(request)
+    update_catalog_item(item_id, name, unit, price, category)
+    return RedirectResponse(url="/catalog?message=Работа обновлена", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/catalog/items/{item_id}/delete")
+def catalog_item_delete(request: Request, item_id: int):
+    require_auth(request)
+    delete_catalog_item(item_id)
+    return RedirectResponse(url="/catalog?message=Работа удалена", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/catalog/items/{item_id}/copy")
+def catalog_item_copy(request: Request, item_id: int):
+    require_auth(request)
+    duplicate_catalog_item(item_id)
+    return RedirectResponse(url="/catalog?message=Копия создана", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/catalog/upload")
+async def catalog_upload(request: Request, file: UploadFile = File(...)):
+    require_auth(request)
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Загрузите файл .xlsx")
+    settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+    upload_path = settings.uploads_dir / f"catalog_upload_{secrets.token_hex(8)}.xlsx"
+    upload_path.write_bytes(await file.read())
+    incoming = read_catalog_items(upload_path)
+    existing = fetch_catalog_items_by_names([item["name"] for item in incoming])
+    comparison = compare_catalog_import(existing, incoming)
+    inserted_result = upsert_new_catalog_items(comparison.new_items)
+    if not comparison.conflicts:
+        return RedirectResponse(
+            url=f"/catalog?message=Импорт: новых {inserted_result.inserted}, конфликтов 0",
+            status_code=status.HTTP_302_FOUND,
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="catalog_conflicts.html",
+        context={
+            "categories": CATEGORY_OPTIONS,
+            "conflicts": comparison.conflicts,
+            "conflicts_json": json.dumps(comparison.conflicts, ensure_ascii=False, default=str),
+            "new_count": inserted_result.inserted,
+            "unchanged_count": len(comparison.unchanged_items),
+            "username": request.session.get("username", settings.admin_username),
+        },
+    )
+
+
+@app.post("/catalog/upload/resolve")
+def catalog_upload_resolve(request: Request, conflicts_payload: str = Form(""), action: str = Form("skip_all"), selected_names: list[str] = Form(default=[])):
+    require_auth(request)
+    try:
+        conflicts = json.loads(conflicts_payload or "[]")
+    except json.JSONDecodeError:
+        conflicts = []
+    if action == "apply_all":
+        items = [conflict["new"] for conflict in conflicts]
+    elif action == "apply_selected":
+        selected = set(selected_names or [])
+        items = [conflict["new"] for conflict in conflicts if conflict.get("name") in selected]
+    else:
+        items = []
+    result = apply_catalog_conflict_items(items)
+    return RedirectResponse(
+        url=f"/catalog?message=Конфликты обработаны: применено {result.updated}, пропущено {len(conflicts) - result.updated}",
+        status_code=status.HTTP_302_FOUND,
     )
 
 

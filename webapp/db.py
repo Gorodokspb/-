@@ -1172,3 +1172,153 @@ def update_web_user_password(username: str, password_hash: str, updated_by: str)
             )
         conn.commit()
     return fetch_web_user(normalized_username)
+
+
+# --- Catalog items management -------------------------------------------------
+
+def ensure_catalog_items_table() -> None:
+    from import_catalog_items import ensure_catalog_items_table as _ensure
+
+    with get_connection() as conn:
+        _ensure(conn)
+
+
+def migrate_catalog_item_categories() -> int:
+    from import_catalog_items import migrate_catalog_categories
+
+    with get_connection() as conn:
+        return migrate_catalog_categories(conn)
+
+
+def fetch_catalog_items() -> list[dict]:
+    ensure_catalog_items_table()
+    query = """
+        SELECT id, name, COALESCE(unit, '') AS unit, price, COALESCE(category, 'Прочее') AS category
+        FROM catalog_items
+        ORDER BY category ASC, LOWER(name) ASC, id ASC
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            return cur.fetchall()
+
+
+def fetch_catalog_items_by_names(names: list[str]) -> list[dict]:
+    ensure_catalog_items_table()
+    if not names:
+        return []
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, name, COALESCE(unit, '') AS unit, price, COALESCE(category, 'Прочее') AS category
+                FROM catalog_items
+                WHERE name = ANY(%s)
+                """,
+                (names,),
+            )
+            return cur.fetchall()
+
+
+def create_catalog_item(name: str, unit: str, price, category: str) -> int:
+    from import_catalog_items import normalize_category, parse_price
+
+    normalized_name = str(name or '').strip()
+    if not normalized_name:
+        raise ValueError('Название работы обязательно.')
+    normalized_category = normalize_category(category, normalized_name)
+    price_value = parse_price(price)
+    ensure_catalog_items_table()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO catalog_items (name, unit, price, category)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (normalized_name, str(unit or '').strip(), price_value, normalized_category),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return int(row['id'] if isinstance(row, dict) else row[0])
+
+
+def update_catalog_item(item_id: int, name: str, unit: str, price, category: str) -> None:
+    from import_catalog_items import normalize_category, parse_price
+
+    normalized_name = str(name or '').strip()
+    if not normalized_name:
+        raise ValueError('Название работы обязательно.')
+    normalized_category = normalize_category(category, normalized_name)
+    price_value = parse_price(price)
+    ensure_catalog_items_table()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE catalog_items
+                SET name = %s, unit = %s, price = %s, category = %s
+                WHERE id = %s
+                """,
+                (normalized_name, str(unit or '').strip(), price_value, normalized_category, int(item_id)),
+            )
+        conn.commit()
+
+
+def delete_catalog_item(item_id: int) -> None:
+    ensure_catalog_items_table()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute('DELETE FROM catalog_items WHERE id = %s', (int(item_id),))
+        conn.commit()
+
+
+def duplicate_catalog_item(item_id: int) -> int:
+    ensure_catalog_items_table()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute('SELECT name, unit, price, category FROM catalog_items WHERE id = %s', (int(item_id),))
+            row = cur.fetchone()
+            if not row:
+                raise ValueError('Работа не найдена.')
+            name = row['name'] if isinstance(row, dict) else row[0]
+            unit = row['unit'] if isinstance(row, dict) else row[1]
+            price = row['price'] if isinstance(row, dict) else row[2]
+            category = row['category'] if isinstance(row, dict) else row[3]
+            base_name = f"{name} (копия)"
+            candidate = base_name
+            suffix = 2
+            while True:
+                cur.execute('SELECT 1 FROM catalog_items WHERE name = %s', (candidate,))
+                if not cur.fetchone():
+                    break
+                candidate = f"{base_name} {suffix}"
+                suffix += 1
+            cur.execute(
+                """
+                INSERT INTO catalog_items (name, unit, price, category)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+                """,
+                (candidate, unit, price, category),
+            )
+            inserted = cur.fetchone()
+        conn.commit()
+    return int(inserted['id'] if isinstance(inserted, dict) else inserted[0])
+
+
+def upsert_new_catalog_items(items: list[dict]):
+    from import_catalog_items import upsert_catalog_items
+
+    ensure_catalog_items_table()
+    with get_connection() as conn:
+        return upsert_catalog_items(conn, items)
+
+
+def apply_catalog_conflict_items(items: list[dict]):
+    from import_catalog_items import upsert_catalog_items
+
+    ensure_catalog_items_table()
+    with get_connection() as conn:
+        return upsert_catalog_items(conn, items)

@@ -4723,3 +4723,237 @@ textarea:focus {
         justify-content: start;
     }
 }
+
+/* Catalog management */
+.catalog-shell {
+    min-height: 100vh;
+    padding: 14px;
+    width: min(100%, 1760px);
+    margin: 0 auto;
+}
+
+.catalog-topbar,
+.catalog-toolbar,
+.catalog-table-card,
+.catalog-conflict-actions {
+    background: rgba(255, 253, 249, 0.94);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-lg);
+}
+
+.catalog-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 14px;
+    border-radius: 22px;
+}
+
+.catalog-topbar h1 {
+    font-size: 28px;
+}
+
+.catalog-nav,
+.catalog-toolbar,
+.catalog-upload-form,
+.catalog-actions,
+.catalog-conflict-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.catalog-toolbar {
+    position: sticky;
+    top: 82px;
+    z-index: 35;
+    margin: 12px 0;
+    padding: 10px;
+    border-radius: 20px;
+    flex-wrap: wrap;
+}
+
+.catalog-search-box {
+    flex: 1 1 360px;
+}
+
+.catalog-upload-form input[type="file"] {
+    max-width: 260px;
+    font-size: 12px;
+}
+
+.catalog-table-card {
+    border-radius: 20px;
+    overflow: auto;
+    max-height: calc(100vh - 180px);
+}
+
+.catalog-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+}
+
+.catalog-table th,
+.catalog-table td {
+    padding: 4px 6px;
+    border-bottom: 1px solid rgba(21, 38, 57, 0.08);
+    vertical-align: middle;
+}
+
+.catalog-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #10273d;
+    color: #fff;
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.catalog-category-heading td {
+    position: sticky;
+    top: 28px;
+    z-index: 18;
+    background: #e8f0fb;
+    color: #10273d;
+    font-weight: 800;
+    font-size: 13px;
+    border-top: 1px solid rgba(21, 105, 216, 0.18);
+    border-bottom: 1px solid rgba(21, 105, 216, 0.18);
+}
+
+.catalog-category-heading span {
+    margin-left: 8px;
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.catalog-input,
+.catalog-select,
+.catalog-modal-form input,
+.catalog-modal-form select {
+    width: 100%;
+    min-height: 28px;
+    border: 1px solid rgba(21, 38, 57, 0.14);
+    border-radius: 8px;
+    padding: 4px 7px;
+    font: inherit;
+    background: #fff;
+}
+
+.catalog-name-input { min-width: 360px; }
+.catalog-unit-input { max-width: 90px; }
+.catalog-price-input { max-width: 120px; }
+.catalog-select { min-width: 170px; }
+
+.catalog-actions form {
+    margin: 0;
+}
+
+.mini-button {
+    border: 0;
+    border-radius: 999px;
+    padding: 5px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    background: #e9f1ff;
+    color: #0f3d77;
+}
+
+.mini-button.danger {
+    background: #ffe9ec;
+    color: #9b1c31;
+}
+
+.catalog-modal[hidden] {
+    display: none;
+}
+
+.catalog-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgba(12, 27, 43, 0.45);
+    display: grid;
+    place-items: center;
+    padding: 16px;
+}
+
+.catalog-modal-card {
+    width: min(520px, 100%);
+    background: #fffdf9;
+    border-radius: 22px;
+    padding: 22px;
+    box-shadow: var(--shadow-xl);
+    position: relative;
+}
+
+.catalog-modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: 0;
+    background: transparent;
+    font-size: 28px;
+    cursor: pointer;
+}
+
+.catalog-modal-form {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.catalog-modal-form label {
+    display: grid;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.catalog-conflict-actions {
+    position: sticky;
+    top: 82px;
+    z-index: 35;
+    margin: 12px 0;
+    padding: 10px;
+    border-radius: 20px;
+}
+
+.conflict-dl {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(90px, 1fr));
+    gap: 6px;
+    margin: 0;
+}
+
+.conflict-dl div {
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(16, 39, 61, 0.05);
+}
+
+.conflict-new div {
+    background: rgba(45, 123, 84, 0.1);
+}
+
+.conflict-dl dt {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+
+.conflict-dl dd {
+    margin: 2px 0 0;
+    font-weight: 700;
+}

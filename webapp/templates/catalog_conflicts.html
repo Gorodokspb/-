@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Конфликты импорта | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="catalog-shell">
+    <header class="catalog-topbar">
+        <a class="topbar-logo-slot" href="/catalog" aria-label="Назад в каталог">
+            <img src="/static/img/crm198-logo.jpg" alt="CRM198.ru">
+        </a>
+        <div>
+            <span class="eyebrow">Умный импорт</span>
+            <h1>Разрешение конфликтов</h1>
+            <p class="muted">Новые записи добавлены автоматически: {{ new_count }}. Без изменений: {{ unchanged_count }}.</p>
+        </div>
+        <a class="topbar-chip topbar-open-action" href="/catalog">Вернуться в каталог</a>
+    </header>
+
+    <form method="post" action="/catalog/upload/resolve" class="catalog-conflict-form">
+        <input type="hidden" name="conflicts_payload" value='{{ conflicts_json|e }}'>
+        <div class="catalog-conflict-actions">
+            <button class="primary-button" name="action" value="apply_all" type="submit">Применить все новые</button>
+            <button class="ghost-button" name="action" value="skip_all" type="submit">Пропустить все</button>
+            <button class="ghost-button" name="action" value="apply_selected" type="submit">Применить выбранные</button>
+        </div>
+
+        <section class="catalog-table-card">
+            <table class="catalog-table compact-catalog-table catalog-conflict-table">
+                <thead>
+                    <tr>
+                        <th>Выбор</th>
+                        <th>Название</th>
+                        <th>Старые данные (БД)</th>
+                        <th>Новые данные (Файл)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for conflict in conflicts %}
+                    <tr class="catalog-row conflict-row">
+                        <td><input type="checkbox" name="selected_names" value="{{ conflict.name }}"></td>
+                        <td><strong>{{ conflict.name }}</strong></td>
+                        <td>
+                            <dl class="conflict-dl">
+                                <div><dt>Ед.</dt><dd>{{ conflict.old.unit }}</dd></div>
+                                <div><dt>Цена</dt><dd>{{ conflict.old.price }}</dd></div>
+                                <div><dt>Категория</dt><dd>{{ conflict.old.category }}</dd></div>
+                            </dl>
+                        </td>
+                        <td>
+                            <dl class="conflict-dl conflict-new">
+                                <div><dt>Ед.</dt><dd>{{ conflict.new.unit }}</dd></div>
+                                <div><dt>Цена</dt><dd>{{ conflict.new.price }}</dd></div>
+                                <div><dt>Категория</dt><dd>
+                                    <select class="catalog-select" disabled>
+                                        {% for category in categories %}
+                                        <option value="{{ category }}" {% if category == conflict.new.category %}selected{% endif %}>{{ category }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </dd></div>
+                            </dl>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </form>
+</main>
+{% endblock %}
