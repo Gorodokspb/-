@@ -468,8 +468,8 @@
 </dialog>
 
 <datalist id="estimateRowNameLibrary"></datalist>
-{# CHANGED: Initial rows JSON initialization - uses empty items array initially #}
-<script id="estimateInitialRows" type="application/json">[]</script>
+{# CHANGED: Initial rows JSON initialization - uses editor_rows_json with items data #}
+<script id="estimateInitialRows" type="application/json">{{ editor_rows_json|safe }}</script>
 <script id="estimatePriceLibrary" type="application/json">{{ price_library_json|safe }}</script>
 <script id="estimateInitialCalcState" type="application/json">{{ estimate_calc_state_json|safe }}</script>
 {% endblock %}

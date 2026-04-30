@@ -108,6 +108,25 @@ def _normalize_items(raw_items: list[Any]) -> list[EstimateItemInput]:
     return items
 
 
+def _items_from_payload(payload: dict[str, Any]) -> tuple[bool, list[EstimateItemInput]]:
+    if "items_payload" in payload:
+        raw_items_payload = payload.get("items_payload")
+        if raw_items_payload is None or str(raw_items_payload).strip() == "":
+            return False, []
+        try:
+            parsed_items = json.loads(str(raw_items_payload))
+        except json.JSONDecodeError:
+            return False, []
+        if not isinstance(parsed_items, list):
+            return False, []
+        return True, _normalize_items(parsed_items)
+
+    if "items" in payload:
+        return True, _normalize_items(payload.get("items") or [])
+
+    return False, []
+
+
 def _serialize_summary(summary) -> dict[str, Any]:
     return {
         "id": summary.id,
@@ -296,16 +315,40 @@ async def standalone_estimate_create(request: Request):
 def standalone_estimate_editor(estimate_id: int, request: Request):
     _require_auth(request)
     details = service.get_estimate(estimate_id)
+
+    editor_rows = []
+    for item in details.items:
+        row = {
+            "sort_order": item.get("sort_order"),
+            "row_type": item.get("row_type", "item"),
+            "name": item.get("name", ""),
+            "unit": item.get("unit", ""),
+            "quantity": str(item.get("quantity", "")),
+            "price": str(item.get("price", "")),
+            "total": str(item.get("total", "")),
+            "discounted_total": str(item.get("discounted_total", "")),
+            "parent_section_id": item.get("parent_section_id"),
+            "section_key": item.get("section_key"),
+            "reference": item.get("reference", ""),
+            "price_source_type": item.get("price_source_type"),
+            "price_source_id": item.get("price_source_id"),
+            "is_manual_price": item.get("is_manual_price", False),
+            "notes": item.get("notes"),
+        }
+        editor_rows.append(row)
+
     price_library = _json_safe(
         {item["name"]: {"unit": item.get("unit"), "price": item.get("price")} 
          for item in details.items}
     )
+
     return templates.TemplateResponse(
         "standalone_estimate_editor.html",
         {
             "request": request,
             "estimate": details.estimate,
             "items": details.items,
+            "editor_rows_json": json.dumps(_json_safe(editor_rows) or [], ensure_ascii=False),
             "price_library_json": json.dumps(_json_safe(details.items) or [], ensure_ascii=False),
             "estimate_calc_state_json": json.dumps({}, ensure_ascii=False),
             "username": _username(request),
@@ -326,6 +369,7 @@ async def standalone_estimate_update(estimate_id: int, request: Request):
     payload = await _load_payload(request)
     actor = _username(request)
     current = service.get_estimate(estimate_id).estimate
+    has_items_payload, items = _items_from_payload(payload)
     service.update_estimate(
         estimate_id,
         title=str(payload.get("title") or current.title or "").strip() or None,
@@ -338,8 +382,8 @@ async def standalone_estimate_update(estimate_id: int, request: Request):
         watermark=payload.get("watermark", current.watermark),
         updated_by=actor,
     )
-    if "items" in payload:
-        service.save_estimate_items(estimate_id, _normalize_items(payload.get("items") or []))
+    if has_items_payload:
+        service.save_estimate_items(estimate_id, items)
     refreshed = service.get_estimate(estimate_id)
     version = _create_snapshot_version(
         estimate_id,

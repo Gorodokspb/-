@@ -160,7 +160,7 @@ class StandaloneEstimateEditorRouteTests(unittest.TestCase):
 
     @patch('webapp.standalone_estimate_api.templates.TemplateResponse')
     def test_create_edit_save_reopen_editor_workflow(self, mock_template_response):
-        """Test the full workflow: create → edit → save → reopen editor."""
+        """Test the full workflow: create → add section/items → save → reopen editor."""
         mock_template_response.return_value.status_code = 200
         
         # Step 1: Create new estimate
@@ -177,11 +177,34 @@ class StandaloneEstimateEditorRouteTests(unittest.TestCase):
         self.assertEqual(edit_response.status_code, 200)
 
         # Step 3: Save estimate
+        rows = [
+            {"row_type": "section", "name": "Демонтаж"},
+            {
+                "row_type": "item",
+                "name": "Снятие старых обоев",
+                "unit": "м2",
+                "quantity": "10",
+                "price": "120",
+                "total": "1200",
+                "discounted_total": "1200",
+                "reference": "D-001",
+            },
+            {
+                "row_type": "item",
+                "name": "Вынос мусора",
+                "unit": "усл",
+                "quantity": "1",
+                "price": "500",
+                "total": "500",
+                "discounted_total": "500",
+                "reference": "D-002",
+            },
+        ]
         save_payload = {
             "title": "Updated Standalone Estimate",
             "customer_name": "Updated Customer",
             "object_name": "Updated Object",
-            "items": [{"name": "Test Item", "sort_order": 1, "quantity": "1", "price": "100", "total": "100", "discounted_total": "100"}]
+            "items_payload": json.dumps(rows, ensure_ascii=False),
         }
         save_request = make_request(
             f"/estimates/{estimate_id}",
@@ -199,15 +222,72 @@ class StandaloneEstimateEditorRouteTests(unittest.TestCase):
         reopen_response = standalone_api.standalone_estimate_editor(estimate_id, reopen_request)
         self.assertEqual(reopen_response.status_code, 200)
 
-        # Verify the estimate still exists and has updated data
+        # Verify the estimate still exists and has updated rows.
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT title, customer_name, object_name FROM estimates WHERE id = %s", (estimate_id,))
                 row = cur.fetchone()
+                cur.execute(
+                    "SELECT row_type, name, unit, quantity, price, total, discounted_total, reference "
+                    "FROM estimate_items WHERE estimate_id = %s ORDER BY sort_order, id",
+                    (estimate_id,),
+                )
+                item_rows = cur.fetchall()
         self.assertIsNotNone(row)
         self.assertEqual(row["title"], "Updated Standalone Estimate")
         self.assertEqual(row["customer_name"], "Updated Customer")
         self.assertEqual(row["object_name"], "Updated Object")
+        self.assertEqual([item["row_type"] for item in item_rows], ["section", "item", "item"])
+        self.assertEqual([item["name"] for item in item_rows], ["Демонтаж", "Снятие старых обоев", "Вынос мусора"])
+
+        args, kwargs = mock_template_response.call_args
+        context = args[1]
+        editor_rows = json.loads(context["editor_rows_json"])
+        self.assertEqual([item["row_type"] for item in editor_rows], ["section", "item", "item"])
+        self.assertEqual([item["name"] for item in editor_rows], ["Демонтаж", "Снятие старых обоев", "Вынос мусора"])
+
+    def test_blank_items_payload_does_not_clear_saved_rows(self):
+        estimate_id = self._create_estimate()
+        standalone_api.service.save_estimate_items(
+            estimate_id,
+            standalone_api._normalize_items(
+                [
+                    {"row_type": "section", "name": "Существующий раздел"},
+                    {
+                        "row_type": "item",
+                        "name": "Существующая позиция",
+                        "quantity": "1",
+                        "price": "100",
+                        "total": "100",
+                        "discounted_total": "100",
+                    },
+                ]
+            ),
+        )
+
+        save_payload = {
+            "title": "Updated Standalone Estimate",
+            "items_payload": "",
+        }
+        save_request = make_request(
+            f"/estimates/{estimate_id}",
+            method="POST",
+            session={"is_authenticated": True, "username": "testuser"},
+            headers={"content-type": "application/x-www-form-urlencoded"},
+        )
+        with patch("webapp.standalone_estimate_api._load_payload", return_value=save_payload):
+            save_response = asyncio.run(standalone_api.standalone_estimate_update(estimate_id, save_request))
+        self.assertEqual(save_response.status_code, 303)
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT row_type, name FROM estimate_items WHERE estimate_id = %s ORDER BY sort_order, id",
+                    (estimate_id,),
+                )
+                rows = cur.fetchall()
+        self.assertEqual([row["row_type"] for row in rows], ["section", "item"])
+        self.assertEqual([row["name"] for row in rows], ["Существующий раздел", "Существующая позиция"])
 
 
 if __name__ == "__main__":
