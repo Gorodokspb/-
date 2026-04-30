@@ -78,10 +78,72 @@ def export_standalone_estimate_json(snapshot: dict[str, Any]) -> Path:
     return path
 
 
+def _is_approved_pdf_status(status_value: Any) -> bool:
+    return str(status_value or "") in {"approved", "in_progress"}
+
+
+def _to_float(value: Any) -> float:
+    if value is None or value == "":
+        return 0.0
+    return float(value)
+
+
+def _format_money(value: float) -> str:
+    rounded = round(value, 2)
+    if abs(rounded - round(rounded)) < 1e-9:
+        return str(int(round(rounded)))
+    return f"{rounded:.2f}".rstrip("0").rstrip(".")
+
+
+def _draft_watermark_enabled(estimate: dict[str, Any], *, approved: bool) -> bool:
+    return not approved and bool(estimate.get("watermark"))
+
+
+def _build_pdf_table(snapshot: dict[str, Any]) -> tuple[list[list[str]], list[tuple[Any, ...]], float, float]:
+    table_data = [["Наименование", "Ед.", "Кол-во", "Цена", "Итого", "Со скидкой"]]
+    section_styles: list[tuple[Any, ...]] = []
+    grand_total = 0.0
+    discounted_total = 0.0
+
+    for item in snapshot.get("items", []):
+        row_type = str(item.get("row_type") or "item")
+        row_index = len(table_data)
+        if row_type == "section":
+            table_data.append([str(item.get("name") or "Раздел"), "", "", "", "", ""])
+            section_styles.extend(
+                [
+                    ("SPAN", (0, row_index), (-1, row_index)),
+                    ("FONTNAME", (0, row_index), (-1, row_index), FONT_BOLD),
+                    ("BACKGROUND", (0, row_index), (-1, row_index), colors.whitesmoke),
+                ]
+            )
+            continue
+
+        row_total = _to_float(item.get("total"))
+        row_discounted_total = _to_float(item.get("discounted_total"))
+        table_data.append(
+            [
+                str(item.get("name") or ""),
+                str(item.get("unit") or ""),
+                str(item.get("quantity") or ""),
+                str(item.get("price") or ""),
+                str(item.get("total") or ""),
+                str(item.get("discounted_total") or ""),
+            ]
+        )
+        grand_total += row_total
+        discounted_total += row_discounted_total
+
+    return table_data, section_styles, grand_total, discounted_total
+
+
 def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: bool = False, signature_applied: bool = False) -> Path:
-    _ensure_fonts()
     estimate = snapshot["estimate"]
-    approved = bool(estimate.get("status") == "approved" or estimate.get("status") == "in_progress")
+    approved = _is_approved_pdf_status(estimate.get("status"))
+    if not approved and (stamp_applied or signature_applied):
+        raise ValueError("Печать и подпись допустимы только для согласованной standalone-сметы.")
+
+    _ensure_fonts()
     title = estimate.get("title") or estimate.get("object_name") or estimate.get("estimate_number") or "Смета"
     path = build_standalone_estimate_pdf_path(int(estimate["id"]), title, approved=approved)
 
@@ -102,6 +164,7 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
     contract_label = estimate.get("contract_label") or "Не указан"
     company_name = estimate.get("company_name") or "ООО Декорартстрой"
     status_label = str(estimate.get("status") or "draft")
+    discount_label = str(estimate.get("discount") or "0")
 
     elements = [
         Paragraph(f"Самостоятельная смета № {estimate.get('estimate_number')}", header_style),
@@ -111,25 +174,11 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
         Paragraph(f"Заказчик: {customer_name}", body_style),
         Paragraph(f"Договор: {contract_label}", body_style),
         Paragraph(f"Компания: {company_name}", body_style),
+        Paragraph(f"Скидка: {discount_label}%", body_style),
         Spacer(1, 4 * mm),
     ]
 
-    table_data = [["Наименование", "Ед.", "Кол-во", "Цена", "Итого", "Со скидкой"]]
-    grand_total = 0.0
-    discounted_total = 0.0
-    for item in snapshot.get("items", []):
-        table_data.append(
-            [
-                str(item.get("name") or ""),
-                str(item.get("unit") or ""),
-                str(item.get("quantity") or ""),
-                str(item.get("price") or ""),
-                str(item.get("total") or ""),
-                str(item.get("discounted_total") or ""),
-            ]
-        )
-        grand_total += float(item.get("total") or 0)
-        discounted_total += float(item.get("discounted_total") or 0)
+    table_data, section_styles, grand_total, discounted_total = _build_pdf_table(snapshot)
 
     table = Table(table_data, colWidths=[74 * mm, 14 * mm, 18 * mm, 24 * mm, 26 * mm, 28 * mm])
     table.setStyle(
@@ -141,13 +190,15 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
                 ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                *section_styles,
             ]
         )
     )
     elements.append(table)
     elements.append(Spacer(1, 4 * mm))
-    elements.append(Paragraph(f"Итого: {round(grand_total, 2)}", body_style))
-    elements.append(Paragraph(f"Итого со скидкой: {round(discounted_total, 2)}", body_style))
+    elements.append(Paragraph(f"Итого до скидки: {_format_money(grand_total)}", body_style))
+    elements.append(Paragraph(f"Скидка: {discount_label}%", body_style))
+    elements.append(Paragraph(f"Итого после скидки: {_format_money(discounted_total)}", body_style))
     elements.append(Spacer(1, 5 * mm))
 
     if stamp_applied or signature_applied:
@@ -159,5 +210,19 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
         )
     elements.append(Paragraph(f"Сформировано: {datetime.now().isoformat(timespec='seconds')}", small_style))
 
-    doc.build(elements)
+    watermark_enabled = _draft_watermark_enabled(estimate, approved=approved)
+    watermark_text = "ИП ГОРДЕЕВ А.Н." if company_name == "ИП Гордеев А.Н." else "ДЕКОРАРТСТРОЙ"
+
+    def add_watermark(canvas, _doc):
+        if not watermark_enabled:
+            return
+        canvas.saveState()
+        canvas.setFont(FONT_BOLD, 65)
+        canvas.setFillGray(0.5, 0.15)
+        canvas.translate(A4[0] / 2, A4[1] / 2)
+        canvas.rotate(45)
+        canvas.drawCentredString(0, 0, watermark_text)
+        canvas.restoreState()
+
+    doc.build(elements, onFirstPage=add_watermark, onLaterPages=add_watermark)
     return path
