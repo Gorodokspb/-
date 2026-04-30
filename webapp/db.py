@@ -1,4 +1,5 @@
 import json
+import shutil
 from contextlib import contextmanager
 from datetime import datetime
 
@@ -759,6 +760,68 @@ def create_project(
     return project_id
 
 
+def delete_project(project_id: int, username: str) -> bool:
+    project = fetch_project(project_id)
+    if not project:
+        return False
+
+    draft_paths: list[str] = []
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            estimate_document = _fetch_estimate_document(cur, project_id)
+            if estimate_document:
+                for path_value in (
+                    estimate_document.get("file_path"),
+                    estimate_document.get("draft_path"),
+                    estimate_document.get("pdf_path"),
+                ):
+                    normalized_path = str(path_value or "").strip()
+                    if normalized_path:
+                        draft_paths.append(normalized_path)
+
+            cur.execute(
+                """
+                SELECT id, data
+                FROM smeta_drafts
+                ORDER BY id ASC
+                """
+            )
+            draft_ids = []
+            for row in cur.fetchall():
+                payload = _safe_json_loads(row.get("data"))
+                if isinstance(payload, dict) and payload.get("project_id") == project_id:
+                    draft_ids.append(int(row["id"]))
+
+            cur.execute("UPDATE transactions SET project_id = NULL WHERE project_id = %s", (project_id,))
+            cur.execute("DELETE FROM documents WHERE project_id = %s", (project_id,))
+            cur.execute("DELETE FROM project_events WHERE project_id = %s", (project_id,))
+            if draft_ids:
+                cur.execute("DELETE FROM smeta_drafts WHERE id = ANY(%s)", (draft_ids,))
+            cur.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+        conn.commit()
+
+    unique_parent_dirs = set()
+    for relative_path in draft_paths:
+        absolute_path = resolve_storage_path(relative_path)
+        if not absolute_path:
+            continue
+        unique_parent_dirs.add(absolute_path.parent)
+        try:
+            if absolute_path.exists():
+                absolute_path.unlink()
+        except OSError:
+            pass
+
+    for parent_dir in sorted(unique_parent_dirs, reverse=True):
+        try:
+            if parent_dir.exists() and not any(parent_dir.iterdir()):
+                shutil.rmtree(parent_dir)
+        except OSError:
+            pass
+
+    return True
+
+
 def fetch_project_documents(project_id: int):
     query = """
         SELECT
@@ -1284,6 +1347,90 @@ def fetch_transactions(project_id: int | None = None) -> list[dict]:
         row["amount_label"] = _format_rubles(parse_tree_number(row.get("amount")))
         row["type_label"] = "Доход" if row.get("type") == "income" else "Расход"
     return rows
+
+
+def fetch_transaction(transaction_id: int) -> dict | None:
+    ensure_transactions_table()
+    query = """
+        SELECT
+            t.id,
+            t.type,
+            t.amount,
+            COALESCE(t.description, '') AS description,
+            t.date,
+            t.project_id,
+            COALESCE(t.category, 'Прочее') AS category,
+            COALESCE(t.status, 'completed') AS status,
+            COALESCE(NULLIF(p.project_name, ''), NULLIF(p.address, ''), '') AS project_name
+        FROM transactions t
+        LEFT JOIN projects p ON p.id = t.project_id
+        WHERE t.id = %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, (transaction_id,))
+            row = cur.fetchone()
+    if not row:
+        return None
+    row["amount_label"] = _format_rubles(parse_tree_number(row.get("amount")))
+    row["type_label"] = "Доход" if row.get("type") == "income" else "Расход"
+    return row
+
+
+def update_transaction(
+    transaction_id: int,
+    transaction_type: str,
+    amount,
+    description: str,
+    category: str,
+    project_id=None,
+    tx_status: str = "completed",
+) -> dict | None:
+    ensure_transactions_table()
+    normalized_type = _normalize_transaction_type(transaction_type)
+    amount_value = parse_tree_number(amount)
+    if amount_value <= 0:
+        raise ValueError("Сумма должна быть больше нуля.")
+    normalized_project_id = int(project_id) if str(project_id or "").strip() else None
+    normalized_status = str(tx_status or "completed").strip() or "completed"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE transactions
+                SET type = %s,
+                    amount = %s,
+                    description = %s,
+                    category = %s,
+                    project_id = %s,
+                    status = %s
+                WHERE id = %s
+                """,
+                (
+                    normalized_type,
+                    amount_value,
+                    str(description or "").strip(),
+                    _normalize_transaction_category(category),
+                    normalized_project_id,
+                    normalized_status,
+                    transaction_id,
+                ),
+            )
+            updated = cur.rowcount > 0
+        conn.commit()
+    if not updated:
+        return None
+    return fetch_transaction(transaction_id)
+
+
+def delete_transaction(transaction_id: int) -> bool:
+    ensure_transactions_table()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM transactions WHERE id = %s", (transaction_id,))
+            deleted = cur.rowcount > 0
+        conn.commit()
+    return deleted
 
 
 def fetch_project_transactions(project_id: int) -> list[dict]:

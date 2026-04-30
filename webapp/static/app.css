@@ -4926,7 +4926,9 @@ textarea:focus {
     display: none;
 }
 
-.catalog-modal {
+.modal-backdrop,
+.catalog-modal,
+.quick-action-modal {
     position: fixed;
     inset: 0;
     z-index: 80;
@@ -5183,6 +5185,31 @@ textarea:focus {
 }
 .finance-modal-card {
     max-width: 620px;
+}
+.finance-edit-card {
+    margin-bottom: 16px;
+}
+.finance-inline-form textarea {
+    resize: vertical;
+}
+.table-actions-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.table-actions-inline form {
+    margin: 0;
+}
+.ghost-button-small {
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+.danger-button {
+    color: #b42318;
+    border-color: rgba(180, 35, 24, 0.24);
+    background: #fff5f4;
 }
 .finance-transaction-form textarea {
     resize: vertical;

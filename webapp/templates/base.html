@@ -12,9 +12,9 @@
         <a class="global-logo" href="/projects" aria-label="Декорартстрой — проекты">Декорартстрой</a>
         <nav class="global-nav" aria-label="Главное меню">
             <a class="global-nav-link {% if active_section == 'projects' %}is-active{% endif %}" href="/projects">Проекты</a>
-            <a class="global-nav-link {% if active_section == 'estimates' %}is-active{% endif %}" href="/projects">Сметы</a>
-            <a class="global-nav-link {% if active_section == 'catalog' %}is-active{% endif %}" href="/catalog">Справочник</a>
-            <a class="global-nav-link {% if active_section == 'calculator' %}is-active{% endif %}" href="/projects">Калькулятор</a>
+            <a class="global-nav-link {% if active_section == 'estimates' %}is-active{% endif %}" href="/estimates">Смета</a>
+            <a class="global-nav-link {% if active_section == 'catalog' %}is-active{% endif %}" href="/catalog">Прайс-лист</a>
+            <a class="global-nav-link {% if active_section == 'calculator' %}is-active{% endif %}" href="/calculator">Калькулятор</a>
             <a class="global-nav-link {% if active_section == 'finance' %}is-active{% endif %}" href="/finance">Финансы</a>
         </nav>
         <div class="global-actions">
@@ -33,7 +33,7 @@
 
     {% block body %}{% endblock %}
 
-    <div class="modal-backdrop quick-action-modal" id="quickTransactionModal" hidden>
+    <div class="catalog-modal modal-backdrop quick-action-modal" id="quickTransactionModal" hidden>
         <div class="catalog-modal-card finance-modal-card" role="dialog" aria-modal="true" aria-labelledby="quickTransactionTitle">
             <div class="catalog-modal-head">
                 <div>

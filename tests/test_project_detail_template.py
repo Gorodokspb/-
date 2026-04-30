@@ -24,6 +24,8 @@ class ProjectDetailTemplateTests(unittest.TestCase):
 
         self.assertNotIn("project-classic-actions", template)
         self.assertIn("detail-project-compact", template)
+        self.assertIn("Удалить проект", template)
+        self.assertIn("/projects/{{ project.id }}/delete", template)
         self.assertIn(".detail-project-compact .project-classic-title h1", css)
         self.assertIn("font-size: clamp(24px, 2.1vw, 34px);", css)
 

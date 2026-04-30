@@ -1,0 +1,479 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование сметы | Dekorartstroy CRM{% endblock %}
+
+{% set active_section = 'estimates' %}
+
+{% block body %}
+<main class="estimate-shell estimate-shell-v3">
+    <div class="estimate-app-shell">
+        {# REMOVED: Left project panel (estimate-rail) - not applicable for standalone estimates #}
+
+        <div class="estimate-workspace">
+            <header class="estimate-header-strip">
+                <nav class="estimate-header-tabs">
+                    <a class="estimate-header-tab" href="/standalone-estimates">← Мои сметы</a>
+                    {# REMOVED: Project-specific tabs #}
+                    <button type="button" class="estimate-header-tab" id="openDrawerRatesTop">База расценок</button>
+                    <button type="button" class="estimate-header-tab" id="openDrawerTemplatesTop">Шаблоны</button>
+                    <button type="button" class="estimate-header-tab" id="openDrawerOperationsTop">Операции</button>
+                </nav>
+
+                <div class="estimate-header-user">
+                    <span class="estimate-header-user-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+            </header>
+
+            <section class="estimate-summary-board">
+                <div class="estimate-summary-main">
+                    <div class="eyebrow">Смета {{ estimate.id }}</div>
+                    <h1>{{ estimate.title or estimate.object_name or 'Без названия' }}</h1>
+
+                    <div class="estimate-summary-meta">
+                        <div class="estimate-summary-chip">
+                            <span>Статус</span>
+                            <strong>{{ estimate.status.value }}</strong>
+                        </div>
+                        <div class="estimate-summary-chip">
+                            <span>Обновлена</span>
+                            <strong>{{ estimate.updated_at }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="estimate-summary-side">
+                    <div class="estimate-total-card">
+                        <span class="estimate-total-label">Всего по смете</span>
+                        <strong id="estimateDiscountedSum">0</strong>
+                        <small>С учетом скидки</small>
+                    </div>
+
+                    <div class="estimate-kpi-grid">
+                        <article class="estimate-kpi-card">
+                            <span>Разделы</span>
+                            <strong id="estimateSectionCount">0</strong>
+                        </article>
+                        <article class="estimate-kpi-card">
+                            <span>Позиции</span>
+                            <strong id="estimateItemCount">0</strong>
+                        </article>
+                        <article class="estimate-kpi-card">
+                            <span>Итого</span>
+                            <strong id="estimateTotalSum">0</strong>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            {# REMOVED: Project status messages #}
+
+            {# CHANGED: Form action changed from /projects/{project_id}/estimate to /estimates/{estimate.id} #}
+            <form id="estimateEditorForm" class="estimate-workspace-form" method="post" action="/estimates/{{ estimate.id }}">
+                <section class="estimate-document-bar">
+                    <div class="estimate-document-main">
+                        <div class="estimate-document-title-row">
+                            <div>
+                                <div class="eyebrow">Параметры</div>
+                                <h2>Настройки сметы</h2>
+                            </div>
+                            <span class="estimate-dirty-badge" id="estimateDirtyBadge" hidden>Есть несохраненные изменения</span>
+                        </div>
+
+                        <div class="estimate-document-grid">
+                            <label>
+                                <span class="sidebar-label">Номер сметы</span>
+                                <input type="text" disabled value="{{ estimate.estimate_number }}">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Название сметы</span>
+                                <input type="text" name="title" value="{{ estimate.title or '' }}" placeholder="Например: Ремонт кухни">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Компания</span>
+                                <input type="text" name="company_name" value="{{ estimate.company_name or 'ООО Декорартстрой' }}">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Объект</span>
+                                <input type="text" name="object_name" value="{{ estimate.object_name or '' }}" placeholder="Адрес или название объекта">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Заказчик</span>
+                                <input type="text" name="customer_name" value="{{ estimate.customer_name or '' }}" placeholder="ФИО или компания">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Договор</span>
+                                <input type="text" name="contract_label" value="{{ estimate.contract_label or '' }}" placeholder="№00/00/26 от 00 мая 2026 г.">
+                            </label>
+                            <label>
+                                <span class="sidebar-label">Скидка, %</span>
+                                <input id="estimateDiscountInput" type="text" name="discount" value="{{ estimate.discount or '0' }}" placeholder="0">
+                            </label>
+                            <label class="estimate-toggle-box">
+                                <span class="sidebar-label">Режим PDF</span>
+                                <span class="estimate-check estimate-check-inline">
+                                    <input type="checkbox" name="watermark" {% if estimate.watermark %}checked{% endif %}>
+                                    <span>Черновик с водяным знаком</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <aside class="estimate-document-actions">
+                        <button type="submit" class="primary-button">Сохранить черновик</button>
+                        {# CHANGED: PDF formaction removed (can be added later for standalone estimates) #}
+                        {# TODO: Add PDF generation for standalone estimates #}
+                    </aside>
+
+                    <input type="hidden" name="items_payload" id="estimateItemsPayload" value="">
+                    <input type="hidden" name="calc_state_payload" id="estimateCalcStatePayload" value="{}">
+                </section>
+
+                <section class="estimate-stage-board">
+                    <div class="estimate-stage-head">
+                        <div class="estimate-stage-title">
+                            <div>
+                                <span class="eyebrow">Таблица</span>
+                                <h3>Редактор таблицы сметы</h3>
+                            </div>
+                        </div>
+
+                        <div class="estimate-stage-totals">
+                            <div>
+                                <span>До скидки</span>
+                                <strong id="estimateTotalHeadValue">0</strong>
+                            </div>
+                            <div>
+                                <span>После скидки</span>
+                                <strong id="estimateDiscountedHeadValue">0</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="estimate-inline-status" id="estimateBottomStatus">Смета готова к редактированию</div>
+
+                    <div class="estimate-tool-row">
+                        <div class="estimate-tool-tabs">
+                            <button type="button" class="estimate-tool-tab estimate-tool-tab-primary" id="addSectionButton">+ Раздел</button>
+                            <button type="button" class="estimate-tool-tab estimate-tool-tab-primary" id="addItemButton">+ Позиция</button>
+                            <button type="button" class="estimate-tool-tab" id="openDrawerRates">База расценок</button>
+                            <button type="button" class="estimate-tool-tab" id="openDrawerTemplates">Шаблоны</button>
+                            <button type="button" class="estimate-tool-tab" id="openDrawerOperations">Операции</button>
+                            <button type="button" class="estimate-tool-tab" id="openEstimateCalculator">Калькулятор</button>
+                            <button type="button" class="estimate-tool-tab" id="collapseAllButton">Свернуть разделы</button>
+                            <button type="button" class="estimate-tool-tab" id="expandAllButton">Развернуть разделы</button>
+                        </div>
+
+                        <div class="estimate-tool-search">
+                            <label class="estimate-search-box">
+                                <span class="sidebar-label">Поиск по смете</span>
+                                <input type="text" id="estimateSearchInput" placeholder="Найдите раздел, работу или единицу измерения">
+                            </label>
+                            <button type="button" class="estimate-tool-tab estimate-tool-tab-primary estimate-tool-tab-compact" id="openEstimateCalculatorInline">Калькулятор</button>
+                        </div>
+                    </div>
+
+                    <div class="estimate-inline-composer-wrap">
+                        <div class="estimate-inline-composer-copy">
+                            <strong>Новая строка</strong>
+                            <p id="estimateQuickAddHint">Нажми на пустую строку, начни вводить название работы и выбери похожую позицию из справочника. Enter — добавить.</p>
+                        </div>
+                        <div class="estimate-inline-composer" id="estimateInlineComposer">
+                            <div class="estimate-inline-composer-cell estimate-inline-composer-type">
+                                <select id="quickAddRowType">
+                                    <option value="item">Позиция</option>
+                                    <option value="section">Раздел</option>
+                                </select>
+                            </div>
+                            <div class="estimate-inline-composer-cell estimate-inline-composer-name">
+                                <input type="text" id="quickAddName" list="estimateRowNameLibrary" placeholder="Начни вводить работу: например, Шпаклевка стен">
+                            </div>
+                            <div class="estimate-inline-composer-cell quick-add-item-field">
+                                <input type="text" id="quickAddUnit" placeholder="Ед.">
+                            </div>
+                            <div class="estimate-inline-composer-cell estimate-inline-composer-qty quick-add-item-field">
+                                <input type="text" id="quickAddQuantity" placeholder="Кол-во">
+                            </div>
+                            <div class="estimate-inline-composer-cell quick-add-item-field">
+                                <input type="text" id="quickAddPrice" placeholder="Цена">
+                            </div>
+                            <div class="estimate-inline-composer-cell estimate-inline-composer-action">
+                                <button type="button" class="primary-button" id="quickAddInlineButton">Добавить</button>
+                            </div>
+                            <input type="hidden" id="quickAddReference" value="">
+                        </div>
+                        <div class="estimate-inline-composer-meta">
+                            <button type="button" class="ghost-button-light estimate-inline-action" id="quickAddClearButton">Очистить</button>
+                            <button type="button" class="ghost-button-light estimate-inline-action" id="openDrawerRatesInline">Показать похожие из прайса</button>
+                        </div>
+                    </div>
+
+                    <div class="estimate-hidden-actions" hidden>
+                        <button type="button" id="moveUpButton">Выше</button>
+                        <button type="button" id="moveDownButton">Ниже</button>
+                        <button type="button" id="clearSelectionButton">Снять выделение</button>
+                        <button type="button" id="addBelowButton">Ниже строку</button>
+                        <button type="button" id="editRowButton">Изменить</button>
+                        <button type="button" id="duplicateRowButton">Дублировать</button>
+                        <button type="button" id="deleteRowButton">Удалить</button>
+                    </div>
+
+                    <div class="estimate-table-toolbar estimate-table-toolbar-v3">
+                        <div class="estimate-filter-box">
+                            <span class="sidebar-label">Фильтр строк</span>
+                            <div class="estimate-filter-chips">
+                                <button type="button" class="filter-chip is-active estimate-filter-chip" data-filter="all">Все</button>
+                                <button type="button" class="filter-chip estimate-filter-chip" data-filter="section">Разделы</button>
+                                <button type="button" class="filter-chip estimate-filter-chip" data-filter="item">Позиции</button>
+                            </div>
+                        </div>
+
+                        <div class="estimate-table-toolbar-note">
+                            <span>Двойной клик — изменить</span>
+                            <span>Ctrl+S — сохранить</span>
+                            <span>Alt+↑ / Alt+↓ — двигать</span>
+                        </div>
+                    </div>
+
+                    <div class="estimate-table-wrap estimate-table-wrap-v3">
+                        <table class="estimate-table estimate-table-v3" id="estimateTable">
+                            <thead>
+                                <tr>
+                                    <th class="estimate-col-type">Тип</th>
+                                    <th class="estimate-col-name">Позиция</th>
+                                    <th class="estimate-col-unit">Ед.</th>
+                                    <th class="estimate-col-number">Кол-во</th>
+                                    <th class="estimate-col-number">Цена</th>
+                                    <th class="estimate-col-number">Стоимость</th>
+                                    <th class="estimate-col-number">Со скидкой</th>
+                                    <th class="estimate-col-actions">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="estimateRowsBody"></tbody>
+                        </table>
+
+                        <div class="estimate-empty" id="estimateEmptyState" hidden>
+                            Смета пока пустая. Начните с кнопки «+ Раздел», затем добавьте позиции работ.
+                        </div>
+                        <div class="estimate-empty" id="estimateFilteredEmptyState" hidden>
+                            По текущему фильтру строки не найдены. Сбросьте поиск или переключите тип строк.
+                        </div>
+                    </div>
+                </section>
+
+                <section class="estimate-submit-strip estimate-layout-span">
+                    <div class="estimate-submit-summary">
+                        <div class="estimate-submit-total">
+                            <span>До скидки</span>
+                            <strong id="estimateTotalFooterValue">0</strong>
+                        </div>
+                        <div class="estimate-submit-total">
+                            <span>После скидки</span>
+                            <strong id="estimateDiscountedFooterValue">0</strong>
+                        </div>
+                    </div>
+
+                    <div class="estimate-submit-actions">
+                        <button type="submit" class="primary-button">Сохранить черновик</button>
+                    </div>
+                </section>
+            </form>
+        </div>
+
+        <aside class="estimate-drawer" id="estimateDrawer" data-open="false">
+            <div class="estimate-drawer-head">
+                <div>
+                    <span class="eyebrow">Справочники</span>
+                    <h3>Правая рабочая панель</h3>
+                </div>
+                <button type="button" class="estimate-drawer-close" id="closeEstimateDrawer">×</button>
+            </div>
+
+            <div class="estimate-drawer-tabs">
+                <button type="button" class="estimate-drawer-tab is-active" data-drawer-tab="rates">Расценки</button>
+                <button type="button" class="estimate-drawer-tab" data-drawer-tab="operations">Операции</button>
+                <button type="button" class="estimate-drawer-tab" data-drawer-tab="templates">Шаблоны</button>
+            </div>
+
+            <div class="estimate-drawer-search">
+                <input type="text" id="estimateDrawerSearch" placeholder="Поиск по правой панели">
+            </div>
+
+            <div class="estimate-drawer-panel is-active" data-drawer-panel="rates">
+                <div class="estimate-drawer-note">База расценок и позиции текущей сметы. <strong id="estimateRatesCount">0</strong> позиций. Выбери нужную и отправь в быстрый ввод.</div>
+                <div class="estimate-library-list" id="estimateRatesLibrary"></div>
+            </div>
+
+            <div class="estimate-drawer-panel" data-drawer-panel="operations">
+                <div class="estimate-drawer-note">Строки текущей сметы: быстро найди нужную и выдели её в таблице.</div>
+                <div class="estimate-library-list" id="estimateOperationsLibrary"></div>
+            </div>
+
+            <div class="estimate-drawer-panel" data-drawer-panel="templates">
+                <div class="estimate-drawer-note">Шаблоны из разделов этой сметы. Если этап типовой — добавь его отсюда.</div>
+                <div class="estimate-library-list" id="estimateTemplatesLibrary"></div>
+            </div>
+        </aside>
+    </div>
+</main>
+
+<dialog class="estimate-dialog" id="estimateRowDialog">
+    <form method="dialog" class="estimate-dialog-card" id="estimateRowDialogForm">
+        <div class="estimate-dialog-head">
+            <div>
+                <div class="eyebrow">Редактор строки</div>
+                <h3 id="estimateDialogTitle">Новая строка</h3>
+            </div>
+            <button type="button" class="ghost-button-light estimate-close-button" id="closeEstimateDialog">Закрыть</button>
+        </div>
+
+        <div class="estimate-dialog-grid">
+            <label class="estimate-dialog-row">
+                <span class="sidebar-label">Тип строки</span>
+                <select id="dialogRowType">
+                    <option value="section">Раздел</option>
+                    <option value="item">Позиция</option>
+                </select>
+            </label>
+            <label class="estimate-dialog-row estimate-dialog-span-2">
+                <span class="sidebar-label">Название</span>
+                <input type="text" id="dialogRowName" list="estimateRowNameLibrary" placeholder="Например: Кухня или Грунтовка потолка">
+            </label>
+            <label class="estimate-dialog-row dialog-item-field">
+                <span class="sidebar-label">Ед.</span>
+                <input type="text" id="dialogRowUnit" placeholder="м2">
+            </label>
+            <label class="estimate-dialog-row dialog-item-field">
+                <span class="sidebar-label">Кол-во</span>
+                <input type="text" id="dialogRowQuantity" placeholder="1">
+            </label>
+            <label class="estimate-dialog-row dialog-item-field">
+                <span class="sidebar-label">Цена</span>
+                <input type="text" id="dialogRowPrice" placeholder="0">
+            </label>
+            <label class="estimate-dialog-row dialog-item-field">
+                <span class="sidebar-label">Артикул / код</span>
+                <input type="text" id="dialogRowReference" placeholder="Необязательно">
+            </label>
+        </div>
+
+        <div class="estimate-dialog-actions">
+            <button type="button" class="ghost-button-light" id="cancelEstimateDialog">Отмена</button>
+            <button type="button" class="primary-button" id="saveEstimateRow">Применить</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="estimate-dialog estimate-calculator-dialog" id="estimateCalculatorDialog">
+    <form method="dialog" class="estimate-dialog-card estimate-calculator-card" id="estimateCalculatorForm">
+        <div class="estimate-dialog-head">
+            <div>
+                <div class="eyebrow">Калькулятор</div>
+                <h3>Продвинутый калькулятор объемов</h3>
+            </div>
+            <button type="button" class="ghost-button-light estimate-close-button" id="closeEstimateCalculator">Закрыть</button>
+        </div>
+
+        <div class="estimate-calculator-layout">
+            <section class="estimate-calculator-section">
+                <div class="estimate-calculator-section-head">
+                    <strong>1. Стены</strong>
+                    <button type="button" class="ghost-button-light estimate-inline-action" id="addCalculatorWall">+ Стена</button>
+                </div>
+                <div class="estimate-calculator-base-grid">
+                    <label>
+                        <span class="sidebar-label">Высота стены, м</span>
+                        <input type="text" id="calcWallHeight" placeholder="2.7">
+                    </label>
+                </div>
+                <div class="estimate-calculator-list" id="estimateCalculatorWalls"></div>
+            </section>
+
+            <section class="estimate-calculator-section">
+                <div class="estimate-calculator-section-head">
+                    <strong>2. Окна и двери</strong>
+                    <div class="estimate-calculator-head-actions">
+                        <button type="button" class="ghost-button-light estimate-inline-action" id="addCalculatorWindow">+ Окно</button>
+                        <button type="button" class="ghost-button-light estimate-inline-action" id="addCalculatorDoor">+ Дверь</button>
+                    </div>
+                </div>
+                <div class="estimate-calculator-list" id="estimateCalculatorOpenings"></div>
+            </section>
+
+            <section class="estimate-calculator-section">
+                <div class="estimate-calculator-section-head">
+                    <strong>3. Пол и модификаторы</strong>
+                    <div class="estimate-calculator-head-actions">
+                        <button type="button" class="ghost-button-light estimate-inline-action" id="addCalculatorBox">+ Короб (-)</button>
+                        <button type="button" class="ghost-button-light estimate-inline-action" id="addCalculatorNiche">+ Ниша (+)</button>
+                    </div>
+                </div>
+                <div class="estimate-calculator-base-grid estimate-calculator-floor-grid">
+                    <label>
+                        <span class="sidebar-label">Длина пола, м</span>
+                        <input type="text" id="calcFloorLength" placeholder="0">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Ширина пола, м</span>
+                        <input type="text" id="calcFloorWidth" placeholder="0">
+                    </label>
+                </div>
+                <div class="estimate-calculator-list" id="estimateCalculatorFloorMods"></div>
+            </section>
+
+            <section class="estimate-calculator-section estimate-calculator-results">
+                <div class="estimate-calculator-section-head">
+                    <strong>4. Итоги</strong>
+                </div>
+                <div class="estimate-calculator-results-grid">
+                    <article class="estimate-calculator-result-card">
+                        <div>
+                            <strong>Пол / потолок</strong>
+                            <span id="calcFloorResult">0 м.кв</span>
+                        </div>
+                        <button type="button" class="primary-button" data-calc-insert="floor">Вставить</button>
+                    </article>
+                    <article class="estimate-calculator-result-card">
+                        <div>
+                            <strong>Стены</strong>
+                            <span id="calcWallsResult">0 м.кв</span>
+                        </div>
+                        <button type="button" class="primary-button" data-calc-insert="walls">Вставить</button>
+                    </article>
+                    <article class="estimate-calculator-result-card">
+                        <div>
+                            <strong>Плинтус</strong>
+                            <span id="calcPlinthResult">0 м.пог</span>
+                        </div>
+                        <button type="button" class="primary-button" data-calc-insert="plinth">Вставить</button>
+                    </article>
+                    <article class="estimate-calculator-result-card">
+                        <div>
+                            <strong>Откосы окон</strong>
+                            <span id="calcWindowSlopesResult">0 м.пог</span>
+                        </div>
+                        <button type="button" class="primary-button" data-calc-insert="window_slopes">Вставить</button>
+                    </article>
+                    <article class="estimate-calculator-result-card">
+                        <div>
+                            <strong>Откосы дверей</strong>
+                            <span id="calcDoorSlopesResult">0 м.пог</span>
+                        </div>
+                        <button type="button" class="primary-button" data-calc-insert="door_slopes">Вставить</button>
+                    </article>
+                </div>
+            </section>
+        </div>
+    </form>
+</dialog>
+
+<datalist id="estimateRowNameLibrary"></datalist>
+{# CHANGED: Initial rows JSON initialization - uses empty items array initially #}
+<script id="estimateInitialRows" type="application/json">[]</script>
+<script id="estimatePriceLibrary" type="application/json">{{ price_library_json|safe }}</script>
+<script id="estimateInitialCalcState" type="application/json">{{ estimate_calc_state_json|safe }}</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', path='/estimate_editor.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Самостоятельные сметы | Dekorartstroy CRM{% endblock %}
+
+{% set active_section = 'estimates' %}
+
+{% block body %}
+<main class="dashboard-shell dashboard-shell-v2">
+    <div class="workspace-frame workspace-frame-desktop">
+        <header class="topbar-card topbar-card-projects topbar-card-classic">
+            <a class="topbar-logo-slot" href="/projects" aria-label="CRM198.ru">
+                <img src="/static/img/crm198-logo.jpg" alt="CRM198.ru">
+            </a>
+
+            <div class="topbar-meta projects-topbar-actions">
+                <a class="topbar-chip topbar-primary-action" href="/standalone-estimates/new">+ Смета</a>
+            </div>
+
+            <div class="topbar-userbox topbar-userbox-compact">
+                <a class="topbar-chip topbar-chip-link topbar-password-action" href="/account/password">Сменить пароль</a>
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        <section class="classic-layout">
+            <section class="classic-main">
+                <div class="classic-main-head">
+                    <h1>Самостоятельные сметы</h1>
+                    <p>Список всех созданных самостоятельных смет.</p>
+                </div>
+
+                {% if estimates %}
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Тип сметы</th>
+                            <th>Статус</th>
+                            <th>Клиент</th>
+                            <th>Объект</th>
+                            <th>Проект ID</th>
+                            <th>Дата обновления</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for estimate in estimates %}
+                        <tr>
+                            <td>{{ estimate.id }}</td>
+                            <td>{{ estimate.title or 'Без названия' }}</td>
+                            <td>{{ estimate.estimate_type.value }}</td>
+                            <td>{{ estimate.status.value }}</td>
+                            <td>{{ estimate.customer_name or '-' }}</td>
+                            <td>{{ estimate.object_name or '-' }}</td>
+                            <td>{{ estimate.project_id or '-' }}</td>
+                            <td>{{ estimate.updated_at }}</td>
+                            <td>
+                                <a href="/estimates/{{ estimate.id }}">Открыть</a>
+                                {% if estimate.status in ['approved', 'in_progress'] %}
+                                | <a href="/estimates/{{ estimate.id }}/download/json">JSON</a>
+                                | <a href="/estimates/{{ estimate.id }}/download/pdf">PDF</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-box">
+                    <p>Пока нет созданных самостоятельных смет.</p>
+                    <a href="/standalone-estimates/new">Создать первую смету</a>
+                </div>
+                {% endif %}
+            </section>
+        </section>
+    </div>
+</main>
+{% endblock %}

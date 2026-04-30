@@ -17,16 +17,20 @@ from webapp.db import (
     create_catalog_item,
     create_transaction,
     delete_catalog_item,
+    delete_project,
+    delete_transaction,
     duplicate_catalog_item,
     ensure_transactions_table,
     ensure_catalog_items_table,
     migrate_catalog_item_categories,
     fetch_catalog_items,
     fetch_catalog_items_by_names,
+    fetch_transaction,
     upsert_new_catalog_items,
     apply_catalog_conflict_items,
     bulk_update_catalog_categories,
     update_catalog_item,
+    update_transaction,
     ensure_web_user,
     ensure_web_users_table,
     fetch_counterparties,
@@ -46,6 +50,10 @@ from webapp.db import (
     update_web_user_password,
 )
 from webapp.estimate_pdf import generate_estimate_pdf
+from webapp.standalone_estimate_api import (
+    register_standalone_estimate_exception_handlers,
+    router as standalone_estimate_router,
+)
 from webapp.storage import ensure_storage_dirs, resolve_storage_path
 from import_catalog_items import (
     CATEGORY_OPTIONS,
@@ -71,6 +79,7 @@ app.add_middleware(
     same_site="lax",
     https_only=False,
 )
+register_standalone_estimate_exception_handlers(app)
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 app.mount(
@@ -78,6 +87,7 @@ app.mount(
     StaticFiles(directory=str(Path(__file__).resolve().parent / "static")),
     name="static",
 )
+app.include_router(standalone_estimate_router)
 
 
 @app.on_event("startup")
@@ -412,11 +422,37 @@ def projects_page(request: Request):
     )
 
 
+@app.get("/estimates")
+def estimates_redirect(request: Request, project_id: int | None = None):
+    require_auth(request)
+    if project_id is None:
+        projects = fetch_projects()
+        project_id = int(projects[0]["id"]) if projects else None
+    if project_id is None:
+        return RedirectResponse(url="/projects", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=f"/projects/{project_id}/estimate", status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/calculator")
+def calculator_redirect(request: Request, project_id: int | None = None):
+    require_auth(request)
+    if project_id is None:
+        projects = fetch_projects()
+        project_id = int(projects[0]["id"]) if projects else None
+    if project_id is None:
+        return RedirectResponse(url="/projects", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(url=f"/projects/{project_id}/estimate?tool=calculator", status_code=status.HTTP_302_FOUND)
+
+
 @app.get("/finance")
 def finance_page(request: Request):
     require_auth(request)
     transactions = fetch_transactions()
     flash = request.query_params.get("message", "")
+    edit_transaction_id = request.query_params.get("edit", "").strip()
+    edit_transaction_data = None
+    if edit_transaction_id.isdigit():
+        edit_transaction_data = fetch_transaction(int(edit_transaction_id))
     return templates.TemplateResponse(
         request=request,
         name="finance.html",
@@ -424,6 +460,7 @@ def finance_page(request: Request):
             **common_template_context(request, "finance"),
             "transactions": transactions,
             "finance_summary": summarize_transactions(transactions),
+            "edit_transaction": edit_transaction_data,
             "flash_messages": ([{"type": "success", "text": flash}] if flash else []),
         },
     )
@@ -448,6 +485,36 @@ def finance_transaction_create(
         return RedirectResponse(url=f"{safe_return}{separator}message=Ошибка: {str(exc)}", status_code=status.HTTP_302_FOUND)
     separator = "&" if "?" in safe_return else "?"
     return RedirectResponse(url=f"{safe_return}{separator}message=Транзакция успешно добавлена", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/finance/transactions/{transaction_id}")
+def finance_transaction_update(
+    transaction_id: int,
+    request: Request,
+    transaction_type: str = Form("expense"),
+    amount: str = Form(""),
+    description: str = Form(""),
+    category: str = Form("Прочее"),
+    project_id: str = Form(""),
+    tx_status: str = Form("completed"),
+):
+    require_auth(request)
+    try:
+        updated = update_transaction(transaction_id, transaction_type, amount, description, category, project_id, tx_status)
+    except Exception as exc:
+        return RedirectResponse(url=f"/finance?edit={transaction_id}&message=Ошибка: {str(exc)}#transaction-{transaction_id}", status_code=status.HTTP_302_FOUND)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Транзакция не найдена.")
+    return RedirectResponse(url=f"/finance?message=Транзакция обновлена#transaction-{transaction_id}", status_code=status.HTTP_302_FOUND)
+
+
+@app.post("/finance/transactions/{transaction_id}/delete")
+def finance_transaction_delete(transaction_id: int, request: Request):
+    require_auth(request)
+    deleted = delete_transaction(transaction_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Транзакция не найдена.")
+    return RedirectResponse(url="/finance?message=Транзакция удалена", status_code=status.HTTP_302_FOUND)
 
 
 @app.get("/catalog")
@@ -830,6 +897,15 @@ def project_detail_save(
         url=f"/projects/{project_id}?saved=1",
         status_code=status.HTTP_302_FOUND,
     )
+
+
+@app.post("/projects/{project_id}/delete")
+def project_delete(project_id: int, request: Request):
+    require_auth(request)
+    deleted = delete_project(project_id, request.session.get("username", settings.admin_username))
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+    return RedirectResponse(url="/projects?created=deleted", status_code=status.HTTP_302_FOUND)
 
 
 @app.get("/projects/{project_id}/estimate")

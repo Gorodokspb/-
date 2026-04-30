@@ -20,10 +20,11 @@ class FinanceModuleTests(unittest.TestCase):
 
         self.assertIn("global-header", template)
         self.assertIn("Декорартстрой", template)
-        for label in ["Проекты", "Сметы", "Справочник", "Калькулятор", "Финансы"]:
+        for label in ["Проекты", "Смета", "Прайс-лист", "Калькулятор", "Финансы"]:
             self.assertIn(label, template)
         self.assertIn("+ Действие", template)
         self.assertIn("quickTransactionModal", template)
+        self.assertIn("catalog-modal", template)
         self.assertIn('action="/finance/transactions"', template)
         self.assertIn("quick_action_projects", template)
         self.assertIn("flash_messages", template)
@@ -48,9 +49,13 @@ class FinanceModuleTests(unittest.TestCase):
         self.assertIn("def create_transaction", db)
         self.assertIn("def fetch_transactions", db)
         self.assertIn("def fetch_project_transactions", db)
+        self.assertIn("def update_transaction", db)
+        self.assertIn("def delete_transaction", db)
         self.assertIn("def summarize_transactions", db)
         self.assertIn("@app.get(\"/finance\")", main)
         self.assertIn("@app.post(\"/finance/transactions\")", main)
+        self.assertIn("@app.post(\"/finance/transactions/{transaction_id}\")", main)
+        self.assertIn("@app.post(\"/finance/transactions/{transaction_id}/delete\")", main)
         self.assertIn("ensure_transactions_table", main)
 
     def test_finance_page_template_shows_cashbox_balance_and_transactions(self):
@@ -64,6 +69,11 @@ class FinanceModuleTests(unittest.TestCase):
         self.assertIn("finance_summary.expense", template)
         self.assertIn("transactions", template)
         self.assertIn("project_name", template)
+        self.assertIn("Действия", template)
+        self.assertIn("Редактировать", template)
+        self.assertIn("Удалить", template)
+        self.assertIn("/finance/transactions/{{ transaction.id }}", template)
+        self.assertIn("/finance/transactions/{{ transaction.id }}/delete", template)
 
     def test_project_detail_contains_project_finance_transactions(self):
         template = PROJECT_TEMPLATE.read_text(encoding="utf-8")
@@ -75,6 +85,8 @@ class FinanceModuleTests(unittest.TestCase):
         self.assertIn("Прибыль", template)
         self.assertIn("data-project-id=\"{{ project.id }}\"", template)
         self.assertIn("/finance/transactions", template)
+        self.assertIn("/finance?edit={{ transaction.id }}#transaction-{{ transaction.id }}", template)
+        self.assertIn("/finance/transactions/{{ transaction.id }}/delete", template)
 
     def test_summarize_transactions_calculates_balance(self):
         import webapp.db as db

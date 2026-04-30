@@ -181,6 +181,7 @@
                 if (currentProjectId && projectSelect && Array.from(projectSelect.options).some((option) => option.value === currentProjectId)) {
                     projectSelect.value = currentProjectId;
                 }
+                window.scrollTo({ top: 0, behavior: "smooth" });
                 modal.hidden = false;
             }
         });
