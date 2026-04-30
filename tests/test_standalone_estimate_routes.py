@@ -1,4 +1,5 @@
 import asyncio
+import json
 import shutil
 import unittest
 from urllib.parse import urlencode
@@ -219,6 +220,173 @@ class StandaloneEstimateRouteTests(unittest.TestCase):
         self.assertIn('"new_status":"sent"', body)
         self.assertIn('"new_status":"approved"', body)
         self.assertIn('"new_status":"rejected"', body)
+
+    def test_send_creates_version_snapshot_with_sent_status(self):
+        self._create_estimate()
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM estimates ORDER BY id DESC LIMIT 1")
+                estimate_id = int(cur.fetchone()["id"])
+
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._username", return_value="manager"
+        ):
+            response = standalone_api.standalone_estimate_send(
+                estimate_id,
+                make_request(f"/estimates/{estimate_id}/send", method="POST"),
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = json.loads(response.body.decode("utf-8"))
+        details = standalone_api.service.get_estimate(estimate_id)
+        sent_version = details.versions[-1]
+
+        self.assertEqual(body["estimate"]["status"], "sent")
+        self.assertEqual(details.estimate.status.value, "sent")
+        self.assertEqual(details.estimate.current_version_id, sent_version["id"])
+        self.assertEqual(sent_version["version_kind"].value, "sent")
+        self.assertEqual(sent_version["status_at_save"].value, "sent")
+        self.assertEqual(sent_version["snapshot_json"]["estimate"]["status"], "sent")
+        self.assertEqual(details.status_history[-1]["old_status"], "draft")
+        self.assertEqual(details.status_history[-1]["new_status"], "sent")
+
+    def test_approve_creates_approved_version_snapshot_and_links(self):
+        self._create_estimate()
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM estimates ORDER BY id DESC LIMIT 1")
+                estimate_id = int(cur.fetchone()["id"])
+
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._username", return_value="manager"
+        ):
+            standalone_api.standalone_estimate_send(
+                estimate_id,
+                make_request(f"/estimates/{estimate_id}/send", method="POST"),
+            )
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._username", return_value="manager"
+        ), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={"stamp_applied": True, "signature_applied": True, "comment": "Согласовано клиентом"},
+        ):
+            response = asyncio.run(
+                standalone_api.standalone_estimate_approve(
+                    estimate_id,
+                    make_request(f"/estimates/{estimate_id}/approve", method="POST"),
+                )
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = json.loads(response.body.decode("utf-8"))
+        details = standalone_api.service.get_estimate(estimate_id)
+        approved_version = details.versions[-1]
+
+        self.assertEqual(body["estimate"]["status"], "approved")
+        self.assertEqual(details.estimate.status.value, "approved")
+        self.assertEqual(details.estimate.current_version_id, approved_version["id"])
+        self.assertEqual(details.estimate.approved_version_id, approved_version["id"])
+        self.assertEqual(body["estimate"]["approved_version_id"], approved_version["id"])
+        self.assertEqual(approved_version["version_kind"].value, "approved")
+        self.assertEqual(approved_version["status_at_save"].value, "approved")
+        self.assertTrue(approved_version["is_final"])
+        self.assertTrue(approved_version["stamp_applied"])
+        self.assertTrue(approved_version["signature_applied"])
+        self.assertEqual(approved_version["snapshot_json"]["estimate"]["status"], "approved")
+        self.assertEqual(details.status_history[-1]["old_status"], "sent")
+        self.assertEqual(details.status_history[-1]["new_status"], "approved")
+
+    def test_json_export_contains_rows_and_current_status(self):
+        self._create_estimate(
+            {
+                "estimate_number": "ST-JSON",
+                "title": "JSON экспорт",
+                "customer_name": "Клиент JSON",
+                "object_name": "Объект JSON",
+                "company_name": "ООО Декорартстрой",
+                "contract_label": "J-1",
+                "discount": "7.5",
+                "watermark": "draft",
+                "items": [
+                    {"row_type": "section", "name": "Подготовка", "sort_order": 1},
+                    {
+                        "row_type": "item",
+                        "name": "Грунтовка",
+                        "unit": "м2",
+                        "quantity": "10",
+                        "price": "50",
+                        "total": "500",
+                        "discounted_total": "462.5",
+                        "sort_order": 2,
+                    },
+                    {
+                        "row_type": "item",
+                        "name": "Шпатлевка",
+                        "unit": "м2",
+                        "quantity": "10",
+                        "price": "100",
+                        "total": "1000",
+                        "discounted_total": "925",
+                        "sort_order": 3,
+                    },
+                ],
+            }
+        )
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM estimates ORDER BY id DESC LIMIT 1")
+                estimate_id = int(cur.fetchone()["id"])
+
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._username", return_value="manager"
+        ):
+            standalone_api.standalone_estimate_send(
+                estimate_id,
+                make_request(f"/estimates/{estimate_id}/send", method="POST"),
+            )
+            response = standalone_api.standalone_estimate_download_json(
+                estimate_id,
+                make_request(f"/estimates/{estimate_id}/download/json"),
+            )
+
+        payload = json.loads(response.path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["estimate"]["title"], "JSON экспорт")
+        self.assertEqual(payload["estimate"]["customer_name"], "Клиент JSON")
+        self.assertEqual(payload["estimate"]["object_name"], "Объект JSON")
+        self.assertEqual(payload["estimate"]["discount"], "7.50")
+        self.assertEqual(payload["estimate"]["watermark"], "draft")
+        self.assertEqual(payload["estimate"]["status"], "sent")
+        self.assertEqual([item["row_type"] for item in payload["items"]], ["section", "item", "item"])
+        self.assertEqual([item["name"] for item in payload["items"]], ["Подготовка", "Грунтовка", "Шпатлевка"])
+
+    def test_generic_status_route_changes_status_without_creating_version(self):
+        self._create_estimate()
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM estimates ORDER BY id DESC LIMIT 1")
+                estimate_id = int(cur.fetchone()["id"])
+        before_count = len(standalone_api.service.get_estimate(estimate_id).versions)
+
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._username", return_value="manager"
+        ), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={"status": "sent", "comment": "Служебная смена статуса"},
+        ):
+            response = asyncio.run(
+                standalone_api.standalone_estimate_change_status(
+                    estimate_id,
+                    make_request(f"/estimates/{estimate_id}/status", method="POST"),
+                )
+            )
+
+        details = standalone_api.service.get_estimate(estimate_id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(details.estimate.status.value, "sent")
+        self.assertEqual(len(details.versions), before_count)
+        self.assertEqual(details.status_history[-1]["old_status"], "draft")
+        self.assertEqual(details.status_history[-1]["new_status"], "sent")
+        self.assertEqual(details.status_history[-1]["comment"], "Служебная смена статуса")
 
     def test_status_route_and_download_routes_work_for_standalone_estimate(self):
         self._create_estimate(

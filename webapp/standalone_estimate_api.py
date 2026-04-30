@@ -417,20 +417,21 @@ async def standalone_estimate_change_status(estimate_id: int, request: Request):
 def standalone_estimate_send(estimate_id: int, request: Request):
     _require_auth(request)
     actor = _username(request)
-    version = _create_snapshot_version(
-        estimate_id,
-        actor=actor,
-        status_value=EstimateStatus.SENT,
-        source_event="send_estimate",
-    )
     summary = service.change_estimate_status(
         estimate_id,
         EstimateStatus.SENT,
         changed_by=actor,
         comment="Отправлено клиенту",
     )
+    version = _create_snapshot_version(
+        estimate_id,
+        actor=actor,
+        status_value=summary.status,
+        source_event="send_estimate",
+    )
     export_standalone_estimate_json(_json_safe(service.build_estimate_snapshot(estimate_id)))
-    return JSONResponse({"estimate": _serialize_summary(summary), "version_id": version["id"]})
+    refreshed = service.get_estimate(estimate_id).estimate
+    return JSONResponse({"estimate": _serialize_summary(refreshed), "version_id": version["id"]})
 
 
 @router.post("/estimates/{estimate_id}/approve")
@@ -440,25 +441,25 @@ async def standalone_estimate_approve(estimate_id: int, request: Request):
     actor = _username(request)
     stamp_applied = bool(payload.get("stamp_applied"))
     signature_applied = bool(payload.get("signature_applied"))
+    summary = service.change_estimate_status(
+        estimate_id,
+        EstimateStatus.APPROVED,
+        changed_by=actor,
+        comment=str(payload.get("comment") or "").strip() or "Согласовано",
+    )
     version = _create_snapshot_version(
         estimate_id,
         actor=actor,
-        status_value=EstimateStatus.APPROVED,
+        status_value=summary.status,
         source_event="approve_estimate",
         is_final=bool(payload.get("is_final", True)),
         stamp_applied=stamp_applied,
         signature_applied=signature_applied,
         change_comment=str(payload.get("comment") or "").strip() or None,
     )
-    summary = service.change_estimate_status(
-        estimate_id,
-        EstimateStatus.APPROVED,
-        changed_by=actor,
-        comment=str(payload.get("comment") or "").strip() or "Согласовано",
-        approved_version_id=version["id"],
-    )
     export_standalone_estimate_json(_json_safe(service.build_estimate_snapshot(estimate_id)))
-    return JSONResponse({"estimate": _serialize_summary(summary), "version_id": version["id"]})
+    refreshed = service.get_estimate(estimate_id).estimate
+    return JSONResponse({"estimate": _serialize_summary(refreshed), "version_id": version["id"]})
 
 
 @router.post("/estimates/{estimate_id}/reject")
