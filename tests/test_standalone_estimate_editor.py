@@ -9,9 +9,12 @@ import webapp.standalone_estimate_api as standalone_api
 from webapp.db import get_connection
 
 
-def make_request(path: str, *, method: str = "GET", query: dict | None = None, session: dict | None = None) -> Request:
+def make_request(path: str, *, method: str = "GET", query: dict | None = None, session: dict | None = None, headers: dict[str, str] | None = None) -> Request:
     from urllib.parse import urlencode
     query_string = urlencode(query or {}, doseq=True).encode("utf-8")
+    request_headers = [(b"content-type", b"application/json")]
+    if headers:
+        request_headers = [(name.encode("utf-8"), value.encode("utf-8")) for name, value in headers.items()]
     scope = {
         "type": "http",
         "http_version": "1.1",
@@ -20,7 +23,7 @@ def make_request(path: str, *, method: str = "GET", query: dict | None = None, s
         "path": path,
         "raw_path": path.encode("utf-8"),
         "query_string": query_string,
-        "headers": [(b"content-type", b"application/json")],
+        "headers": request_headers,
         "client": ("testclient", 123),
         "server": ("testserver", 80),
         "session": session or {},
@@ -121,8 +124,9 @@ class StandaloneEstimateEditorRouteTests(unittest.TestCase):
 
     def test_standalone_estimate_editor_404_for_missing_estimate(self):
         request = make_request("/estimates/9999/edit", session={"is_authenticated": True, "username": "testuser"})
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception) as cm:
             standalone_api.standalone_estimate_editor(9999, request)
+        self.assertIn("Estimate 9999 not found", str(cm.exception))
 
     @patch('webapp.standalone_estimate_api.templates.TemplateResponse')
     def test_standalone_editor_does_not_require_project_data(self, mock_template_response):
@@ -153,6 +157,57 @@ class StandaloneEstimateEditorRouteTests(unittest.TestCase):
                 row = cur.fetchone()
         self.assertIsNotNone(row)
         self.assertEqual(row["id"], estimate_id)
+
+    @patch('webapp.standalone_estimate_api.templates.TemplateResponse')
+    def test_create_edit_save_reopen_editor_workflow(self, mock_template_response):
+        """Test the full workflow: create → edit → save → reopen editor."""
+        mock_template_response.return_value.status_code = 200
+        
+        # Step 1: Create new estimate
+        create_request = make_request("/standalone-estimates/new", session={"is_authenticated": True, "username": "testuser"})
+        create_response = standalone_api.standalone_estimate_new_redirect(create_request)
+        self.assertEqual(create_response.status_code, 302)
+        location = create_response.headers["location"]
+        self.assertTrue(location.endswith("/edit"))
+        estimate_id = int(location.split("/")[-2])
+
+        # Step 2: Open editor (should work)
+        edit_request = make_request(f"/estimates/{estimate_id}/edit", session={"is_authenticated": True, "username": "testuser"})
+        edit_response = standalone_api.standalone_estimate_editor(estimate_id, edit_request)
+        self.assertEqual(edit_response.status_code, 200)
+
+        # Step 3: Save estimate
+        save_payload = {
+            "title": "Updated Standalone Estimate",
+            "customer_name": "Updated Customer",
+            "object_name": "Updated Object",
+            "items": [{"name": "Test Item", "sort_order": 1, "quantity": "1", "price": "100", "total": "100", "discounted_total": "100"}]
+        }
+        save_request = make_request(
+            f"/estimates/{estimate_id}",
+            method="POST",
+            session={"is_authenticated": True, "username": "testuser"},
+            headers={"content-type": "application/x-www-form-urlencoded"}
+        )
+        with patch("webapp.standalone_estimate_api._load_payload", return_value=save_payload):
+            save_response = asyncio.run(standalone_api.standalone_estimate_update(estimate_id, save_request))
+        self.assertEqual(save_response.status_code, 303)
+        self.assertEqual(save_response.headers["location"], f"/estimates/{estimate_id}/edit")
+
+        # Step 4: Reopen editor (should still work after save)
+        reopen_request = make_request(f"/estimates/{estimate_id}/edit", session={"is_authenticated": True, "username": "testuser"})
+        reopen_response = standalone_api.standalone_estimate_editor(estimate_id, reopen_request)
+        self.assertEqual(reopen_response.status_code, 200)
+
+        # Verify the estimate still exists and has updated data
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT title, customer_name, object_name FROM estimates WHERE id = %s", (estimate_id,))
+                row = cur.fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["title"], "Updated Standalone Estimate")
+        self.assertEqual(row["customer_name"], "Updated Customer")
+        self.assertEqual(row["object_name"], "Updated Object")
 
 
 if __name__ == "__main__":

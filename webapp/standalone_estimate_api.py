@@ -501,9 +501,23 @@ def standalone_estimates_list(request: Request):
 
 def register_standalone_estimate_exception_handlers(app) -> None:
     @app.exception_handler(EstimateRepositoryError)
-    async def _repository_error_handler(_request: Request, exc: EstimateRepositoryError):
+    async def _repository_error_handler(request: Request, exc: EstimateRepositoryError):
+        accept = request.headers.get("accept", "").lower()
+        if "text/html" in accept:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "error": str(exc), "status_code": 404},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
         return JSONResponse({"detail": str(exc)}, status_code=status.HTTP_404_NOT_FOUND)
 
     @app.exception_handler(EstimateDomainError)
-    async def _domain_error_handler(_request: Request, exc: EstimateDomainError):
+    async def _domain_error_handler(request: Request, exc: EstimateDomainError):
+        accept = request.headers.get("accept", "").lower()
+        if "text/html" in accept:
+            return templates.TemplateResponse(
+                "error.html",
+                {"request": request, "error": str(exc), "status_code": 400},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
         return JSONResponse({"detail": str(exc)}, status_code=status.HTTP_400_BAD_REQUEST)

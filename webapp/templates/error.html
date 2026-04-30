@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#11283d">
+    <title>{% block title %}Ошибка - Dekorartstroy CRM{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
+</head>
+<body>
+    <header class="global-header">
+        <a class="global-logo" href="/projects" aria-label="Декорартстрой — проекты">Декорартстрой</a>
+        <nav class="global-nav" aria-label="Главное меню">
+            <a class="global-nav-link" href="/projects">Проекты</a>
+            <a class="global-nav-link" href="/standalone-estimates">Самостоятельные сметы</a>
+            <a class="global-nav-link" href="/catalog">Прайс-лист</a>
+            <a class="global-nav-link" href="/finance">Финансы</a>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        <div class="error-page">
+            <h1>Ошибка {{ status_code }}</h1>
+            <p>{{ error }}</p>
+            <p><a href="/standalone-estimates">Вернуться к списку смет</a></p>
+        </div>
+    </main>
+</body>
+</html>
