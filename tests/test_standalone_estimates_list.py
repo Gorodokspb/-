@@ -101,6 +101,14 @@ class StandaloneEstimatesListRouteTests(unittest.TestCase):
         self.assertIn('href="/standalone-estimates/new"', template)
         self.assertNotIn('href="/estimates/new"', template)
 
+    def test_standalone_estimates_list_open_link_uses_editor_route(self):
+        with open("/opt/dekorcrm/app/CRM_OLD_BAD/webapp/templates/standalone_estimates_list.html", "r", encoding="utf-8") as f:
+            template = f.read()
+        # Verify that the "Open" link uses the /edit endpoint
+        self.assertIn('href="/estimates/{{ estimate.id }}/edit"', template)
+        # Ensure it's not pointing to the raw JSON endpoint
+        self.assertNotIn('<a href="/estimates/{{ estimate.id }}">Открыть</a>', template)
+
 
 if __name__ == "__main__":
     unittest.main()

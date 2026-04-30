@@ -62,7 +62,7 @@
                             <td>{{ estimate.project_id or '-' }}</td>
                             <td>{{ estimate.updated_at }}</td>
                             <td>
-                                <a href="/estimates/{{ estimate.id }}">Открыть</a>
+                                <a href="/estimates/{{ estimate.id }}/edit">Открыть</a>
                                 {% if estimate.status in ['approved', 'in_progress'] %}
                                 | <a href="/estimates/{{ estimate.id }}/download/json">JSON</a>
                                 | <a href="/estimates/{{ estimate.id }}/download/pdf">PDF</a>
