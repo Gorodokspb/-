@@ -1,0 +1,5 @@
+BEGIN;
+
+ALTER TABLE documents ALTER COLUMN project_id DROP NOT NULL;
+
+COMMIT;
