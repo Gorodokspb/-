@@ -5,6 +5,7 @@ import unittest
 from urllib.parse import urlencode
 from unittest.mock import patch
 
+from fastapi import HTTPException
 from starlette.requests import Request
 
 import webapp.main as main
@@ -457,6 +458,132 @@ class StandaloneEstimateRouteTests(unittest.TestCase):
             with self.assertRaises(Exception) as exc_context:
                 asyncio.run(standalone_api.standalone_estimate_pdf(estimate_id, request))
         self.assertIn("Печать и подпись", str(exc_context.exception))
+
+    def _create_and_approve_estimate(self, items=None):
+        payload = {
+            "estimate_number": "ST-FINAL",
+            "title": "Финальная смета",
+            "customer_name": "Клиент Финал",
+            "object_name": "Объект Финал",
+            "company_name": "ООО Декорартстрой",
+            "contract_label": "F-1",
+            "items": items or [
+                {"name": "Монтаж", "sort_order": 10, "quantity": "5", "price": "200", "total": "1000", "discounted_total": "950"},
+            ],
+        }
+        self._create_estimate(payload)
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM estimates ORDER BY id DESC LIMIT 1")
+                estimate_id = int(cur.fetchone()["id"])
+
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._username", return_value="manager"
+        ):
+            standalone_api.standalone_estimate_send(
+                estimate_id,
+                make_request(f"/estimates/{estimate_id}/send", method="POST"),
+            )
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._username", return_value="manager"
+        ), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={"stamp_applied": True, "signature_applied": True, "comment": "Согласовано"},
+        ):
+            asyncio.run(
+                standalone_api.standalone_estimate_approve(
+                    estimate_id,
+                    make_request(f"/estimates/{estimate_id}/approve", method="POST"),
+                )
+            )
+        return estimate_id
+
+    def test_final_pdf_rejected_before_approval(self):
+        self._create_estimate({"estimate_number": "ST-FINAL-REJ", "title": "Ранняя смета", "items": []})
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM estimates ORDER BY id DESC LIMIT 1")
+                estimate_id = int(cur.fetchone()["id"])
+
+        request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={},
+        ):
+            with self.assertRaises(HTTPException) as exc_context:
+                asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
+        self.assertEqual(exc_context.exception.status_code, 400)
+        self.assertIn("approved", str(exc_context.exception.detail).lower())
+
+    def test_final_pdf_created_after_approval(self):
+        estimate_id = self._create_and_approve_estimate()
+        request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={"stamp_applied": True, "signature_applied": True},
+        ):
+            response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
+        body = json.loads(response.body.decode("utf-8"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(body["pdf_generated"])
+        self.assertEqual(body["snapshot_status"], "approved")
+        self.assertIn("/download/final-pdf", body["download_url"])
+        self.assertTrue(body["filename"].endswith("-approved.pdf"))
+
+    def test_final_pdf_uses_approved_snapshot_not_current_data(self):
+        estimate_id = self._create_and_approve_estimate(
+            items=[{"name": "Оригинальная работа", "sort_order": 10, "quantity": "3", "price": "100", "total": "300", "discounted_total": "280"}]
+        )
+        details = standalone_api.service.get_estimate(estimate_id)
+        approved_version_id = details.estimate.approved_version_id
+        self.assertIsNotNone(approved_version_id)
+        approved_snapshot_items = None
+        for version in details.versions:
+            if version["id"] == approved_version_id:
+                approved_snapshot_items = version["snapshot_json"]["items"]
+                break
+        self.assertIsNotNone(approved_snapshot_items)
+        approved_item_names = [item.get("name") for item in approved_snapshot_items]
+
+        standalone_api.service.save_estimate_items(
+            estimate_id,
+            [standalone_api._normalize_items([{"name": "Изменённая работа", "sort_order": 10, "quantity": "1", "price": "9999", "total": "9999", "discounted_total": "9999"}])][0],
+        )
+
+        request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={},
+        ):
+            response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
+        self.assertEqual(response.status_code, 200)
+        body = json.loads(response.body.decode("utf-8"))
+        self.assertEqual(body["snapshot_status"], "approved")
+        self.assertIn("Оригинальная работа", approved_item_names)
+
+    def test_download_final_pdf_serves_approved_file(self):
+        estimate_id = self._create_and_approve_estimate()
+        request_post = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={},
+        ):
+            asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request_post))
+
+        request_get = make_request(f"/estimates/{estimate_id}/download/final-pdf")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None):
+            response = standalone_api.standalone_estimate_download_final_pdf(estimate_id, request_get)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.media_type, "application/pdf")
+        self.assertTrue(str(response.path).endswith("-approved.pdf"))
+
+    def test_download_final_pdf_404_before_generation(self):
+        estimate_id = self._create_and_approve_estimate()
+        request = make_request(f"/estimates/{estimate_id}/download/final-pdf")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None):
+            with self.assertRaises(HTTPException) as exc_context:
+                standalone_api.standalone_estimate_download_final_pdf(estimate_id, request)
+        self.assertEqual(exc_context.exception.status_code, 404)
 
 
 if __name__ == "__main__":

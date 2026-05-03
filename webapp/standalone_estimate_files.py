@@ -137,34 +137,26 @@ def _build_pdf_table(snapshot: dict[str, Any]) -> tuple[list[list[str]], list[tu
     return table_data, section_styles, grand_total, discounted_total
 
 
-def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: bool = False, signature_applied: bool = False) -> Path:
-    estimate = snapshot["estimate"]
-    approved = _is_approved_pdf_status(estimate.get("status"))
-    if not approved and (stamp_applied or signature_applied):
-        raise ValueError("Печать и подпись допустимы только для согласованной standalone-сметы.")
-
+def _build_pdf_elements(
+    snapshot: dict[str, Any],
+    *,
+    stamp_applied: bool = False,
+    signature_applied: bool = False,
+    is_final_approved: bool = False,
+) -> list:
     _ensure_fonts()
-    title = estimate.get("title") or estimate.get("object_name") or estimate.get("estimate_number") or "Смета"
-    path = build_standalone_estimate_pdf_path(int(estimate["id"]), title, approved=approved)
-
-    doc = SimpleDocTemplate(
-        str(path),
-        pagesize=A4,
-        rightMargin=10 * mm,
-        leftMargin=10 * mm,
-        topMargin=10 * mm,
-        bottomMargin=10 * mm,
-    )
-    header_style = ParagraphStyle("header", fontName=FONT_BOLD, fontSize=12, leading=14)
-    body_style = ParagraphStyle("body", fontName=FONT_REGULAR, fontSize=8, leading=10)
-    small_style = ParagraphStyle("small", fontName=FONT_REGULAR, fontSize=7, leading=9)
-
+    estimate = snapshot["estimate"]
     object_name = estimate.get("object_name") or "Не указан"
     customer_name = estimate.get("customer_name") or "Не указан"
     contract_label = estimate.get("contract_label") or "Не указан"
     company_name = estimate.get("company_name") or "ООО Декорартстрой"
     status_label = str(estimate.get("status") or "draft")
     discount_label = str(estimate.get("discount") or "0")
+
+    header_style = ParagraphStyle("header", fontName=FONT_BOLD, fontSize=12, leading=14)
+    body_style = ParagraphStyle("body", fontName=FONT_REGULAR, fontSize=8, leading=10)
+    small_style = ParagraphStyle("small", fontName=FONT_REGULAR, fontSize=7, leading=9)
+    stamp_style = ParagraphStyle("stamp", fontName=FONT_REGULAR, fontSize=9, leading=12)
 
     elements = [
         Paragraph(f"Самостоятельная смета № {estimate.get('estimate_number')}", header_style),
@@ -201,7 +193,35 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
     elements.append(Paragraph(f"Итого после скидки: {_format_money(discounted_total)}", body_style))
     elements.append(Spacer(1, 5 * mm))
 
-    if stamp_applied or signature_applied:
+    if is_final_approved:
+        elements.append(Spacer(1, 8 * mm))
+        stamp_cell = "М.П." if stamp_applied else ""
+        signature_cell = "Подпись" if signature_applied else ""
+        signature_table = Table(
+            [[Paragraph(stamp_cell, stamp_style), Paragraph(signature_cell, stamp_style)]],
+            colWidths=[80 * mm, 80 * mm],
+        )
+        signature_table.setStyle(
+            TableStyle(
+                [
+                    ("FONTNAME", (0, 0), (-1, -1), FONT_REGULAR),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                    ("LINEBELOW", (0, 0), (0, 0), 0.5, colors.black),
+                    ("LINEBELOW", (1, 0), (1, 0), 0.5, colors.black),
+                ]
+            )
+        )
+        elements.append(signature_table)
+        elements.append(Spacer(1, 12 * mm))
+        elements.append(
+            Paragraph(
+                f"Финальная согласованная версия: печать={'да' if stamp_applied else 'нет'}, подпись={'да' if signature_applied else 'нет'}",
+                small_style,
+            )
+        )
+    elif stamp_applied or signature_applied:
         elements.append(
             Paragraph(
                 f"Финальная версия: печать={'да' if stamp_applied else 'нет'}, подпись={'да' if signature_applied else 'нет'}",
@@ -209,8 +229,32 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
             )
         )
     elements.append(Paragraph(f"Сформировано: {datetime.now().isoformat(timespec='seconds')}", small_style))
+    return elements
+
+
+def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: bool = False, signature_applied: bool = False) -> Path:
+    estimate = snapshot["estimate"]
+    approved = _is_approved_pdf_status(estimate.get("status"))
+    if not approved and (stamp_applied or signature_applied):
+        raise ValueError("Печать и подпись допустимы только для согласованной standalone-сметы.")
+
+    _ensure_fonts()
+    title = estimate.get("title") or estimate.get("object_name") or estimate.get("estimate_number") or "Смета"
+    path = build_standalone_estimate_pdf_path(int(estimate["id"]), title, approved=approved)
+
+    doc = SimpleDocTemplate(
+        str(path),
+        pagesize=A4,
+        rightMargin=10 * mm,
+        leftMargin=10 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+    )
+
+    elements = _build_pdf_elements(snapshot, stamp_applied=stamp_applied, signature_applied=signature_applied)
 
     watermark_enabled = _draft_watermark_enabled(estimate, approved=approved)
+    company_name = estimate.get("company_name") or "ООО Декорартстрой"
     watermark_text = "ИП ГОРДЕЕВ А.Н." if company_name == "ИП Гордеев А.Н." else "ДЕКОРАРТСТРОЙ"
 
     def add_watermark(canvas, _doc):
@@ -223,6 +267,42 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
         canvas.rotate(45)
         canvas.drawCentredString(0, 0, watermark_text)
         canvas.restoreState()
+
+    doc.build(elements, onFirstPage=add_watermark, onLaterPages=add_watermark)
+    return path
+
+
+def export_final_approved_pdf(
+    snapshot: dict[str, Any],
+    *,
+    stamp_applied: bool = False,
+    signature_applied: bool = False,
+) -> Path:
+    estimate = snapshot["estimate"]
+    if not _is_approved_pdf_status(estimate.get("status")):
+        raise ValueError("Final PDF можно создать только из snapshot со статусом approved/in_progress.")
+    if not _is_approved_pdf_status(estimate.get("status")) and (stamp_applied or signature_applied):
+        raise ValueError("Печать и подпись допустимы только для согласованной standalone-сметы.")
+
+    _ensure_fonts()
+    title = estimate.get("title") or estimate.get("object_name") or estimate.get("estimate_number") or "Смета"
+    path = build_standalone_estimate_pdf_path(int(estimate["id"]), title, approved=True)
+
+    doc = SimpleDocTemplate(
+        str(path),
+        pagesize=A4,
+        rightMargin=10 * mm,
+        leftMargin=10 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+    )
+
+    elements = _build_pdf_elements(snapshot, stamp_applied=stamp_applied, signature_applied=signature_applied, is_final_approved=True)
+
+    watermark_text = "ИП ГОРДЕЕВ А.Н." if (estimate.get("company_name") or "ООО Декорартстрой") == "ИП Гордеев А.Н." else "ДЕКОРАРТСТРОЙ"
+
+    def add_watermark(canvas, _doc):
+        return
 
     doc.build(elements, onFirstPage=add_watermark, onLaterPages=add_watermark)
     return path

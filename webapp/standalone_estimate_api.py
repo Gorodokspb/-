@@ -18,6 +18,7 @@ from webapp.estimate_repository import (
     StandaloneEstimateService,
 )
 from webapp.standalone_estimate_files import (
+    export_final_approved_pdf,
     export_standalone_estimate_json,
     export_standalone_estimate_pdf,
 )
@@ -528,6 +529,69 @@ def standalone_estimate_download_pdf(estimate_id: int, request: Request):
     if details.estimate.status is EstimateStatus.APPROVED:
         filename = path.name
     return FileResponse(path=path, filename=filename, media_type=media_type)
+
+
+@router.post("/estimates/{estimate_id}/final-pdf")
+async def standalone_estimate_final_pdf(estimate_id: int, request: Request):
+    _require_auth(request)
+    payload = await _load_payload(request)
+    details = service.get_estimate(estimate_id)
+    if details.estimate.status is not EstimateStatus.APPROVED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Final PDF можно создать только для согласованной сметы (status=approved).",
+        )
+    if not details.estimate.approved_version_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У сметы нет approved_version_id — невозможно найти snapshot.",
+        )
+    approved_version = None
+    for version in details.versions:
+        if version["id"] == details.estimate.approved_version_id:
+            approved_version = version
+            break
+    if not approved_version:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Approved version не найдена среди версий сметы.",
+        )
+    snapshot = approved_version["snapshot_json"]
+    stamp_applied = bool(payload.get("stamp_applied"))
+    signature_applied = bool(payload.get("signature_applied"))
+    pdf_path = export_final_approved_pdf(
+        snapshot,
+        stamp_applied=stamp_applied,
+        signature_applied=signature_applied,
+    )
+    return JSONResponse(
+        {
+            "estimate_id": estimate_id,
+            "approved_version_id": details.estimate.approved_version_id,
+            "pdf_generated": True,
+            "snapshot_status": snapshot["estimate"].get("status"),
+            "download_url": f"/estimates/{estimate_id}/download/final-pdf",
+            "filename": pdf_path.name,
+        }
+    )
+
+
+@router.get("/estimates/{estimate_id}/download/final-pdf")
+def standalone_estimate_download_final_pdf(estimate_id: int, request: Request):
+    _require_auth(request)
+    details = service.get_estimate(estimate_id)
+    if details.estimate.status is not EstimateStatus.APPROVED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Final PDF доступен только для согласованной сметы.",
+        )
+    estimate = details.estimate
+    title = estimate.title or estimate.object_name or estimate.estimate_number or "Смета"
+    from webapp.standalone_estimate_files import build_standalone_estimate_pdf_path
+    path = build_standalone_estimate_pdf_path(int(estimate.id), title, approved=True)
+    if not Path(path).exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Final PDF не найден. Сначала создайте его через POST /estimates/{id}/final-pdf.")
+    return FileResponse(path=path, filename=path.name, media_type="application/pdf")
 
 
 @router.get("/standalone-estimates")
