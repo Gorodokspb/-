@@ -29,6 +29,7 @@ class StandaloneEstimateRepositoryServiceTests(unittest.TestCase):
                 cur.execute("DELETE FROM estimate_items")
                 cur.execute("DELETE FROM estimate_versions")
                 cur.execute("DELETE FROM estimates")
+                cur.execute("DELETE FROM documents WHERE project_id IS NULL")
             conn.commit()
 
     def _fetch_existing_project_id(self):
@@ -253,6 +254,53 @@ class StandaloneEstimateRepositoryServiceTests(unittest.TestCase):
     def test_get_estimate_raises_for_missing_id(self):
         with self.assertRaises(EstimateRepositoryError):
             self.repository.get_estimate(999999)
+
+    def test_create_standalone_document_inserts_with_null_project_id(self):
+        doc_id = self.repository.create_standalone_document(
+            file_path="Сметы/standalone-estimates/000001_Смета/Смета-approved.pdf",
+            pdf_path="Сметы/standalone-estimates/000001_Смета/Смета-approved.pdf",
+            title="Final PDF: Смета",
+            doc_type="standalone_approved_pdf",
+            status="approved",
+        )
+        self.assertIsInstance(doc_id, int)
+        self.assertGreater(doc_id, 0)
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, project_id, doc_type, title FROM documents WHERE id = %s", (doc_id,))
+                row = cur.fetchone()
+        self.assertIsNotNone(row)
+        self.assertIsNone(row["project_id"])
+        self.assertEqual(row["doc_type"], "standalone_approved_pdf")
+
+    def test_update_version_pdf_document_id_links_document_to_version(self):
+        estimate = self.service.create_estimate(
+            estimate_number="EST-DOCVER",
+            title="Test version doc",
+            created_by="tester",
+        )
+        version = self.service.create_estimate_version(
+            estimate.id,
+            version_number=1,
+            version_kind=VersionKind.DRAFT,
+            status_at_save=EstimateStatus.DRAFT,
+            snapshot_json={"estimate": {"id": estimate.id}},
+            calc_state_json={},
+            source_event="test",
+            created_by="tester",
+        )
+        doc_id = self.repository.create_standalone_document(
+            file_path="test.pdf",
+            pdf_path="test.pdf",
+            title="Test PDF",
+        )
+        self.repository.update_version_pdf_document_id(version_id=int(version["id"]), document_id=doc_id)
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pdf_document_id FROM estimate_versions WHERE id = %s", (int(version["id"]),))
+                row = cur.fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(int(row["pdf_document_id"]), doc_id)
 
 
 if __name__ == "__main__":

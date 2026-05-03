@@ -660,6 +660,40 @@ class EstimateRepository:
             conn.commit()
         return row
 
+    def create_standalone_document(
+        self,
+        *,
+        file_path: str,
+        pdf_path: str,
+        title: str,
+        doc_type: str = "standalone_approved_pdf",
+        status: str = "approved",
+    ) -> int:
+        now = _now_iso()
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO documents
+                    (project_id, doc_type, title, status, file_path, pdf_path, created_at, updated_at)
+                    VALUES (NULL, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (doc_type, title, status, file_path, pdf_path, now, now),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        return int(row["id"])
+
+    def update_version_pdf_document_id(self, version_id: int, document_id: int) -> None:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE estimate_versions SET pdf_document_id = %s WHERE id = %s",
+                    (document_id, version_id),
+                )
+            conn.commit()
+
     def _require_estimate(self, estimate_id: int) -> None:
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -847,6 +881,12 @@ class StandaloneEstimateService:
 
     def add_estimate_document(self, **kwargs) -> dict[str, Any]:
         return self.repository.add_estimate_document(**kwargs)
+
+    def create_standalone_document(self, **kwargs) -> int:
+        return self.repository.create_standalone_document(**kwargs)
+
+    def update_version_pdf_document_id(self, version_id: int, document_id: int) -> None:
+        self.repository.update_version_pdf_document_id(version_id, document_id)
 
 
 def _now_iso() -> str:

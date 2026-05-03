@@ -57,6 +57,7 @@ class StandaloneEstimateRouteTests(unittest.TestCase):
                 cur.execute("DELETE FROM estimate_items")
                 cur.execute("DELETE FROM estimate_versions")
                 cur.execute("DELETE FROM estimates")
+                cur.execute("DELETE FROM documents WHERE project_id IS NULL")
             conn.commit()
 
     def _cleanup_storage(self):
@@ -584,6 +585,123 @@ class StandaloneEstimateRouteTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as exc_context:
                 standalone_api.standalone_estimate_download_final_pdf(estimate_id, request)
         self.assertEqual(exc_context.exception.status_code, 404)
+
+    def test_final_pdf_creates_documents_row_with_null_project_id(self):
+        estimate_id = self._create_and_approve_estimate()
+        request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={},
+        ):
+            response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
+        body = json.loads(response.body.decode("utf-8"))
+        document_id = body["document_id"]
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, project_id, doc_type, pdf_path FROM documents WHERE id = %s", (document_id,))
+                doc = cur.fetchone()
+        self.assertIsNotNone(doc)
+        self.assertIsNone(doc["project_id"])
+        self.assertIn("standalone_", doc["doc_type"])
+        self.assertTrue(str(doc["pdf_path"]).endswith("-approved.pdf"))
+
+    def test_final_pdf_creates_estimate_documents_row(self):
+        estimate_id = self._create_and_approve_estimate()
+        details = standalone_api.service.get_estimate(estimate_id)
+        approved_version_id = details.estimate.approved_version_id
+        request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={},
+        ):
+            response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
+        body = json.loads(response.body.decode("utf-8"))
+        document_id = body["document_id"]
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT * FROM estimate_documents WHERE document_id = %s",
+                    (document_id,),
+                )
+                est_doc = cur.fetchone()
+        self.assertIsNotNone(est_doc)
+        self.assertEqual(int(est_doc["estimate_id"]), estimate_id)
+        self.assertEqual(int(est_doc["estimate_version_id"]), approved_version_id)
+        self.assertEqual(est_doc["kind"], "approved_pdf")
+        self.assertTrue(est_doc["is_current"])
+
+    def test_final_pdf_updates_approved_version_pdf_document_id(self):
+        estimate_id = self._create_and_approve_estimate()
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM estimates WHERE id = %s", (estimate_id,))
+                cur.execute("SELECT id FROM estimate_versions WHERE estimate_id = %s AND version_kind = 'approved' ORDER BY id DESC LIMIT 1", (estimate_id,))
+                version_row = cur.fetchone()
+        approved_version_id = int(version_row["id"])
+        request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={},
+        ):
+            response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
+        body = json.loads(response.body.decode("utf-8"))
+        document_id = body["document_id"]
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT pdf_document_id FROM estimate_versions WHERE id = %s", (approved_version_id,))
+                version = cur.fetchone()
+        self.assertIsNotNone(version["pdf_document_id"])
+        self.assertEqual(int(version["pdf_document_id"]), document_id)
+
+    def test_final_pdf_updates_estimate_final_document_id(self):
+        estimate_id = self._create_and_approve_estimate()
+        request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={},
+        ):
+            response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
+        body = json.loads(response.body.decode("utf-8"))
+        document_id = body["document_id"]
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT final_document_id FROM estimates WHERE id = %s", (estimate_id,))
+                row = cur.fetchone()
+        self.assertIsNotNone(row["final_document_id"])
+        self.assertEqual(int(row["final_document_id"]), document_id)
+
+    def test_final_pdf_signed_creates_signed_pdf_document_kind(self):
+        estimate_id = self._create_and_approve_estimate()
+        request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={"stamp_applied": True, "signature_applied": True},
+        ):
+            response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
+        body = json.loads(response.body.decode("utf-8"))
+        document_id = body["document_id"]
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT doc_type FROM documents WHERE id = %s", (document_id,))
+                doc = cur.fetchone()
+                cur.execute("SELECT kind FROM estimate_documents WHERE document_id = %s", (document_id,))
+                est_doc = cur.fetchone()
+        self.assertEqual(doc["doc_type"], "standalone_signed_pdf")
+        self.assertEqual(est_doc["kind"], "signed_pdf")
+
+    def test_download_final_pdf_serves_from_db_when_final_document_id_exists(self):
+        estimate_id = self._create_and_approve_estimate()
+        request_post = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
+            "webapp.standalone_estimate_api._load_payload",
+            return_value={},
+        ):
+            asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request_post))
+        request_get = make_request(f"/estimates/{estimate_id}/download/final-pdf")
+        with patch("webapp.standalone_estimate_api._require_auth", return_value=None):
+            response = standalone_api.standalone_estimate_download_final_pdf(estimate_id, request_get)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.media_type, "application/pdf")
 
 
 if __name__ == "__main__":

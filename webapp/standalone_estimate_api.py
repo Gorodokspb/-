@@ -18,10 +18,12 @@ from webapp.estimate_repository import (
     StandaloneEstimateService,
 )
 from webapp.standalone_estimate_files import (
+    build_standalone_estimate_pdf_path,
     export_final_approved_pdf,
     export_standalone_estimate_json,
     export_standalone_estimate_pdf,
 )
+from webapp.storage import storage_relative_path, resolve_storage_path
 
 router = APIRouter()
 settings = get_settings()
@@ -564,10 +566,39 @@ async def standalone_estimate_final_pdf(estimate_id: int, request: Request):
         stamp_applied=stamp_applied,
         signature_applied=signature_applied,
     )
+    relative_pdf_path = storage_relative_path(pdf_path)
+    estimate_summary = details.estimate
+    title = estimate_summary.title or estimate_summary.object_name or estimate_summary.estimate_number or f"Смета {estimate_id}"
+    document_kind = "signed_pdf" if (stamp_applied or signature_applied) else "approved_pdf"
+
+    document_id = service.create_standalone_document(
+        file_path=relative_pdf_path,
+        pdf_path=relative_pdf_path,
+        title=f"Final PDF: {title}",
+        doc_type=f"standalone_{document_kind}",
+        status=str(estimate_summary.status.value),
+    )
+    service.add_estimate_document(
+        estimate_id=estimate_id,
+        estimate_version_id=details.estimate.approved_version_id,
+        document_id=document_id,
+        kind=document_kind,
+        is_current=True,
+    )
+    service.update_version_pdf_document_id(
+        version_id=details.estimate.approved_version_id,
+        document_id=document_id,
+    )
+    service.update_estimate(
+        estimate_id,
+        final_document_id=document_id,
+        updated_by=_username(request),
+    )
     return JSONResponse(
         {
             "estimate_id": estimate_id,
             "approved_version_id": details.estimate.approved_version_id,
+            "document_id": document_id,
             "pdf_generated": True,
             "snapshot_status": snapshot["estimate"].get("status"),
             "download_url": f"/estimates/{estimate_id}/download/final-pdf",
@@ -585,9 +616,19 @@ def standalone_estimate_download_final_pdf(estimate_id: int, request: Request):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Final PDF доступен только для согласованной сметы.",
         )
+    if details.estimate.final_document_id:
+        from webapp.db import get_connection
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, pdf_path, file_path FROM documents WHERE id = %s", (details.estimate.final_document_id,))
+                doc_row = cur.fetchone()
+        if doc_row:
+            relative_path = doc_row.get("pdf_path") or doc_row.get("file_path") or ""
+            absolute_path = resolve_storage_path(relative_path)
+            if absolute_path and absolute_path.exists():
+                return FileResponse(path=str(absolute_path), filename=absolute_path.name, media_type="application/pdf")
     estimate = details.estimate
     title = estimate.title or estimate.object_name or estimate.estimate_number or "Смета"
-    from webapp.standalone_estimate_files import build_standalone_estimate_pdf_path
     path = build_standalone_estimate_pdf_path(int(estimate.id), title, approved=True)
     if not Path(path).exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Final PDF не найден. Сначала создайте его через POST /estimates/{id}/final-pdf.")
