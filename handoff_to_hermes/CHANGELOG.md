@@ -1,5 +1,31 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-04 Stage 8.3.3 — standalone workflow UI
+- В standalone editor добавлены кнопки workflow по статусам: Отправить клиенту, Согласовать, Отклонить, Сформировать final PDF, Скачать final PDF, Скачать JSON.
+- JS-обработчики `data-action` делают `fetch + reload`; legacy editor не затронут.
+- 9 текстовых проверок шаблона в `tests/test_standalone_workflow_ui.py`; 129 тестов всего — все зелёные.
+- Документация handoff обновлена.
+
+## 2026-05-04 Stages 8.3.1–8.3.2b — final approved PDF и document linkage
+- Final PDF строится из approved snapshot, а не из текущих живых данных.
+- Маршруты final PDF: `POST /final-pdf`, `GET /download/final-pdf`.
+- Final PDF привязан к `documents`, `estimate_documents`, `estimate_versions.pdf_document_id`, `estimates.final_document_id`.
+- `documents.project_id` допускает NULL (миграция `20260503_documents_nullable_project_id.sql`).
+- Workflow `draft → sent → approved → final PDF → download` проверен на live.
+
+## 2026-05-04 Stage 8.2 — standalone draft PDF
+- Standalone draft PDF формируется отдельно от legacy.
+- Разделы, итоги, скидка, watermark для черновика; печать/подпись запрещены в draft.
+
+## 2026-05-04 Stage 8.1 — standalone estimate status snapshots
+- Исправлен порядок send/approve; snapshots содержат актуальный status.
+- `approved_version_id` и `current_version_id` работают корректно.
+
+## 2026-05-04 Stages 6–7 — standalone estimates registry and editor
+- Создан реестр самостоятельных смет `/standalone-estimates`.
+- Создание сметы без проекта и без контрагента.
+- Редактор `/estimates/{id}/edit`; сохранение шапки, разделов, позиций; повторное открытие сохраняет данные.
+
 ## 2026-04-26 20:02 UTC
 - Добавлен глобальный `base.html`: sticky header, логотип `Декорартстрой`, навигация, `+ Действие`, flash messages и единая модалка создания транзакции.
 - Реализован модуль `/finance` со сквозной кассой: `transactions`, баланс = доходы − расходы, добавление транзакций из любого раздела.
