@@ -1697,4 +1697,55 @@
 
     syncCalcStatePayload();
     renderRows();
+
+    const workflowActions = document.getElementById("estimateWorkflowActions");
+    if (workflowActions) {
+        workflowActions.addEventListener("click", async (event) => {
+            const btn = event.target.closest("[data-action]");
+            if (!btn) return;
+            event.preventDefault();
+            const action = btn.dataset.action;
+            const estimateId = btn.dataset.estimateId;
+            if (!action || !estimateId) return;
+            const actionLabels = {
+                send: "Отправка клиенту",
+                approve: "Согласование",
+                reject: "Отклонение",
+                "final-pdf": "Формирование final PDF",
+            };
+            const label = actionLabels[action] || action;
+            let payload = {};
+            if (action === "approve") {
+                payload = { stamp_applied: true, signature_applied: true, comment: "Согласовано" };
+            } else if (action === "reject") {
+                payload = { comment: "Отклонено" };
+            }
+            btn.disabled = true;
+            btn.textContent = label + "...";
+            try {
+                const response = await fetch(`/estimates/${estimateId}/${action}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: Object.keys(payload).length ? JSON.stringify(payload) : undefined,
+                });
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({ detail: response.statusText }));
+                    alert("Ошибка: " + (err.detail || response.statusText));
+                    btn.disabled = false;
+                    btn.textContent = label;
+                    return;
+                }
+                const data = await response.json();
+                if (action === "final-pdf" && data.download_url) {
+                    window.location.reload();
+                    return;
+                }
+                window.location.reload();
+            } catch (err) {
+                alert("Ошибка сети: " + err.message);
+                btn.disabled = false;
+                btn.textContent = label;
+            }
+        });
+    }
 })();

@@ -2990,6 +2990,22 @@ textarea:focus {
     align-content: start;
 }
 
+.estimate-workflow-actions {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.estimate-status-note {
+    margin: 0;
+    font-size: 13px;
+    color: #64748b;
+    text-align: center;
+    padding: 8px 0;
+}
+
 .estimate-stage-board {
     padding: 16px;
 }

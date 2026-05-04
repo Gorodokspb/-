@@ -121,8 +121,30 @@
 
                     <aside class="estimate-document-actions">
                         <button type="submit" class="primary-button">Сохранить черновик</button>
-                        {# CHANGED: PDF formaction removed (can be added later for standalone estimates) #}
-                        {# TODO: Add PDF generation for standalone estimates #}
+
+                        <div class="estimate-workflow-actions" id="estimateWorkflowActions">
+                            {% if estimate.status.value == 'draft' %}
+                                <button type="button" class="primary-button" data-action="send" data-estimate-id="{{ estimate.id }}">Отправить клиенту</button>
+                            {% elif estimate.status.value == 'sent' %}
+                                <button type="button" class="primary-button" data-action="approve" data-estimate-id="{{ estimate.id }}">Согласовать</button>
+                                <button type="button" class="ghost-button" data-action="reject" data-estimate-id="{{ estimate.id }}">Отклонить</button>
+                                <a href="/estimates/{{ estimate.id }}/download/pdf" class="ghost-button">Скачать PDF</a>
+                            {% elif estimate.status.value == 'approved' %}
+                                {% if estimate.final_document_id %}
+                                    <a href="/estimates/{{ estimate.id }}/download/final-pdf" class="primary-button">Скачать final PDF</a>
+                                {% else %}
+                                    <button type="button" class="primary-button" data-action="final-pdf" data-estimate-id="{{ estimate.id }}">Сформировать final PDF</button>
+                                {% endif %}
+                                <a href="/estimates/{{ estimate.id }}/download/json" class="ghost-button">Скачать JSON</a>
+                            {% elif estimate.status.value == 'in_progress' %}
+                                {% if estimate.final_document_id %}
+                                    <a href="/estimates/{{ estimate.id }}/download/final-pdf" class="primary-button">Скачать final PDF</a>
+                                {% endif %}
+                                <a href="/estimates/{{ estimate.id }}/download/json" class="ghost-button">Скачать JSON</a>
+                            {% elif estimate.status.value == 'rejected' %}
+                                <p class="estimate-status-note">Смета отклонена</p>
+                            {% endif %}
+                        </div>
                     </aside>
 
                     <input type="hidden" name="items_payload" id="estimateItemsPayload" value="">
