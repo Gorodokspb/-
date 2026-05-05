@@ -16,12 +16,12 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 
 from webapp.config import get_settings
-from webapp.storage import sanitize_filename
+from webapp.storage import resolve_storage_path, sanitize_filename
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -185,6 +185,13 @@ def _company_details_elements(company: Company, body_style: ParagraphStyle) -> l
     return elements
 
 
+def _resolve_company_asset(company: Company, attr: str) -> Path | None:
+    relative_path = getattr(company, attr, None)
+    if not relative_path:
+        return None
+    return resolve_storage_path(relative_path)
+
+
 def _build_pdf_elements(
     snapshot: dict[str, Any],
     *,
@@ -247,10 +254,22 @@ def _build_pdf_elements(
 
     if is_final_approved:
         elements.append(Spacer(1, 8 * mm))
-        stamp_cell = "М.П." if stamp_applied else ""
-        signature_cell = "Подпись" if signature_applied else ""
+        stamp_cell_content: Any = ""
+        sig_cell_content: Any = ""
+        if stamp_applied:
+            stamp_file = _resolve_company_asset(company, "stamp_path") if company else None
+            if stamp_file:
+                stamp_cell_content = Image(str(stamp_file), width=35 * mm, height=35 * mm)
+            else:
+                stamp_cell_content = Paragraph("М.П.", stamp_style)
+        if signature_applied:
+            sig_file = _resolve_company_asset(company, "signature_path") if company else None
+            if sig_file:
+                sig_cell_content = Image(str(sig_file), width=55 * mm, height=20 * mm)
+            else:
+                sig_cell_content = Paragraph("Подпись", stamp_style)
         signature_table = Table(
-            [[Paragraph(stamp_cell, stamp_style), Paragraph(signature_cell, stamp_style)]],
+            [[stamp_cell_content, sig_cell_content]],
             colWidths=[80 * mm, 80 * mm],
         )
         signature_table.setStyle(

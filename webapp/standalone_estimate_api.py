@@ -572,6 +572,38 @@ async def standalone_estimate_final_pdf(estimate_id: int, request: Request):
     company = None
     if company_id:
         company = CompanyService().get_company(company_id)
+    if stamp_applied:
+        if not company:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Невозможно добавить печать: компания не указана.",
+            )
+        if not company.stamp_path:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Невозможно добавить печать: у компании нет загруженной печати.",
+            )
+        if not resolve_storage_path(company.stamp_path):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Невозможно добавить печать: файл печати не найден на диске.",
+            )
+    if signature_applied:
+        if not company:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Невозможно добавить подпись: компания не указана.",
+            )
+        if not company.signature_path:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Невозможно добавить подпись: у компании нет загруженной подписи.",
+            )
+        if not resolve_storage_path(company.signature_path):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Невозможно добавить подпись: файл подписи не найден на диске.",
+            )
     pdf_path = export_final_approved_pdf(
         snapshot,
         stamp_applied=stamp_applied,

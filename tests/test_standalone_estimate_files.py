@@ -1,17 +1,21 @@
+import os
 import shutil
+import tempfile
 import unittest
 
-from reportlab.platypus import Paragraph, Table
+from reportlab.platypus import Image, Paragraph, Table
 
 from webapp.config import get_settings
 from webapp.company_repository import Company
 from webapp.standalone_estimate_files import (
     _build_pdf_table,
-    _draft_watermark_enabled,
     _build_pdf_elements,
+    _draft_watermark_enabled,
+    _resolve_company_asset,
     export_final_approved_pdf,
     export_standalone_estimate_pdf,
 )
+from webapp.storage import storage_relative_path, resolve_storage_path
 
 
 class StandaloneEstimateFileExportTests(unittest.TestCase):
@@ -247,6 +251,219 @@ class CompanyDetailsInPdfTests(unittest.TestCase):
         path = export_final_approved_pdf(snapshot, company=None)
         self.assertTrue(path.exists())
         self.assertGreater(path.stat().st_size, 0)
+
+
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def _flatten_table_cells(elements):
+    cells = []
+    for e in elements:
+        if isinstance(e, Table) and hasattr(e, "_cellvalues"):
+            for row in e._cellvalues:
+                for cell in row:
+                    cells.append(cell)
+    return cells
+
+
+def _make_png_bytes() -> bytes:
+    import struct, zlib
+    width, height = 4, 4
+    raw = b""
+    for _ in range(height):
+        raw += b"\x00" + b"\xff\x00\x00" * width
+    compressed = zlib.compress(raw)
+
+    def _chunk(chunk_type, data):
+        c = chunk_type + data
+        return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
+
+    ihdr_data = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    png = _PNG_MAGIC
+    png += _chunk(b"IHDR", ihdr_data)
+    png += _chunk(b"IDAT", compressed)
+    png += _chunk(b"IEND", b"")
+    return png
+
+
+class StampSignaturePngTests(unittest.TestCase):
+    def setUp(self):
+        self.storage_dir = get_settings().estimates_dir / "standalone-estimates"
+        self._tmp_dirs = []
+
+    def tearDown(self):
+        if self.storage_dir.exists():
+            shutil.rmtree(self.storage_dir)
+        for d in self._tmp_dirs:
+            if os.path.isdir(d):
+                shutil.rmtree(d, ignore_errors=True)
+
+    def _approved_snapshot(self):
+        return {
+            "estimate": {
+                "id": 88003,
+                "estimate_number": "ST-STAMP-001",
+                "title": "Смета с печатью",
+                "status": "approved",
+                "customer_name": "Клиент",
+                "object_name": "Объект",
+                "company_name": "ООО Декорартстрой",
+                "contract_label": "D-10",
+                "discount": "0",
+                "watermark": "",
+            },
+            "items": [
+                {"row_type": "item", "name": "Работа", "unit": "шт", "quantity": "1", "price": "100", "total": "100", "discounted_total": "100"},
+            ],
+        }
+
+    def _write_png(self, name: str) -> str:
+        settings = get_settings()
+        asset_dir = settings.storage_root / "company-assets" / "99"
+        asset_dir.mkdir(parents=True, exist_ok=True)
+        self._tmp_dirs.append(str(asset_dir))
+        png_path = asset_dir / name
+        png_path.write_bytes(_make_png_bytes())
+        return storage_relative_path(png_path)
+
+    def _company_with_stamp(self, stamp_rel: str | None = None, sig_rel: str | None = None) -> Company:
+        return Company(
+            id=99,
+            legal_name="ООО Тестовая Компания",
+            short_name="ТестКо",
+            inn="0000000000",
+            stamp_path=stamp_rel,
+            signature_path=sig_rel,
+        )
+
+    def test_stamp_applied_with_file_inserts_image(self):
+        stamp_rel = self._write_png("stamp.png")
+        company = self._company_with_stamp(stamp_rel=stamp_rel)
+        elements = _build_pdf_elements(
+            self._approved_snapshot(),
+            stamp_applied=True,
+            signature_applied=False,
+            is_final_approved=True,
+            company=company,
+        )
+        cells = _flatten_table_cells(elements)
+        image_count = sum(1 for c in cells if isinstance(c, Image))
+        self.assertEqual(image_count, 1)
+
+    def test_signature_applied_with_file_inserts_image(self):
+        sig_rel = self._write_png("signature.png")
+        company = self._company_with_stamp(sig_rel=sig_rel)
+        elements = _build_pdf_elements(
+            self._approved_snapshot(),
+            stamp_applied=False,
+            signature_applied=True,
+            is_final_approved=True,
+            company=company,
+        )
+        cells = _flatten_table_cells(elements)
+        image_count = sum(1 for c in cells if isinstance(c, Image))
+        self.assertEqual(image_count, 1)
+
+    def test_both_applied_with_files_inserts_two_images(self):
+        stamp_rel = self._write_png("stamp.png")
+        sig_rel = self._write_png("signature.png")
+        company = self._company_with_stamp(stamp_rel=stamp_rel, sig_rel=sig_rel)
+        elements = _build_pdf_elements(
+            self._approved_snapshot(),
+            stamp_applied=True,
+            signature_applied=True,
+            is_final_approved=True,
+            company=company,
+        )
+        cells = _flatten_table_cells(elements)
+        image_count = sum(1 for c in cells if isinstance(c, Image))
+        self.assertEqual(image_count, 2)
+
+    def test_stamp_applied_without_file_falls_back_to_text(self):
+        company = self._company_with_stamp(stamp_rel=None, sig_rel=None)
+        elements = _build_pdf_elements(
+            self._approved_snapshot(),
+            stamp_applied=True,
+            signature_applied=True,
+            is_final_approved=True,
+            company=company,
+        )
+        cells = _flatten_table_cells(elements)
+        cell_texts = [c.text for c in cells if isinstance(c, Paragraph)]
+        joined = " ".join(cell_texts)
+        self.assertIn("М.П.", joined)
+        self.assertIn("Подпись", joined)
+        image_count = sum(1 for c in cells if isinstance(c, Image))
+        self.assertEqual(image_count, 0)
+
+    def test_no_stamp_no_signature_no_images(self):
+        elements = _build_pdf_elements(
+            self._approved_snapshot(),
+            stamp_applied=False,
+            signature_applied=False,
+            is_final_approved=True,
+            company=None,
+        )
+        cells = _flatten_table_cells(elements)
+        image_count = sum(1 for c in cells if isinstance(c, Image))
+        self.assertEqual(image_count, 0)
+
+    def test_resolve_company_asset_returns_path_for_existing_file(self):
+        stamp_rel = self._write_png("stamp.png")
+        company = self._company_with_stamp(stamp_rel=stamp_rel)
+        result = _resolve_company_asset(company, "stamp_path")
+        self.assertIsNotNone(result)
+        self.assertTrue(result.exists())
+
+    def test_resolve_company_asset_returns_none_for_missing_attr(self):
+        company = self._company_with_stamp(stamp_rel=None, sig_rel=None)
+        self.assertIsNone(_resolve_company_asset(company, "stamp_path"))
+        self.assertIsNone(_resolve_company_asset(company, "signature_path"))
+
+    def test_final_pdf_with_stamp_image_generates(self):
+        stamp_rel = self._write_png("stamp.png")
+        company = self._company_with_stamp(stamp_rel=stamp_rel)
+        snapshot = self._approved_snapshot()
+        path = export_final_approved_pdf(snapshot, stamp_applied=True, signature_applied=False, company=company)
+        self.assertTrue(path.exists())
+        self.assertGreater(path.stat().st_size, 0)
+
+    def test_stamp_applied_company_none_falls_back_text(self):
+        elements = _build_pdf_elements(
+            self._approved_snapshot(),
+            stamp_applied=True,
+            signature_applied=True,
+            is_final_approved=True,
+            company=None,
+        )
+        cells = _flatten_table_cells(elements)
+        cell_texts = [c.text for c in cells if isinstance(c, Paragraph)]
+        joined = " ".join(cell_texts)
+        self.assertIn("М.П.", joined)
+        self.assertIn("Подпись", joined)
+        image_count = sum(1 for c in cells if isinstance(c, Image))
+        self.assertEqual(image_count, 0)
+
+    def test_stamp_applied_path_missing_file_falls_back_text(self):
+        company = Company(
+            id=99, legal_name="Тест", short_name="Тест",
+            stamp_path="company-assets/99/nonexistent_stamp.png",
+            signature_path="company-assets/99/nonexistent_sig.png",
+        )
+        elements = _build_pdf_elements(
+            self._approved_snapshot(),
+            stamp_applied=True,
+            signature_applied=True,
+            is_final_approved=True,
+            company=company,
+        )
+        cells = _flatten_table_cells(elements)
+        cell_texts = [c.text for c in cells if isinstance(c, Paragraph)]
+        joined = " ".join(cell_texts)
+        self.assertIn("М.П.", joined)
+        self.assertIn("Подпись", joined)
+        image_count = sum(1 for c in cells if isinstance(c, Image))
+        self.assertEqual(image_count, 0)
 
 
 if __name__ == "__main__":
