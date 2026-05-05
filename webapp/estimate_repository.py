@@ -64,6 +64,7 @@ class EstimateCreateInput:
     customer_name: str | None = None
     object_name: str | None = None
     company_name: str | None = None
+    company_id: int | None = None
     contract_label: str | None = None
     discount: Decimal | float | int | str = Decimal("0")
     watermark: str | None = None
@@ -78,6 +79,7 @@ class EstimateUpdateInput:
     customer_name: str | None = None
     object_name: str | None = None
     company_name: str | None = None
+    company_id: int | None = None
     contract_label: str | None = None
     discount: Decimal | float | int | str | None = None
     watermark: str | None = None
@@ -136,6 +138,7 @@ class EstimateSummary:
     approved_at: str | None
     rejected_at: str | None
     project_created_at: str | None
+    company_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -161,13 +164,13 @@ class EstimateRepository:
                     INSERT INTO estimates (
                         estimate_number, title, status, estimate_type, origin_channel,
                         project_id, counterparty_id, parent_estimate_id, root_estimate_id,
-                        customer_name, object_name, company_name, contract_label,
+                        customer_name, object_name, company_name, company_id, contract_label,
                         discount, watermark, created_by, updated_by,
                         created_at, updated_at
                     ) VALUES (
                         %s, %s, %s, %s, %s,
                         %s, %s, %s, %s,
-                        %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s,
                         %s, %s, %s, %s,
                         %s, %s
                     )
@@ -186,6 +189,7 @@ class EstimateRepository:
                         data.customer_name,
                         data.object_name,
                         data.company_name,
+                        data.company_id,
                         data.contract_label,
                         _to_decimal(data.discount),
                         data.watermark,
@@ -299,6 +303,7 @@ class EstimateRepository:
             "customer_name": data.customer_name if data.customer_name is not None else current.customer_name,
             "object_name": data.object_name if data.object_name is not None else current.object_name,
             "company_name": data.company_name if data.company_name is not None else current.company_name,
+            "company_id": data.company_id if data.company_id is not None else current.company_id,
             "contract_label": data.contract_label if data.contract_label is not None else current.contract_label,
             "discount": _to_decimal(data.discount) if data.discount is not None else current.discount,
             "watermark": data.watermark if data.watermark is not None else current.watermark,
@@ -319,6 +324,7 @@ class EstimateRepository:
                         customer_name = %s,
                         object_name = %s,
                         company_name = %s,
+                        company_id = %s,
                         contract_label = %s,
                         discount = %s,
                         watermark = %s,
@@ -337,6 +343,7 @@ class EstimateRepository:
                         payload["customer_name"],
                         payload["object_name"],
                         payload["company_name"],
+                        payload["company_id"],
                         payload["contract_label"],
                         payload["discount"],
                         payload["watermark"],
@@ -728,6 +735,7 @@ class StandaloneEstimateService:
                 "customer_name": details.estimate.customer_name,
                 "object_name": details.estimate.object_name,
                 "company_name": details.estimate.company_name,
+                "company_id": details.estimate.company_id,
                 "contract_label": details.estimate.contract_label,
                 "discount": str(details.estimate.discount),
                 "watermark": details.estimate.watermark,
@@ -774,6 +782,7 @@ class StandaloneEstimateService:
             customer_name=kwargs.get("customer_name"),
             object_name=kwargs.get("object_name"),
             company_name=kwargs.get("company_name"),
+            company_id=kwargs.get("company_id"),
             contract_label=kwargs.get("contract_label"),
             discount=kwargs.get("discount", Decimal("0")),
             watermark=kwargs.get("watermark"),
@@ -800,6 +809,7 @@ class StandaloneEstimateService:
             customer_name=kwargs.get("customer_name", parent.customer_name),
             object_name=kwargs.get("object_name", parent.object_name),
             company_name=kwargs.get("company_name", parent.company_name),
+            company_id=kwargs.get("company_id", parent.company_id),
             contract_label=kwargs.get("contract_label", parent.contract_label),
             discount=kwargs.get("discount", parent.discount),
             watermark=kwargs.get("watermark", parent.watermark),
@@ -949,6 +959,7 @@ def _row_to_summary(row: dict[str, Any]) -> EstimateSummary:
         customer_name=row.get("customer_name"),
         object_name=row.get("object_name"),
         company_name=row.get("company_name"),
+        company_id=row.get("company_id"),
         contract_label=row.get("contract_label"),
         discount=row.get("discount") if isinstance(row.get("discount"), Decimal) else Decimal(str(row.get("discount") or "0")),
         watermark=row.get("watermark"),
