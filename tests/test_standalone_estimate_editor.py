@@ -6,6 +6,7 @@ from unittest.mock import patch
 from starlette.requests import Request
 
 import webapp.standalone_estimate_api as standalone_api
+from tests.db_guard import guard_live_database
 from webapp.db import get_connection
 
 
@@ -43,6 +44,7 @@ class StandaloneEstimateEditorRouteTests(unittest.TestCase):
         self._cleanup_tables()
 
     def _cleanup_tables(self):
+        guard_live_database()
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM estimate_versions")
