@@ -1,15 +1,45 @@
 # 07 — Next steps
 
 ## Stage 8.4: Модуль компаний, реквизитов, печати и подписи
-1. Создать таблицу `companies` с юридическими реквизитами, путями к печати/подписи, `watermark_text`.
-2. Добавить `company_id` FK в `estimates`; обеспечить fallback по `company_name` для старых записей.
-3. Хранить печать/подпись в защищённом storage (`{storage_root}/company-assets/{company_id}/`), не в `static/`.
-4. Поддержать ООО «Декорартстрой» и ИП Гордеев А.Н. — два профиля компаний.
-5. Добавить печать/подпись только в final approved PDF; draft PDF остаётся без печати.
-6. Auth-only маршруты для раздачи печати/подписи.
-7. Legacy `estimate_pdf.py` не трогать до Stage 8.4.6.
 
-**Stage 8.3 полностью завершён. Stage 8.4 — следующий большой этап.**
+### 8.4.1 ✅ Schema + repository (выполнено)
+- Таблица `companies`, seed-данные ООО «Декорартстрой» и ИП Гордеев А.Н.
+- `CompanyRepository`, `CompanyService`, 16 тестов.
+
+### 8.4.2 ✅ Repository/service (выполнено, вместе с 8.4.1)
+
+### 8.4.3 UI settings companies (не начат)
+
+### 8.4.4 Asset upload protected storage (не начат)
+
+### 8.4.5 estimates.company_id FK (следующий)
+- Добавить `estimates.company_id BIGINT NULL REFERENCES companies(id) ON DELETE SET NULL`.
+- Пробросить через `EstimateSummary`, `EstimateCreateInput`, `EstimateUpdateInput`, `_row_to_summary`, `create_estimate`, `update_estimate`, `build_estimate_snapshot`, `_serialize_summary`.
+- Fallback: если `company_id` нет — `company_name` работает как раньше.
+- UI/PDF не менять в этом этапе.
+
+### 8.4.6 Final PDF: реквизиты + печать/подпись (не начат)
+- Заменить `Paragraph(f"Компания: {company_name}")` на блок реквизитов из `CompanyService`.
+- Watermark: брать `watermark_text` из `companies.watermark_text`, не из hardcoded сравнения.
+- Изображения печати и подписи: `Image(stamp_path)` / `Image(signature_path)` из company assets.
+- **Выбор при формировании final PDF:**
+  - checkbox «Добавить печать»;
+  - checkbox «Добавить подпись».
+- Пользователь может сформировать final approved PDF:
+  - без печати и без подписи;
+  - только с печатью;
+  - только с подписью;
+  - с печатью и подписью.
+- Это нужно для ситуации, когда документ нужно распечатать и подписать вручную.
+- Правила:
+  - draft PDF никогда не содержит печать/подпись;
+  - sent PDF не содержит печать/подпись;
+  - stamp/signature доступны только для final approved PDF;
+  - если checkbox не включён — соответствующее изображение не добавлять;
+  - при `company_id` — брать печать/подпись выбранной компании;
+  - если у компании нет загруженной печати/подписи — показать понятную ошибку или сформировать без них при явном выборе без галочек.
+
+### 8.4.7 Legacy fallback/refactor (не начат, очень осторожно)
 
 ## Stage 8.5: Импорт Excel-смет в standalone-редактор
 1. Добавить кнопку «Импорт из Excel» в standalone-редакторе сметы.
