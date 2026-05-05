@@ -1,5 +1,16 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-05 Stage 8.5.1b — parser adapted to real estimate format
+- `HEADER_SCAN_ROWS`: 10 → 25 (реальные сметы: заголовок на строке 14–15).
+- `discounted_total` колонка с алиасами (Ст. со скидкой, Ск-ка, со скидкой).
+- `ColumnMapping.discounted_total` поле.
+- `_looks_like_summary()` — пропуск «Итого по разделу», «Всего по смете».
+- 9 новых тестов (LookalikeSummaryTests + RealFormatParseTests). Всего 62 теста.
+
+## 2026-05-05 Stage 8.5.1 — excel estimate parser module
+- `webapp/excel_estimate_parser.py`: `parse_estimate_xlsx()`, `resolve_estimate_columns()`, `parsed_rows_to_estimate_items()`.
+- 53 теста, 117 регрессия — все зелёные.
+
 ## 2026-05-05 Stage 8.4 завершён — компании, реквизиты, печать/подпись, watermark, legacy fallback
 
 ### Stage 8.4.7 — legacy _get_company_details() DB fallback

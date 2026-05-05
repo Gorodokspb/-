@@ -7,12 +7,11 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+0586e6e Stage 8.5.1b adapt parser to real estimate format
+55293ce Stage 8.5.1 excel estimate parser module
 cf5324b Stage 8.4.7 legacy company details fallback
-d09b1d2 Guard destructive tests from live database
-631e42f Fix standalone workflow empty JSON payload
+c2a3e47 Document Stage 8.4 completion
 e8d525c Stage 8.3.3 standalone workflow UI
-61aca5e Stage 8.3.2b link final PDF documents
-de55c72 Stage 8.3.2a allow standalone documents
 ```
 
 Все отправлены на GitHub: `origin/hermes/integrate-origin-master-20260423`.
@@ -117,4 +116,21 @@ de55c72 Stage 8.3.2a allow standalone documents
 - Все 130 тестов зелёные.
 
 ## Состояние после push
-Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`. Stage 8.4 полностью завершён.
+Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.
+
+Stage 8.4 полностью завершён. Stage 8.5.1 parser module реализован и запушен.
+Следующий этап — Stage 8.5.2 import preview/apply routes (ожидает подтверждения пользователя).
+
+### Stage 8.5.1–8.5.1b: Excel estimate parser module
+- `webapp/excel_estimate_parser.py` — чистый парсер .xlsx (openpyxl, без pandas, без DB).
+- `ColumnMapping`, `ParsedEstimateRow`, `ExcelEstimateParseResult` dataclasses.
+- 6 определений колонок с русскими/английскими алиасами (name, unit, quantity, price, total, discounted_total).
+- Auto-detect header row в первых 25 строках (реальные сметы: строка 14–15).
+- Fallback A–E при отсутствии заголовка.
+- Распознавание section/item строк, вычисление total = quantity × price.
+- Поддержка discounted_total из колонок «Ст. со скидкой» / «Ск-ка»; fallback = total.
+- Пропуск итоговых строк («Итого по разделу:», «Всего по смете»).
+- Обработка merged cells, decimal с запятой, NBSP.
+- `parsed_rows_to_estimate_items()` — мост к `EstimateItemInput`-совместимым dict.
+- Макс 2MB, макс 500 строк.
+- 62 теста, 117 регрессия — все зелёные.
