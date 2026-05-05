@@ -7,12 +7,12 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+cf5324b Stage 8.4.7 legacy company details fallback
 d09b1d2 Guard destructive tests from live database
 631e42f Fix standalone workflow empty JSON payload
 e8d525c Stage 8.3.3 standalone workflow UI
 61aca5e Stage 8.3.2b link final PDF documents
 de55c72 Stage 8.3.2a allow standalone documents
-cc94701 Stage 8.3.1 standalone final PDF from approved snapshot
 ```
 
 Все отправлены на GitHub: `origin/hermes/integrate-origin-master-20260423`.
@@ -77,13 +77,44 @@ cc94701 Stage 8.3.1 standalone final PDF from approved snapshot
 - JS отправляет `stamp_applied`/`signature_applied` в `POST /final-pdf`.
 - 6 новых тестов UI + JS.
 
-### Stage 8.4.6c: Real PNG stamp/signature in final PDF
-- `_resolve_company_asset()` helper + `reportlab.platypus.Image` для реальных PNG.
-- Stamp: 35mm × 35mm; Signature: 55mm × 20mm.
-- Fallback текст «М.П.»/«Подпись» при отсутствии файла.
-- API validation: `stamp_applied=True` без company/stamp_path → 400.
-- 9 новых тестов.
-- **Live-проверка пройдена**: estimate 881, company_id=2 (ИП Гордеев А.Н.), stamp.png + signature.png загружены. Final PDF содержит реквизиты, PNG-печать, PNG-подпись, строку «Финальная согласованная версия».
+### Stage 8.4.6d: Watermark from companies.watermark_text
+- `_resolve_watermark_text(company_name, company)` в `standalone_estimate_files.py`.
+- Если `company` задан и `watermark_text` не пуст — берёт из DB.
+- Fallback: `"ИП ГОРДЕЕВ А.Н."` / `"ДЕКОРАРТСТРОЙ"` по `company_name`.
+- Final PDF watermark намеренно отключён (пустой callback `return`).
+- 7 новых тестов.
+
+### Stage 8.4.7: Legacy _get_company_details() DB fallback
+- `_get_company_details(company_name)` в `estimate_pdf.py` сначала пытается найти компанию в DB (по `short_name`, затем `legal_name`).
+- Если компания найдена — возвращает dict `{title, details}` в legacy-формате через `_company_to_details_dict()`.
+- При любой ошибке (DB недоступна, ImportError, company не найдена) — возвращает hardcoded fallback из `_HARDCODED_COMPANY_DETAILS`.
+- Добавлены `_hardcoded_company_details()`, `_split_address()`, `_company_to_details_dict()`.
+- 26 тестов в `test_estimate_pdf_company_fallback.py`.
+
+## Stage 8.4 — полный перечень выполненного
+
+1. **companies table + seed**: ООО «Декорартстрой» (id=1), ИП Гордеев А.Н. (id=2).
+2. **CompanyRepository / CompanyService**: CRUD, get_by_short_name, list, deactivate, set_asset_paths.
+3. **Settings UI для компаний**: `/settings/companies` — список, детали, CRUD.
+4. **Protected upload stamp/signature PNG**: content_type, extension, magic bytes, max 2MB; auth-gated serve.
+5. **estimates.company_id**: `BIGINT NULL REFERENCES companies(id) ON DELETE SET NULL`.
+6. **Реквизиты компании в standalone final PDF**: ИНН, КПП, ОГРН, адрес, банк, подписант — из DB по `company_id`.
+7. **Checkbox «Добавить печать» / «Добавить подпись»**: только для approved, только до формирования final PDF.
+8. **Реальные PNG печати/подписи**: `_resolve_company_asset()`, `reportlab.platypus.Image`, fallback «М.П.»/«Подпись».
+9. **Watermark draft PDF из companies.watermark_text**: с fallback на hardcoded.
+10. **Legacy _get_company_details() DB lookup**: с hardcoded fallback, `try/except` вокруг DB.
+
+## Live-проверки
+- Standalone final PDF для estimate 881 (company_id=2, ИП Гордеев А.Н.): реквизиты, печать, подпись отображаются корректно.
+- Legacy project-based PDF: реквизиты ООО Декорартстрой отображаются корректно, watermark ДЕКОРАРТСТРОЙ работает, PDF визуально не сломан.
+
+## Подтверждённые гарантии
+- Protected storage используется (`/opt/dekorcrm/storage/company-assets/`).
+- Печать/подпись не лежат в `static/`.
+- Hardcoded fallback для legacy сохранён на 100%.
+- Project-based PDF/JSON не затронуты (только `_get_company_details()` с fallback).
+- Standalone PDF/JSON не затронуты.
+- Все 130 тестов зелёные.
 
 ## Состояние после push
-Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.
+Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`. Stage 8.4 полностью завершён.

@@ -1,5 +1,21 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-05 Stage 8.4 завершён — компании, реквизиты, печать/подпись, watermark, legacy fallback
+
+### Stage 8.4.7 — legacy _get_company_details() DB fallback
+- `_get_company_details(company_name)` в `estimate_pdf.py` сначала ищет компанию в DB (`CompanyRepository.get_company_by_short_name` → fallback по `legal_name`).
+- При нахождении — строит dict `{title, details}` через `_company_to_details_dict()` из полей Company (ИНН/КПП, ОГРН/ОГРНИП, адрес, телефон, email, сайт). Пустые поля пропускаются.
+- При любой ошибке — возвращает `_hardcoded_company_details()` (исходный hardcoded dict без изменений).
+- Добавлены `_HARDCODED_COMPANY_DETAILS`, `_hardcoded_company_details()`, `_split_address()`, `_company_to_details_dict()`.
+- 26 тестов в `tests/test_estimate_pdf_company_fallback.py`.
+- Legacy project-based PDF визуально не сломан; standalone PDF не затронут.
+
+### Stage 8.4.6d — watermark из companies.watermark_text
+- `_resolve_watermark_text(company_name, company)` в `standalone_estimate_files.py`.
+- `company.watermark_text` из DB приоритетнее hardcoded fallback.
+- Final PDF watermark намеренно отключён (пустой callback).
+- 7 новых тестов.
+
 ## 2026-05-05 Stage 8.4.6c — live verification пройдена
 - **Live-проверка**: estimate_id=881, status=approved, company_id=2 (ИП Гордеев А.Н.), approved_version_id=743.
 - stamp_path=`company-assets/2/stamp.png`, signature_path=`company-assets/2/signature.png` — оба PNG существуют на диске.

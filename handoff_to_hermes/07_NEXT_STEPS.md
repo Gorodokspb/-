@@ -1,32 +1,38 @@
 # 07 — Next steps
 
-## Stage 8.4: Модуль компаний, реквизитов, печати и подписи
+## Stage 8.4 ✅ ЗАВЕРШЁН
 
-### 8.4.1 ✅ Schema + repository (выполнено)
+### 8.4.1 ✅ Schema + repository
 - Таблица `companies`, seed-данные ООО «Декорартстрой» и ИП Гордеев А.Н.
 - `CompanyRepository`, `CompanyService`, 16 тестов.
 
-### 8.4.2 ✅ Repository/service (выполнено, вместе с 8.4.1)
+### 8.4.2 ✅ Repository/service
 
-### 8.4.3 ✅ UI settings companies (выполнено)
-### 8.4.4 ✅ Asset upload protected storage (выполнено)
+### 8.4.3 ✅ UI settings companies
+### 8.4.4 ✅ Asset upload protected storage
 
-### 8.4.5 ✅ estimates.company_id FK (выполнено)
+### 8.4.5 ✅ estimates.company_id FK
 
-### 8.4.6a ✅ Company details in final PDF (выполнено)
-### 8.4.6b ✅ Final PDF stamp/signature checkboxes (выполнено)
-### 8.4.6c ✅ Real PNG stamp/signature in final PDF (выполнено, live-verified)
+### 8.4.6a ✅ Company details in final PDF
+### 8.4.6b ✅ Final PDF stamp/signature checkboxes
+### 8.4.6c ✅ Real PNG stamp/signature in final PDF (live-verified)
 - Проверочная смета: estimate_id=881, status=approved, company_id=2 (ИП Гордеев А.Н.).
 - approved_version_id=743, snapshot содержит company_id=2.
 - stamp_path=company-assets/2/stamp.png, signature_path=company-assets/2/signature.png — оба файла существуют.
 - Final PDF успешно отображает реквизиты ИП, реальную PNG-печать, реальную PNG-подпись.
-- Draft/sent PDF не затронуты. Legacy estimate_pdf.py не тронут. Project-based PDF/JSON не тронуты.
 
-### 8.4.6d Watermark from company.watermark_text (не начат)
-- Заменить hardcoded watermark ('ДЕКОРАРТСТРОЙ' / 'ИП ГОРДЕЕВ А.Н.') на `company.watermark_text` из БД.
-- Fallback: если company нет — старый hardcoded.
+### 8.4.6d ✅ Watermark from company.watermark_text
+- `_resolve_watermark_text()` в `standalone_estimate_files.py`.
+- `company.watermark_text` из DB имеет приоритет; fallback на hardcoded.
+- Final PDF watermark намеренно отключён (пустой callback).
 
-### 8.4.7 Legacy fallback/refactor (не начат, очень осторожно)
+### 8.4.7 ✅ Legacy _get_company_details() DB fallback
+- `_get_company_details()` в `estimate_pdf.py` сначала ищет компанию в DB (short_name → legal_name).
+- При ошибке или отсутствии — возвращает hardcoded fallback.
+- `_company_to_details_dict()` строит `{title, details}` из Company, пропуская пустые поля.
+- `_split_address()` разбивает длинный адрес по первой запятой.
+- 26 тестов в `test_estimate_pdf_company_fallback.py`.
+- Legacy project-based PDF визуально не сломан; watermark не тронут.
 
 ## Stage 8.5: Импорт Excel-смет в standalone-редактор
 1. Добавить кнопку «Импорт из Excel» в standalone-редакторе сметы.
