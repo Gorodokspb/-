@@ -55,34 +55,102 @@ def _split_object_lines(value: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
+_HARDCODED_COMPANY_DETAILS = {
+    "ООО Декорартстрой": {
+        "title": "<b>ООО «Декорартстрой»</b>",
+        "details": [
+            "ИНН 7811530330 / КПП 780501001",
+            "ОГРН 1127847464942",
+            "Юр. адрес: г. Санкт-Петербург, Ленинский пр-кт,",
+            "д. 144, кор. 1, стр. 2, оф. 302",
+            "Тел.: +7 (911) 921-30-39, +7 (911) 031-61-01",
+            "E-mail: info@dekorartstroy.ru",
+            "Сайт: remontstroyspb.ru",
+        ],
+    },
+    "ИП Гордеев А.Н.": {
+        "title": "<b>ИП Гордеев А.Н.</b>",
+        "details": [
+            "ИНН 781144532689",
+            "ОГРНИП 318784700361262",
+            "Адрес: г. Санкт-Петербург, Ленинский пр-кт,",
+            "д. 144, кор. 1, стр. 2, оф. 302",
+            "Тел.: +7 (911) 921-30-39, +7 (911) 031-61-01",
+            "Почта: gorodok198@yandex.ru",
+            "Сайт: remontstroyspb.ru",
+        ],
+    },
+}
+
+
+def _hardcoded_company_details(company_name: str) -> dict:
+    return _HARDCODED_COMPANY_DETAILS.get(
+        company_name, _HARDCODED_COMPANY_DETAILS["ООО Декорартстрой"]
+    )
+
+
+def _split_address(address: str) -> list[str]:
+    if not address:
+        return []
+    if len(address) <= 50:
+        return [address]
+    parts = [p.strip() for p in address.split(",", 1)]
+    return parts if len(parts) == 2 else [address]
+
+
+def _company_to_details_dict(company) -> dict:
+    title = f"<b>{company.legal_name or company.short_name}</b>"
+    details: list[str] = []
+
+    if company.inn:
+        inn_parts = [f"ИНН {company.inn}"]
+        if company.kpp:
+            inn_parts.append(f"КПП {company.kpp}")
+        details.append(" / ".join(inn_parts))
+
+    if company.ogrn:
+        details.append(f"ОГРН {company.ogrn}")
+    elif company.ogrnip:
+        details.append(f"ОГРНИП {company.ogrnip}")
+
+    if company.legal_address:
+        addr_lines = _split_address(company.legal_address)
+        if len(addr_lines) == 1:
+            details.append(f"Адрес: {addr_lines[0]}")
+        else:
+            details.append(f"Юр. адрес: {addr_lines[0]}")
+            for line in addr_lines[1:]:
+                details.append(line)
+
+    if company.phone:
+        details.append(f"Тел.: {company.phone}")
+
+    if company.email:
+        details.append(f"E-mail: {company.email}")
+
+    if company.website:
+        details.append(f"Сайт: {company.website}")
+
+    return {"title": title, "details": details}
+
+
 def _get_company_details(company_name: str) -> dict:
-    companies = {
-        "ООО Декорартстрой": {
-            "title": "<b>ООО «Декорартстрой»</b>",
-            "details": [
-                "ИНН 7811530330 / КПП 780501001",
-                "ОГРН 1127847464942",
-                "Юр. адрес: г. Санкт-Петербург, Ленинский пр-кт,",
-                "д. 144, кор. 1, стр. 2, оф. 302",
-                "Тел.: +7 (911) 921-30-39, +7 (911) 031-61-01",
-                "E-mail: info@dekorartstroy.ru",
-                "Сайт: remontstroyspb.ru",
-            ],
-        },
-        "ИП Гордеев А.Н.": {
-            "title": "<b>ИП Гордеев А.Н.</b>",
-            "details": [
-                "ИНН 781144532689",
-                "ОГРНИП 318784700361262",
-                "Адрес: г. Санкт-Петербург, Ленинский пр-кт,",
-                "д. 144, кор. 1, стр. 2, оф. 302",
-                "Тел.: +7 (911) 921-30-39, +7 (911) 031-61-01",
-                "Почта: gorodok198@yandex.ru",
-                "Сайт: remontstroyspb.ru",
-            ],
-        },
-    }
-    return companies.get(company_name, companies["ООО Декорартстрой"])
+    try:
+        from webapp.company_repository import CompanyRepository
+
+        repo = CompanyRepository()
+        company = repo.get_company_by_short_name(company_name)
+        if company is None:
+            for c in repo.list_companies(include_inactive=False):
+                if c.legal_name == company_name:
+                    company = c
+                    break
+        if company is not None:
+            return _company_to_details_dict(company)
+    except Exception:
+        pass
+
+    return _hardcoded_company_details(company_name)
 
 
 def _format_rub(value: float) -> str:
