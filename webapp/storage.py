@@ -18,6 +18,7 @@ def ensure_storage_dirs() -> None:
         settings.contracts_dir,
         settings.estimates_dir,
         settings.uploads_dir,
+        settings.storage_root / "company-assets",
     ):
         path.mkdir(parents=True, exist_ok=True)
 

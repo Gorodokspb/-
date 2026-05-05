@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}{% if company %}{{ company.legal_name }}{% else %}Новая компания{% endif %} | Dekorartstroy CRM{% endblock %}
+
+{% set active_section = 'settings' %}
+
+{% block body %}
+<main class="dashboard-shell dashboard-shell-v2">
+    <div class="workspace-frame workspace-frame-desktop">
+        <header class="topbar-card topbar-card-projects topbar-card-classic">
+            <a class="topbar-logo-slot" href="/projects" aria-label="CRM198.ru">
+                <img src="/static/img/crm198-logo.jpg" alt="CRM198.ru">
+            </a>
+
+            <div class="topbar-meta projects-topbar-actions">
+                <a class="topbar-chip topbar-chip-link" href="/settings/companies">&larr; Компании</a>
+            </div>
+
+            <div class="topbar-userbox topbar-userbox-compact">
+                <a class="topbar-chip topbar-chip-link topbar-password-action" href="/account/password">Сменить пароль</a>
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        <section class="classic-layout">
+            <section class="classic-main">
+                <div class="classic-main-head">
+                    <h1>{% if company %}{{ company.legal_name }}{% else %}Новая компания{% endif %}</h1>
+                </div>
+
+                <form method="post" action="{% if company %}/settings/companies/{{ company.id }}{% else %}/settings/companies{% endif %}" class="form-card">
+                    <fieldset>
+                        <legend>Реквизиты</legend>
+
+                        <label>
+                            <span class="sidebar-label">Полное название</span>
+                            <input type="text" name="legal_name" value="{{ company.legal_name if company else '' }}" required>
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Краткое название (ключ)</span>
+                            <input type="text" name="short_name" value="{{ company.short_name if company else '' }}" {% if company %}disabled{% else %}required{% endif %}>
+                            {% if company %}<input type="hidden" name="short_name" value="{{ company.short_name }}">{% endif %}
+                        </label>
+                        <label>
+                            <span class="sidebar-label">ИНН</span>
+                            <input type="text" name="inn" value="{{ company.inn or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">КПП</span>
+                            <input type="text" name="kpp" value="{{ company.kpp or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">ОГРН</span>
+                            <input type="text" name="ogrn" value="{{ company.ogrn or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">ОГРНИП</span>
+                            <input type="text" name="ogrnip" value="{{ company.ogrnip or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Юридический адрес</span>
+                            <input type="text" name="legal_address" value="{{ company.legal_address or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Телефон</span>
+                            <input type="text" name="phone" value="{{ company.phone or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Email</span>
+                            <input type="text" name="email" value="{{ company.email or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Сайт</span>
+                            <input type="text" name="website" value="{{ company.website or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Банк</span>
+                            <input type="text" name="bank_name" value="{{ company.bank_name or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">БИК</span>
+                            <input type="text" name="bik" value="{{ company.bik or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Расчётный счёт</span>
+                            <input type="text" name="account" value="{{ company.account or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Корр. счёт</span>
+                            <input type="text" name="correspondent_account" value="{{ company.correspondent_account or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Руководитель</span>
+                            <input type="text" name="director_name" value="{{ company.director_name or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Подписант (если отличается)</span>
+                            <input type="text" name="signer_name" value="{{ company.signer_name or '' if company else '' }}">
+                        </label>
+                        <label>
+                            <span class="sidebar-label">Текст водяного знака</span>
+                            <input type="text" name="watermark_text" value="{{ company.watermark_text if company else 'ДЕКОРАРТСТРОЙ' }}">
+                        </label>
+                    </fieldset>
+
+                    <button type="submit" class="primary-button">Сохранить</button>
+                </form>
+
+                {% if company %}
+                <div class="form-card" style="margin-top: 2rem;">
+                    <h2>Печать и подпись</h2>
+
+                    <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 280px;">
+                            <h3>Печать</h3>
+                            {% if company.stamp_path %}
+                            <p><img src="/settings/companies/{{ company.id }}/stamp" alt="Печать" style="max-width: 200px; max-height: 200px;"></p>
+                            {% else %}
+                            <p>Печать не загружена.</p>
+                            {% endif %}
+                            <form method="post" action="/settings/companies/{{ company.id }}/stamp" enctype="multipart/form-data">
+                                <input type="file" name="file" accept="image/png" required>
+                                <button type="submit" class="ghost-button">Загрузить печать (PNG)</button>
+                            </form>
+                        </div>
+
+                        <div style="flex: 1; min-width: 280px;">
+                            <h3>Подпись</h3>
+                            {% if company.signature_path %}
+                            <p><img src="/settings/companies/{{ company.id }}/signature" alt="Подпись" style="max-width: 200px; max-height: 200px;"></p>
+                            {% else %}
+                            <p>Подпись не загружена.</p>
+                            {% endif %}
+                            <form method="post" action="/settings/companies/{{ company.id }}/signature" enctype="multipart/form-data">
+                                <input type="file" name="file" accept="image/png" required>
+                                <button type="submit" class="ghost-button">Загрузить подпись (PNG)</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </section>
+        </section>
+    </div>
+</main>
+{% endblock %}

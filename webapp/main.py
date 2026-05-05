@@ -54,6 +54,7 @@ from webapp.standalone_estimate_api import (
     register_standalone_estimate_exception_handlers,
     router as standalone_estimate_router,
 )
+from webapp.company_api import router as company_router
 from webapp.storage import ensure_storage_dirs, resolve_storage_path
 from import_catalog_items import (
     CATEGORY_OPTIONS,
@@ -88,6 +89,7 @@ app.mount(
     name="static",
 )
 app.include_router(standalone_estimate_router)
+app.include_router(company_router)
 
 
 @app.on_event("startup")
