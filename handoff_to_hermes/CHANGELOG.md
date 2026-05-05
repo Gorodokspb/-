@@ -1,5 +1,35 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-05 Stage 8.4.6c — live verification пройдена
+- **Live-проверка**: estimate_id=881, status=approved, company_id=2 (ИП Гордеев А.Н.), approved_version_id=743.
+- stamp_path=`company-assets/2/stamp.png`, signature_path=`company-assets/2/signature.png` — оба PNG существуют на диске.
+- Final PDF успешно отображает: реквизиты ИП Гордеев А.Н., реальная PNG-печать, реальная PNG-подпись, строку «Финальная согласованная версия: печать=да, подпись=да».
+- Draft/sent PDF не затронуты. Legacy `estimate_pdf.py` не тронут. Project-based PDF/JSON не тронуты.
+- 25 тестов `test_standalone_estimate_files` (включая 9 новых `StampSignaturePngTests`), 15 `test_standalone_workflow_ui`, 17 `test_company_api`, 16 `test_company_repository`, 12 `test_estimate_domain` — все зелёные.
+
+## 2026-05-05 Stage 8.4.6b — final PDF stamp/signature checkboxes
+- Добавлены чекбоксы `stamp_applied` / `signature_applied` в approved editor (только если `final_document_id` отсутствует).
+- JS: `final-pdf` action считывает checkbox state и отправляет JSON body.
+- 6 новых UI+JS тестов.
+
+## 2026-05-05 Stage 8.4.6a — company details in final PDF
+- Если у сметы `company_id` → блок реквизитов (ИНН, КПП, ОГРН, адрес, банк, подписант).
+- Если `company_id` нет → fallback `Компания: {company_name}`.
+- 5 новых тестов.
+
+## 2026-05-05 Stage 8.4.5 — estimates.company_id FK
+- `estimates.company_id BIGINT NULL REFERENCES companies(id) ON DELETE SET NULL`.
+- `EstimateSummary`, `EstimateCreateInput`, `EstimateUpdateInput` — проброс `company_id`.
+- 7 migration-тестов.
+
+## 2026-05-05 Stages 8.4.1–8.4.4 — companies module + company settings + asset upload
+- Таблица `companies`, seed ООО «Декорартстрой» (id=1) и ИП Гордеев А.Н. (id=2).
+- `CompanyRepository`, `CompanyService`, 16 тестов.
+- APIRouter `/settings/companies`: CRUD, upload stamp/signature PNG (validate content_type, extension, magic bytes, max 2MB), auth-gated serve.
+- Templates `companies_list.html`, `company_detail.html`.
+- Protected storage `/opt/dekorcrm/storage/company-assets/{company_id}/`.
+- 17 тестов `test_company_api`.
+
 ## 2026-05-05 Stage 8.3.3 — live verification и bugfix
 - Live-проверка полного UI workflow: создание сметы → шапка → раздел → 2 позиции → сохранить → отправить → согласовать → final PDF → скачать.
 - Исправлен баг: `_load_payload()` в `standalone_estimate_api.py` вызывал `request.json()` при пустом body с `Content-Type: application/json`, что давало 500. Теперь оборачивает в try/except, возвращает `{}`.

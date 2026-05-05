@@ -51,5 +51,39 @@ cc94701 Stage 8.3.1 standalone final PDF from approved snapshot
 - Исправлен баг: пустое JSON body при `POST /final-pdf` вызывал 500 (`_load_payload` теперь tolerant к пустому body).
 - Добавлена защита тестов от live-БД: `guard_live_database()` блокирует `DELETE FROM` на database `dekorcrm`.
 
+### Stage 8.4.1–8.4.2: Companies schema + repository
+- Таблица `companies`, seed-данные ООО «Декорартстрой» (id=1) и ИП Гордеев А.Н. (id=2).
+- `CompanyRepository`, `CompanyService`, 16 тестов.
+
+### Stage 8.4.3–8.4.4: Company settings UI + protected asset upload
+- APIRouter `/settings/companies` — CRUD, upload stamp/signature, serve assets.
+- Templates `companies_list.html`, `company_detail.html`.
+- PNG-only upload: validate content_type, extension, magic bytes, max 2MB.
+- Protected storage: `/opt/dekorcrm/storage/company-assets/{company_id}/`.
+- Auth-gated GET routes для stamp/signature.
+- 17 тестов `test_company_api`.
+
+### Stage 8.4.5: estimates.company_id FK
+- `estimates.company_id BIGINT NULL REFERENCES companies(id) ON DELETE SET NULL`.
+- `EstimateSummary`, `EstimateCreateInput`, `EstimateUpdateInput` — проброс `company_id`.
+
+### Stage 8.4.6a: Company details in final PDF
+- Если у сметы `company_id` → блок реквизитов (ИНН, КПП, ОГРН, адрес, банк, подписант).
+- Если `company_id` нет → fallback `Компания: {company_name}`.
+- 5 новых тестов.
+
+### Stage 8.4.6b: Final PDF stamp/signature checkboxes
+- Чекбоксы «Добавить печать» / «Добавить подпись» в approved editor (только если `final_document_id` отсутствует).
+- JS отправляет `stamp_applied`/`signature_applied` в `POST /final-pdf`.
+- 6 новых тестов UI + JS.
+
+### Stage 8.4.6c: Real PNG stamp/signature in final PDF
+- `_resolve_company_asset()` helper + `reportlab.platypus.Image` для реальных PNG.
+- Stamp: 35mm × 35mm; Signature: 55mm × 20mm.
+- Fallback текст «М.П.»/«Подпись» при отсутствии файла.
+- API validation: `stamp_applied=True` без company/stamp_path → 400.
+- 9 новых тестов.
+- **Live-проверка пройдена**: estimate 881, company_id=2 (ИП Гордеев А.Н.), stamp.png + signature.png загружены. Final PDF содержит реквизиты, PNG-печать, PNG-подпись, строку «Финальная согласованная версия».
+
 ## Состояние после push
 Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.
