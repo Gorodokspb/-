@@ -23,6 +23,10 @@ from reportlab.lib.styles import ParagraphStyle
 from webapp.config import get_settings
 from webapp.storage import sanitize_filename
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from webapp.company_repository import Company
+
 FONT_REGULAR = "DejaVuSans"
 FONT_BOLD = "DejaVuSans-Bold"
 
@@ -137,12 +141,57 @@ def _build_pdf_table(snapshot: dict[str, Any]) -> tuple[list[list[str]], list[tu
     return table_data, section_styles, grand_total, discounted_total
 
 
+def _company_details_elements(company: Company, body_style: ParagraphStyle) -> list:
+    elements = []
+    elements.append(Paragraph(f"Компания: {company.legal_name or company.short_name}", body_style))
+    lines: list[str] = []
+    if company.inn:
+        parts = [f"ИНН: {company.inn}"]
+        if company.kpp:
+            parts.append(f"КПП: {company.kpp}")
+        lines.append("  ".join(parts))
+    if company.ogrn:
+        lines.append(f"ОГРН: {company.ogrn}")
+    elif company.ogrnip:
+        lines.append(f"ОГРНИП: {company.ogrnip}")
+    if company.legal_address:
+        lines.append(f"Адрес: {company.legal_address}")
+    contact_parts = []
+    if company.phone:
+        contact_parts.append(f"Тел.: {company.phone}")
+    if company.email:
+        contact_parts.append(f"E-mail: {company.email}")
+    if contact_parts:
+        lines.append("  ".join(contact_parts))
+    if company.website:
+        lines.append(f"Сайт: {company.website}")
+    if company.bank_name:
+        bank_parts = [f"Банк: {company.bank_name}"]
+        if company.bik:
+            bank_parts.append(f"БИК: {company.bik}")
+        lines.append("  ".join(bank_parts))
+    bank_account_parts = []
+    if company.account:
+        bank_account_parts.append(f"Р/с: {company.account}")
+    if company.correspondent_account:
+        bank_account_parts.append(f"К/с: {company.correspondent_account}")
+    if bank_account_parts:
+        lines.append("  ".join(bank_account_parts))
+    signer = company.signer_name or company.director_name
+    if signer:
+        lines.append(f"Подписант: {signer}")
+    for line in lines:
+        elements.append(Paragraph(line, body_style))
+    return elements
+
+
 def _build_pdf_elements(
     snapshot: dict[str, Any],
     *,
     stamp_applied: bool = False,
     signature_applied: bool = False,
     is_final_approved: bool = False,
+    company: Company | None = None,
 ) -> list:
     _ensure_fonts()
     estimate = snapshot["estimate"]
@@ -165,10 +214,13 @@ def _build_pdf_elements(
         Paragraph(f"Объект: {object_name}", body_style),
         Paragraph(f"Заказчик: {customer_name}", body_style),
         Paragraph(f"Договор: {contract_label}", body_style),
-        Paragraph(f"Компания: {company_name}", body_style),
-        Paragraph(f"Скидка: {discount_label}%", body_style),
-        Spacer(1, 4 * mm),
     ]
+    if company is not None:
+        elements.extend(_company_details_elements(company, body_style))
+    else:
+        elements.append(Paragraph(f"Компания: {company_name}", body_style))
+    elements.append(Paragraph(f"Скидка: {discount_label}%", body_style))
+    elements.append(Spacer(1, 4 * mm))
 
     table_data, section_styles, grand_total, discounted_total = _build_pdf_table(snapshot)
 
@@ -277,6 +329,7 @@ def export_final_approved_pdf(
     *,
     stamp_applied: bool = False,
     signature_applied: bool = False,
+    company: Company | None = None,
 ) -> Path:
     estimate = snapshot["estimate"]
     if not _is_approved_pdf_status(estimate.get("status")):
@@ -297,7 +350,7 @@ def export_final_approved_pdf(
         bottomMargin=10 * mm,
     )
 
-    elements = _build_pdf_elements(snapshot, stamp_applied=stamp_applied, signature_applied=signature_applied, is_final_approved=True)
+    elements = _build_pdf_elements(snapshot, stamp_applied=stamp_applied, signature_applied=signature_applied, is_final_approved=True, company=company)
 
     watermark_text = "ИП ГОРДЕЕВ А.Н." if (estimate.get("company_name") or "ООО Декорартстрой") == "ИП Гордеев А.Н." else "ДЕКОРАРТСТРОЙ"
 

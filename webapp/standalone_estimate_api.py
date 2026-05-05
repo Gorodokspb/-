@@ -24,6 +24,7 @@ from webapp.standalone_estimate_files import (
     export_standalone_estimate_pdf,
 )
 from webapp.storage import storage_relative_path, resolve_storage_path
+from webapp.company_repository import CompanyService
 
 router = APIRouter()
 settings = get_settings()
@@ -567,10 +568,15 @@ async def standalone_estimate_final_pdf(estimate_id: int, request: Request):
     snapshot = approved_version["snapshot_json"]
     stamp_applied = bool(payload.get("stamp_applied"))
     signature_applied = bool(payload.get("signature_applied"))
+    company_id = snapshot.get("estimate", {}).get("company_id") or details.estimate.company_id
+    company = None
+    if company_id:
+        company = CompanyService().get_company(company_id)
     pdf_path = export_final_approved_pdf(
         snapshot,
         stamp_applied=stamp_applied,
         signature_applied=signature_applied,
+        company=company,
     )
     relative_pdf_path = storage_relative_path(pdf_path)
     estimate_summary = details.estimate
