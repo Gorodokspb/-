@@ -47,6 +47,7 @@ class StandaloneWorkflowUITests(unittest.TestCase):
     def setUpClass(cls):
         cls.editor_html = (TEMPLATES_DIR / "standalone_estimate_editor.html").read_text(encoding="utf-8")
         cls.legacy_editor_html = (TEMPLATES_DIR / "estimate_editor.html").read_text(encoding="utf-8")
+        cls.editor_js = (Path(__file__).resolve().parent.parent / "webapp" / "static" / "estimate_editor.js").read_text(encoding="utf-8")
 
     def test_editor_contains_workflow_actions_container(self):
         self.assertIn("estimateWorkflowActions", self.editor_html)
@@ -84,6 +85,30 @@ class StandaloneWorkflowUITests(unittest.TestCase):
         self.assertNotIn('data-action="reject"', self.legacy_editor_html)
         self.assertNotIn('data-action="final-pdf"', self.legacy_editor_html)
         self.assertNotIn("estimateWorkflowActions", self.legacy_editor_html)
+
+    def test_approved_editor_contains_stamp_checkbox(self):
+        self.assertIn('id="stamp_applied"', self.editor_html)
+
+    def test_approved_editor_contains_signature_checkbox(self):
+        self.assertIn('id="signature_applied"', self.editor_html)
+
+    def test_stamp_signature_checkboxes_inside_approved_block(self):
+        approved_idx = self.editor_html.index("estimate.status.value == 'approved'")
+        stamp_idx = self.editor_html.index('id="stamp_applied"')
+        self.assertGreater(stamp_idx, approved_idx)
+
+    def test_legacy_editor_does_not_contain_stamp_signature_checkboxes(self):
+        self.assertNotIn('id="stamp_applied"', self.legacy_editor_html)
+        self.assertNotIn('id="signature_applied"', self.legacy_editor_html)
+
+    def test_js_sends_stamp_signature_for_final_pdf_action(self):
+        self.assertIn('"final-pdf"', self.editor_js)
+        self.assertIn("stamp_applied", self.editor_js)
+        self.assertIn("signature_applied", self.editor_js)
+
+    def test_js_reads_checkbox_state_for_final_pdf(self):
+        self.assertIn('getElementById("stamp_applied")', self.editor_js)
+        self.assertIn('getElementById("signature_applied")', self.editor_js)
 
 
 if __name__ == "__main__":

@@ -133,6 +133,14 @@
                                 {% if estimate.final_document_id %}
                                     <a href="/estimates/{{ estimate.id }}/download/final-pdf" class="primary-button">Скачать final PDF</a>
                                 {% else %}
+                                    <label class="estimate-check" style="display:block;margin-bottom:4px;">
+                                        <input type="checkbox" id="stamp_applied" data-field="stamp_applied">
+                                        <span>Добавить печать</span>
+                                    </label>
+                                    <label class="estimate-check" style="display:block;margin-bottom:4px;">
+                                        <input type="checkbox" id="signature_applied" data-field="signature_applied">
+                                        <span>Добавить подпись</span>
+                                    </label>
                                     <button type="button" class="primary-button" data-action="final-pdf" data-estimate-id="{{ estimate.id }}">Сформировать final PDF</button>
                                 {% endif %}
                                 <a href="/estimates/{{ estimate.id }}/download/json" class="ghost-button">Скачать JSON</a>

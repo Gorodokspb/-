@@ -1719,6 +1719,13 @@
                 payload = { stamp_applied: true, signature_applied: true, comment: "Согласовано" };
             } else if (action === "reject") {
                 payload = { comment: "Отклонено" };
+            } else if (action === "final-pdf") {
+                const stampCb = document.getElementById("stamp_applied");
+                const sigCb = document.getElementById("signature_applied");
+                payload = {
+                    stamp_applied: stampCb ? stampCb.checked : false,
+                    signature_applied: sigCb ? sigCb.checked : false,
+                };
             }
             btn.disabled = true;
             btn.textContent = label + "...";
