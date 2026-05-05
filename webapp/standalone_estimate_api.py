@@ -46,7 +46,10 @@ def _username(request: Request) -> str:
 async def _load_payload(request: Request) -> dict[str, Any]:
     content_type = (request.headers.get("content-type") or "").lower()
     if "application/json" in content_type:
-        payload = await request.json()
+        try:
+            payload = await request.json()
+        except Exception:
+            return {}
         return payload if isinstance(payload, dict) else {}
     if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
         form = await request.form()

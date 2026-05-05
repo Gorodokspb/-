@@ -703,6 +703,75 @@ class StandaloneEstimateRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.media_type, "application/pdf")
 
+    def _make_request_with_body(self, path: str, method: str = "POST", body: bytes = b"", content_type: str = "application/json") -> Request:
+        scope = {
+            "type": "http",
+            "http_version": "1.1",
+            "method": method,
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode("utf-8"),
+            "query_string": b"",
+            "headers": [(b"content-type", content_type.encode("utf-8"))],
+            "client": ("testclient", 123),
+            "server": ("testserver", 80),
+            "session": {},
+        }
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        return Request(scope, receive)
+
+    def test_load_payload_json_empty_body_returns_empty_dict(self):
+        request = self._make_request_with_body("/estimates/1/test", body=b"", content_type="application/json")
+        result = asyncio.run(standalone_api._load_payload(request))
+        self.assertEqual(result, {})
+
+    def test_load_payload_json_valid_body_returns_dict(self):
+        body = json.dumps({"action": "test", "value": 42}).encode("utf-8")
+        request = self._make_request_with_body("/estimates/1/test", body=body, content_type="application/json")
+        result = asyncio.run(standalone_api._load_payload(request))
+        self.assertEqual(result, {"action": "test", "value": 42})
+
+    def test_load_payload_json_array_body_returns_empty_dict(self):
+        body = json.dumps([1, 2, 3]).encode("utf-8")
+        request = self._make_request_with_body("/estimates/1/test", body=body, content_type="application/json")
+        result = asyncio.run(standalone_api._load_payload(request))
+        self.assertEqual(result, {})
+
+    def test_load_payload_json_malformed_body_returns_empty_dict(self):
+        request = self._make_request_with_body("/estimates/1/test", body=b"{broken", content_type="application/json")
+        result = asyncio.run(standalone_api._load_payload(request))
+        self.assertEqual(result, {})
+
+    def test_load_payload_no_content_type_empty_body_returns_empty_dict(self):
+        scope = {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/estimates/1/test",
+            "raw_path": b"/estimates/1/test",
+            "query_string": b"",
+            "headers": [],
+            "client": ("testclient", 123),
+            "server": ("testserver", 80),
+            "session": {},
+        }
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        request = Request(scope, receive)
+        result = asyncio.run(standalone_api._load_payload(request))
+        self.assertEqual(result, {})
+
+    def test_load_payload_form_urlencoded_returns_form_data(self):
+        form_body = urlencode({"field1": "value1", "field2": "42"}).encode("utf-8")
+        request = self._make_request_with_body("/estimates/1/test", body=form_body, content_type="application/x-www-form-urlencoded")
+        result = asyncio.run(standalone_api._load_payload(request))
+        self.assertEqual(result.get("field1"), "value1")
+        self.assertEqual(result.get("field2"), "42")
+
 
 if __name__ == "__main__":
     unittest.main()
