@@ -17,7 +17,7 @@ from openpyxl.utils import get_column_letter
 
 MAX_XLSX_BYTES = 2 * 1024 * 1024
 MAX_PARSED_ROWS = 500
-HEADER_SCAN_ROWS = 10
+HEADER_SCAN_ROWS = 25
 
 COLUMN_DEFINITIONS = {
     "name": {
@@ -62,6 +62,15 @@ COLUMN_DEFINITIONS = {
             "стоимость работ", "итоговая стоимость",
         ),
     },
+    "discounted_total": {
+        "canonical": "discounted_total",
+        "aliases": (
+            "ст. со скидкой", "стоимость со скидкой", "со скидкой",
+            "скидка", "цена со скидкой", "цена ск.", "цена ск",
+            "цена со ск.", "итого со скидкой", "всего со скидкой",
+            "discounted_total", "ск-ка",
+        ),
+    },
 }
 
 DEFAULT_COLUMN_MAPPING = {
@@ -70,6 +79,7 @@ DEFAULT_COLUMN_MAPPING = {
     "quantity": "C",
     "price": "D",
     "total": "E",
+    "discounted_total": None,
 }
 
 
@@ -82,6 +92,7 @@ class ColumnMapping:
     quantity: str | None = None
     price: str | None = None
     total: str | None = None
+    discounted_total: str | None = None
 
 
 @dataclass(frozen=True)
@@ -206,6 +217,7 @@ def resolve_estimate_columns(headers: list[str]) -> ColumnMapping:
         quantity=resolved.get("quantity"),
         price=resolved.get("price"),
         total=resolved.get("total"),
+        discounted_total=resolved.get("discounted_total"),
     )
 
 
@@ -252,6 +264,7 @@ def _read_row_values(
         ("quantity", mapping.quantity),
         ("price", mapping.price),
         ("total", mapping.total),
+        ("discounted_total", mapping.discounted_total),
     ):
         if col_letter is None:
             result[logical_key] = None
@@ -294,6 +307,22 @@ def _looks_like_item(row_values: dict[str, str | None]) -> bool:
     total = parse_decimal(row_values.get("total"))
     unit = (row_values.get("unit") or "").strip()
     return qty is not None or price is not None or total is not None or unit != ""
+
+
+def _looks_like_summary(row_values: dict[str, str | None]) -> bool:
+    """Heuristic: a summary/total row like 'Итого по разделу' or 'Всего по смете'."""
+    name = (row_values.get("name") or "").strip().casefold()
+    if not name:
+        return False
+    summary_keywords = (
+        "итого по разделу", "итого по смете", "всего по смете",
+        "всего по разделу", "итог по разделу", "итог по смете",
+        "итого:", "всего:", "итог:",
+    )
+    for keyword in summary_keywords:
+        if keyword in name:
+            return True
+    return False
 
 
 def _compute_total(quantity: Decimal | None, price: Decimal | None, total: Decimal | None) -> Decimal | None:
@@ -380,6 +409,13 @@ def parse_estimate_xlsx(
         if _row_is_empty(row_values):
             continue
 
+        if _looks_like_summary(row_values):
+            diagnostics.append(
+                f"Строка {row_idx} — итоговая, пропущена: "
+                f"'{row_values.get('name', '')}'"
+            )
+            continue
+
         if _looks_like_section(row_values):
             sort_order += 1
             section_count += 1
@@ -396,8 +432,9 @@ def parse_estimate_xlsx(
             quantity = parse_decimal(row_values.get("quantity"))
             price = parse_decimal(row_values.get("price"))
             total_raw = parse_decimal(row_values.get("total"))
+            discounted_raw = parse_decimal(row_values.get("discounted_total"))
             total = _compute_total(quantity, price, total_raw)
-            discounted_total = total
+            discounted_total = discounted_raw if discounted_raw is not None else total
 
             unit = (row_values.get("unit") or "").strip() or None
 

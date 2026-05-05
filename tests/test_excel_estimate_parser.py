@@ -449,5 +449,155 @@ class TestParserNoDependencies(unittest.TestCase):
         self.assertNotIn("webapp.db", sys.modules)
 
 
+class LookalikeSummaryTests(unittest.TestCase):
+    """Test _looks_like_summary heuristic."""
+
+    def test_itogo_po_razdelu(self):
+        from webapp.excel_estimate_parser import _looks_like_summary
+        self.assertTrue(_looks_like_summary({"name": "Итого по разделу:", "unit": "", "quantity": "", "price": "", "total": ""}))
+
+    def test_itogo_po_smete(self):
+        from webapp.excel_estimate_parser import _looks_like_summary
+        self.assertTrue(_looks_like_summary({"name": "Итого по смете:", "unit": "", "quantity": "", "price": "", "total": ""}))
+
+    def test_vsego_po_smete(self):
+        from webapp.excel_estimate_parser import _looks_like_summary
+        self.assertTrue(_looks_like_summary({"name": "ВСЕГО по смете", "unit": "", "quantity": "", "price": "", "total": ""}))
+
+    def test_normal_item_not_summary(self):
+        from webapp.excel_estimate_parser import _looks_like_summary
+        self.assertFalse(_looks_like_summary({"name": "Грунтовка потолка", "unit": "м.кв.", "quantity": "20", "price": "100", "total": "2000"}))
+
+    def test_section_not_summary(self):
+        from webapp.excel_estimate_parser import _looks_like_summary
+        self.assertFalse(_looks_like_summary({"name": "Раздел: Потолок", "unit": "", "quantity": "", "price": "", "total": ""}))
+
+
+class RealFormatParseTests(unittest.TestCase):
+    """Test parser against realistic estimate structure (header on row 15, B-H columns)."""
+
+    def test_real_format_header_row_15_section_items(self):
+        data = []
+        for _ in range(14):
+            data.append(["", "", "", "", "", "", "", ""])
+        data.append([
+            "№",
+            "Наименование работ",
+            "Ед. изм.",
+            "Кол-во",
+            "Цена",
+            "Ск-ка",
+            "Стоимость",
+            "Ст. со скидкой",
+        ])
+        data.append(["", "Потолочные работы ГКЛ", "", "", "", "", "", ""])
+        data.append([
+            "1",
+            "Монтаж каркаса потолка",
+            "м.кв.",
+            "45,5",
+            "2800",
+            "",
+            "127400",
+            "123000",
+        ])
+        data.append([
+            "2",
+            "Обшивка потолка ГКЛ в два слоя",
+            "м.кв.",
+            "45,5",
+            "1600",
+            "",
+            "72800",
+            "70000",
+        ])
+        data.append(["", "Итого по разделу:", "", "", "", "", "200200", "193000"])
+        data.append(["", "Раздел: Стены", "", "", "", "", "", ""])
+        data.append([
+            "3",
+            "Штукатурка стен по маякам",
+            "м.кв.",
+            "60",
+            "900",
+            "",
+            "54000",
+            "52000",
+        ])
+
+        xlsx_bytes = _create_xlsx_bytes(data)
+        result = parse_estimate_xlsx(xlsx_bytes)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.section_count, 2)
+        self.assertEqual(result.item_count, 3)
+
+        section_names = [r.name for r in result.rows if r.is_section]
+        self.assertIn("Потолочные работы ГКЛ", section_names)
+        self.assertIn("Раздел: Стены", section_names)
+
+        items = [r for r in result.rows if r.is_item]
+        self.assertEqual(items[0].name, "Монтаж каркаса потолка")
+        self.assertEqual(items[0].unit, "м.кв.")
+        self.assertEqual(items[0].quantity, Decimal("45.5"))
+        self.assertEqual(items[0].price, Decimal("2800"))
+        self.assertEqual(items[0].total, Decimal("127400"))
+        self.assertEqual(items[0].discounted_total, Decimal("123000"))
+
+        self.assertEqual(items[1].name, "Обшивка потолка ГКЛ в два слоя")
+        self.assertEqual(items[1].discounted_total, Decimal("70000"))
+
+        self.assertEqual(items[2].name, "Штукатурка стен по маякам")
+        self.assertEqual(items[2].discounted_total, Decimal("52000"))
+
+        summary_skipped = any("итоговая" in d for d in result.diagnostics)
+        self.assertTrue(summary_skipped)
+
+    def test_real_format_discounted_total_falls_back_to_total(self):
+        data = []
+        for _ in range(14):
+            data.append(["", "", "", "", "", "", "", ""])
+        data.append([
+            "№",
+            "Наименование работ",
+            "Ед. изм.",
+            "Кол-во",
+            "Цена",
+            "Ск-ка",
+            "Стоимость",
+            "Ст. со скидкой",
+        ])
+        data.append(["1", "Грунтовка потолка", "м.кв.", "20", "100", "", "2000", ""])
+        xlsx_bytes = _create_xlsx_bytes(data)
+        result = parse_estimate_xlsx(xlsx_bytes)
+
+        self.assertTrue(result.ok)
+        item = result.rows[0]
+        self.assertEqual(item.total, Decimal("2000"))
+        self.assertEqual(item.discounted_total, Decimal("2000"))
+
+    def test_header_found_on_row_20(self):
+        data = []
+        for _ in range(19):
+            data.append(["", "", "", "", "", ""])
+        data.append(["Наименование", "Ед.", "Кол-во", "Цена", "Сумма"])
+        data.append(["Грунтовка", "м.кв.", "10", "100", "1000"])
+        xlsx_bytes = _create_xlsx_bytes(data)
+        result = parse_estimate_xlsx(xlsx_bytes)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(len(result.rows), 1)
+
+    def test_name_in_column_b_detected(self):
+        data = [
+            ["", "Наименование работ", "Ед. изм.", "Кол-во", "Цена", "Стоимость"],
+            ["", "Грунтовка потолка", "м.кв.", "20", "100", "2000"],
+        ]
+        xlsx_bytes = _create_xlsx_bytes(data)
+        result = parse_estimate_xlsx(xlsx_bytes)
+
+        self.assertTrue(result.ok)
+        self.assertEqual(result.rows[0].name, "Грунтовка потолка")
+
+
 if __name__ == "__main__":
     unittest.main()
