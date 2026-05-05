@@ -7,12 +7,12 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+d09b1d2 Guard destructive tests from live database
+631e42f Fix standalone workflow empty JSON payload
 e8d525c Stage 8.3.3 standalone workflow UI
 61aca5e Stage 8.3.2b link final PDF documents
 de55c72 Stage 8.3.2a allow standalone documents
 cc94701 Stage 8.3.1 standalone final PDF from approved snapshot
-5f893d2 Stage 8.2 standalone draft PDF
-8870e78 Stage 8.1 standalone estimate status snapshots
 ```
 
 Все отправлены на GitHub: `origin/hermes/integrate-origin-master-20260423`.
@@ -45,7 +45,11 @@ cc94701 Stage 8.3.1 standalone final PDF from approved snapshot
 ### Stage 8.3.3: UI workflow
 - В standalone editor добавлены кнопки: Отправить клиенту, Согласовать, Отклонить, Сформировать final PDF, Скачать final PDF, Скачать JSON.
 - JS делает `fetch + reload`; legacy editor не затронут.
-- 9 текстовых проверок шаблона, 129 тестов всего — все зелёные.
+- 9 текстовых проверок шаблона, 135 тестов — все зелёные.
+- **Live-проверка пройдена**: полный workflow `создание → шапка → раздел → 2 позиции → сохранить → отправить → согласовать → final PDF → скачать` работает на crm198.ru.
+- Final PDF содержит: status=approved, раздел, 2 позиции, итоги до/после скидки.
+- Исправлен баг: пустое JSON body при `POST /final-pdf` вызывал 500 (`_load_payload` теперь tolerant к пустому body).
+- Добавлена защита тестов от live-БД: `guard_live_database()` блокирует `DELETE FROM` на database `dekorcrm`.
 
 ## Состояние после push
 Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.

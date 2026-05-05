@@ -1,5 +1,13 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-05 Stage 8.3.3 — live verification и bugfix
+- Live-проверка полного UI workflow: создание сметы → шапка → раздел → 2 позиции → сохранить → отправить → согласовать → final PDF → скачать.
+- Исправлен баг: `_load_payload()` в `standalone_estimate_api.py` вызывал `request.json()` при пустом body с `Content-Type: application/json`, что давало 500. Теперь оборачивает в try/except, возвращает `{}`.
+- Добавлена защита тестов от live-БД: `tests/db_guard.py` — `guard_live_database()` блокирует destructive cleanup на database `dekorcrm`.
+- 6 новых тестов `_load_payload` (пустое тело, malformed, array, no content-type, form data).
+- 6 новых тестов `test_db_guard` (блокировка на live, пропуск на test, case-insensitive).
+- Итого: 135 тестов, все зелёные; destructive-тесты блокируются на dekorcrm.
+
 ## 2026-05-04 Stage 8.3.3 — standalone workflow UI
 - В standalone editor добавлены кнопки workflow по статусам: Отправить клиенту, Согласовать, Отклонить, Сформировать final PDF, Скачать final PDF, Скачать JSON.
 - JS-обработчики `data-action` делают `fetch + reload`; legacy editor не затронут.
