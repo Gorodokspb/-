@@ -498,10 +498,14 @@ async def standalone_estimate_pdf(estimate_id: int, request: Request):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Печать и подпись допустимы только для согласованной standalone-сметы.",
         )
+    snapshot = _json_safe(service.build_estimate_snapshot(estimate_id))
+    company_id = snapshot.get("estimate", {}).get("company_id") or details.estimate.company_id
+    company = CompanyService().get_company(company_id) if company_id else None
     pdf_path = export_standalone_estimate_pdf(
-        _json_safe(service.build_estimate_snapshot(estimate_id)),
+        snapshot,
         stamp_applied=stamp_applied,
         signature_applied=signature_applied,
+        company=company,
     )
     return JSONResponse(
         {
@@ -526,10 +530,13 @@ def standalone_estimate_download_pdf(estimate_id: int, request: Request):
     _require_auth(request)
     details = service.get_estimate(estimate_id)
     snapshot = _json_safe(service.build_estimate_snapshot(estimate_id))
+    company_id = snapshot.get("estimate", {}).get("company_id") or details.estimate.company_id
+    company = CompanyService().get_company(company_id) if company_id else None
     path = export_standalone_estimate_pdf(
         snapshot,
         stamp_applied=False,
         signature_applied=False,
+        company=company,
     )
     if not Path(path).exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PDF-файл не найден.")

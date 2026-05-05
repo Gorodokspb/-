@@ -192,6 +192,14 @@ def _resolve_company_asset(company: Company, attr: str) -> Path | None:
     return resolve_storage_path(relative_path)
 
 
+def _resolve_watermark_text(company_name: str, company: Company | None = None) -> str:
+    if company is not None and company.watermark_text:
+        return company.watermark_text
+    if company_name == "ИП Гордеев А.Н.":
+        return "ИП ГОРДЕЕВ А.Н."
+    return "ДЕКОРАРТСТРОЙ"
+
+
 def _build_pdf_elements(
     snapshot: dict[str, Any],
     *,
@@ -303,7 +311,7 @@ def _build_pdf_elements(
     return elements
 
 
-def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: bool = False, signature_applied: bool = False) -> Path:
+def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: bool = False, signature_applied: bool = False, company: Company | None = None) -> Path:
     estimate = snapshot["estimate"]
     approved = _is_approved_pdf_status(estimate.get("status"))
     if not approved and (stamp_applied or signature_applied):
@@ -322,11 +330,11 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
         bottomMargin=10 * mm,
     )
 
-    elements = _build_pdf_elements(snapshot, stamp_applied=stamp_applied, signature_applied=signature_applied)
+    elements = _build_pdf_elements(snapshot, stamp_applied=stamp_applied, signature_applied=signature_applied, company=company)
 
     watermark_enabled = _draft_watermark_enabled(estimate, approved=approved)
     company_name = estimate.get("company_name") or "ООО Декорартстрой"
-    watermark_text = "ИП ГОРДЕЕВ А.Н." if company_name == "ИП Гордеев А.Н." else "ДЕКОРАРТСТРОЙ"
+    watermark_text = _resolve_watermark_text(company_name, company)
 
     def add_watermark(canvas, _doc):
         if not watermark_enabled:
@@ -371,7 +379,7 @@ def export_final_approved_pdf(
 
     elements = _build_pdf_elements(snapshot, stamp_applied=stamp_applied, signature_applied=signature_applied, is_final_approved=True, company=company)
 
-    watermark_text = "ИП ГОРДЕЕВ А.Н." if (estimate.get("company_name") or "ООО Декорартстрой") == "ИП Гордеев А.Н." else "ДЕКОРАРТСТРОЙ"
+    watermark_text = _resolve_watermark_text(estimate.get("company_name") or "ООО Декорартстрой", company)
 
     def add_watermark(canvas, _doc):
         return

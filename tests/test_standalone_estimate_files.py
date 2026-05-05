@@ -12,6 +12,7 @@ from webapp.standalone_estimate_files import (
     _build_pdf_elements,
     _draft_watermark_enabled,
     _resolve_company_asset,
+    _resolve_watermark_text,
     export_final_approved_pdf,
     export_standalone_estimate_pdf,
 )
@@ -464,6 +465,68 @@ class StampSignaturePngTests(unittest.TestCase):
         self.assertIn("Подпись", joined)
         image_count = sum(1 for c in cells if isinstance(c, Image))
         self.assertEqual(image_count, 0)
+
+
+class WatermarkTextTests(unittest.TestCase):
+    def test_watermark_text_from_company(self):
+        company = Company(id=1, legal_name="ООО «Декорартстрой»", short_name="ООО Декорартстрой", watermark_text="КОМПАНИЯ ВОДЯНОЙ ЗНАК")
+        result = _resolve_watermark_text("ООО Декорартстрой", company)
+        self.assertEqual(result, "КОМПАНИЯ ВОДЯНОЙ ЗНАК")
+
+    def test_watermark_text_fallback_without_company(self):
+        result = _resolve_watermark_text("ООО Декорартстрой", None)
+        self.assertEqual(result, "ДЕКОРАРТСТРОЙ")
+
+    def test_watermark_text_ip_gordeev_fallback(self):
+        result = _resolve_watermark_text("ИП Гордеев А.Н.", None)
+        self.assertEqual(result, "ИП ГОРДЕЕВ А.Н.")
+
+    def test_watermark_text_empty_company_watermark_falls_back(self):
+        company = Company(id=1, legal_name="ООО Тест", short_name="Тест", watermark_text="")
+        result = _resolve_watermark_text("ООО Тест", company)
+        self.assertEqual(result, "ДЕКОРАРТСТРОЙ")
+
+    def test_watermark_text_ip_gordeev_company_takes_priority(self):
+        company = Company(id=2, legal_name="ИП Гордеев А.Н.", short_name="ИП Гордеев А.Н.", inn="123", watermark_text="ГОРДЕЕВ И ПОДРЯДЧИК")
+        result = _resolve_watermark_text("ИП Гордеев А.Н.", company)
+        self.assertEqual(result, "ГОРДЕЕВ И ПОДРЯДЧИК")
+
+    def test_draft_pdf_uses_company_watermark(self):
+        company = Company(id=1, legal_name="ООО «Декорартстрой»", short_name="ООО Декорартстрой", watermark_text="ДИКОРАРТСТРОЙ ТЕСТ")
+        snapshot = {
+            "estimate": {
+                "id": 88004,
+                "estimate_number": "ST-WM-001",
+                "title": "Водяной знак тест",
+                "status": "draft",
+                "customer_name": "Клиент",
+                "object_name": "Объект",
+                "company_name": "ООО Декорартстрой",
+                "contract_label": "D-11",
+                "discount": "0",
+                "watermark": "on",
+            },
+            "items": [
+                {"row_type": "item", "name": "Работа", "unit": "шт", "quantity": "1", "price": "100", "total": "100", "discounted_total": "100"},
+            ],
+        }
+        enabled = _draft_watermark_enabled(snapshot["estimate"], approved=False)
+        self.assertTrue(enabled)
+        wt = _resolve_watermark_text("ООО Декорартстрой", company)
+        self.assertEqual(wt, "ДИКОРАРТСТРОЙ ТЕСТ")
+
+    def test_draft_pdf_uses_fallback_watermark_without_company(self):
+        snapshot = {
+            "estimate": {
+                "id": 88005,
+                "status": "draft",
+                "company_name": "ООО Декорартстрой",
+                "watermark": "on",
+            },
+            "items": [],
+        }
+        wt = _resolve_watermark_text("ООО Декорартстрой", None)
+        self.assertEqual(wt, "ДЕКОРАРТСТРОЙ")
 
 
 if __name__ == "__main__":
