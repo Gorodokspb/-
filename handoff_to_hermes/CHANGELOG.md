@@ -1,5 +1,24 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-07 Stage 8.5.3 — live/manual verification
+- Draft standalone-смета ID=888 создана на crm198.ru.
+- Preview: 3 раздела, 12 позиций корректно распознаны; итоговые строки пропущены; discounted_total из колонки «Ст. со скидкой».
+- Apply: 15 строк добавлено через `append_items_to_estimate()`, redirect на редактор.
+- Редактор и draft PDF работают после импорта.
+- Негативные сценарии: invalid ID→404, non-xlsx→400, no file→400, sent→400.
+- Баг: `import_excel.html` использовал `{% block content %}` вместо `{% block body %}` — исправлено.
+- 79 тестов (18 import routes + 62 parser), 1 known false positive.
+- Commit: `465aae8`.
+
+## 2026-05-07 Stage 8.5.2 — excel import preview/apply routes
+- `GET /estimates/{id}/import-excel` — страница загрузки (draft only).
+- `POST /estimates/{id}/import-excel/preview` — парсинг .xlsx → JSON, без изменения БД.
+- `POST /estimates/{id}/import-excel/apply` — приём JSON rows из preview, `append_items_to_estimate()`.
+- Import forbidden для sent/approved/in_progress/rejected.
+- File validation: .xlsx, max 2MB, valid openpyxl.
+- `webapp/templates/import_excel.html` — форма + JS preview/apply.
+- 18 route tests. Commit: `e28872b`.
+
 ## 2026-05-05 Stage 8.5.1b — parser adapted to real estimate format
 - `HEADER_SCAN_ROWS`: 10 → 25 (реальные сметы: заголовок на строке 14–15).
 - `discounted_total` колонка с алиасами (Ст. со скидкой, Ск-ка, со скидкой).

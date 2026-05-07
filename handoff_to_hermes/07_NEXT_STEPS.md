@@ -21,15 +21,20 @@
 ### 8.5.1b ✅ Parser adapted to real format (выполнено)
 - HEADER_SCAN_ROWS=25, discounted_total, _looks_like_summary.
 
-### 8.5.2 Backend import routes (следующий этап)
+### 8.5.2 ✅ Backend import routes (выполнено)
 - `GET /estimates/{id}/import-excel` — страница загрузки.
 - `POST /estimates/{id}/import-excel/preview` — парсинг → JSON без изменения БД.
 - `POST /estimates/{id}/import-excel/apply` — `append_items_to_estimate()`.
 - Только для draft-статуса; запрет sent/approved/final.
 - Auth-gated.
-- Файлы: `webapp/standalone_estimate_api.py`, `tests/test_excel_estimate_import.py`.
+- Файлы: `webapp/standalone_estimate_api.py`, `tests/test_excel_estimate_import_routes.py`, `webapp/templates/import_excel.html`.
 
-### 8.5.3 UI + integration (после 8.5.2)
+### 8.5.3 ✅ Live/manual verification (выполнено)
+- Draft-смета ID=888, preview 3 раздела/12 позиций, apply 15 строк.
+- Негативные сценарии пройдены. Баг шаблона исправлен.
+- Commit: `465aae8`.
+
+### 8.5.3b UI + integration (следующий этап)
 - Кнопка «Импорт из Excel» в редакторе standalone-сметы.
 - Modal для upload + preview + apply.
 - JS integration.
