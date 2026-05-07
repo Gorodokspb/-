@@ -84,7 +84,10 @@ class StandaloneEstimateFileExportTests(unittest.TestCase):
     def test_pdf_table_keeps_section_out_of_totals(self):
         table_data, section_styles, grand_total, discounted_total = _build_pdf_table(self._snapshot())
 
-        self.assertEqual(table_data[1], ["Подготовка", "", "", "", "", ""])
+        section_name_cell = table_data[1][0]
+        self.assertIsInstance(section_name_cell, Paragraph)
+        self.assertIn("Подготовка", section_name_cell.text)
+        self.assertEqual(table_data[1][1:], ["", "", "", "", ""])
         self.assertIn(("SPAN", (0, 1), (-1, 1)), section_styles)
         self.assertEqual(grand_total, 1500.0)
         self.assertEqual(discounted_total, 1387.5)
@@ -528,6 +531,72 @@ class WatermarkTextTests(unittest.TestCase):
         wt = _resolve_watermark_text("ООО Декорартстрой", None)
         self.assertEqual(wt, "ДЕКОРАРТСТРОЙ")
 
+    def test_pdf_with_long_name_generates_without_error(self):
+        snapshot = {
+            "estimate": {
+                "id": 88006,
+                "estimate_number": "LT-001",
+                "title": "Длинные названия",
+                "status": "draft",
+                "customer_name": "Заказчик",
+                "object_name": "Объект",
+                "company_name": "ООО Декорартстрой",
+                "contract_label": "Д-1",
+                "discount": "0",
+                "watermark": None,
+            },
+            "items": [
+                {"row_type": "section", "name": "Раздел с длинным названием для проверки переноса текста в PDF", "sort_order": 1},
+                {
+                    "row_type": "item",
+                    "name": "Выравнивание поверхности подоконника под искусственный камень с устройством откосов и гидроизоляцией",
+                    "unit": "пог.м",
+                    "quantity": "12",
+                    "price": "2500",
+                    "total": "30000",
+                    "discounted_total": "27000",
+                    "sort_order": 2,
+                },
+                {
+                    "row_type": "item",
+                    "name": "Ещё одно очень длинное название работы по отделке фасада здания с устройством декоративной штукатурки",
+                    "unit": "м2",
+                    "quantity": "150",
+                    "price": "800",
+                    "total": "120000",
+                    "discounted_total": "108000",
+                    "sort_order": 3,
+                },
+            ],
+        }
+        path = export_standalone_estimate_pdf(snapshot)
+        self.assertTrue(path.exists())
+        self.assertGreater(path.stat().st_size, 0)
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_pdf_table_uses_paragraph_for_item_names(self):
+        snapshot = {
+            "estimate": {
+                "id": 88007,
+                "estimate_number": "PP-001",
+                "status": "draft",
+                "company_name": "ООО Декорартстрой",
+                "discount": "0",
+                "watermark": None,
+            },
+            "items": [
+                {
+                    "row_type": "item",
+                    "name": "Короткое название",
+                    "unit": "шт",
+                    "quantity": "1",
+                    "price": "100",
+                    "total": "100",
+                    "discounted_total": "100",
+                    "sort_order": 1,
+                },
+            ],
+        }
+        table_data, section_styles, grand_total, discounted_total = _build_pdf_table(snapshot)
+        from reportlab.platypus import Paragraph
+        name_cell = table_data[1][0]
+        self.assertIsInstance(name_cell, Paragraph)

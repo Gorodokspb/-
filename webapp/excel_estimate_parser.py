@@ -8,6 +8,7 @@ No database access, no route dependencies — pure parsing.
 from __future__ import annotations
 
 import io
+import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Sequence
@@ -279,8 +280,32 @@ def _row_is_empty(row_values: dict[str, str | None]) -> bool:
     return all(not (v or "").strip() for v in row_values.values() if v is not None)
 
 
+def _looks_like_signature_or_trash(row_values: dict[str, str | None]) -> bool:
+    name = (row_values.get("name") or "").strip()
+    if not name:
+        return False
+    name_lower = name.casefold()
+    signature_keywords = (
+        "генеральный директор", "директор", "главный инженер",
+        "главный бухгалтер", "подпись", "печать", "м.п.", "м. п.",
+    )
+    for keyword in signature_keywords:
+        if keyword in name_lower:
+            return True
+    stripped = name.replace(" ", "").replace("\u00a0", "")
+    if stripped and all(c in "_-.—–…·" for c in stripped):
+        return True
+    if len(name) <= 10:
+        if re.fullmatch(r"\d{4}\s*(г\.?|год\.?|гг\.?)?", name.strip(), re.IGNORECASE):
+            qty = parse_decimal(row_values.get("quantity"))
+            price = parse_decimal(row_values.get("price"))
+            unit = (row_values.get("unit") or "").strip()
+            if qty is None and price is None and not unit:
+                return True
+    return False
+
+
 def _looks_like_section(row_values: dict[str, str | None]) -> bool:
-    """Heuristic: a section row has a name but no numeric quantity/price/total."""
     name = (row_values.get("name") or "").strip()
     if not name:
         return False
@@ -288,6 +313,8 @@ def _looks_like_section(row_values: dict[str, str | None]) -> bool:
     price = parse_decimal(row_values.get("price"))
     total = parse_decimal(row_values.get("total"))
     unit = (row_values.get("unit") or "").strip()
+    if qty is None and price is None and total is not None and unit == "":
+        return True
     if qty is not None or price is not None or total is not None:
         return False
     name_lower = name.casefold()
@@ -412,6 +439,13 @@ def parse_estimate_xlsx(
         if _looks_like_summary(row_values):
             diagnostics.append(
                 f"Строка {row_idx} — итоговая, пропущена: "
+                f"'{row_values.get('name', '')}'"
+            )
+            continue
+
+        if _looks_like_signature_or_trash(row_values):
+            diagnostics.append(
+                f"Строка {row_idx} — служебная/подписная, пропущена: "
                 f"'{row_values.get('name', '')}'"
             )
             continue

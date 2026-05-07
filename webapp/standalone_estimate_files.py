@@ -103,8 +103,10 @@ def _draft_watermark_enabled(estimate: dict[str, Any], *, approved: bool) -> boo
     return not approved and bool(estimate.get("watermark"))
 
 
-def _build_pdf_table(snapshot: dict[str, Any]) -> tuple[list[list[str]], list[tuple[Any, ...]], float, float]:
-    table_data = [["Наименование", "Ед.", "Кол-во", "Цена", "Итого", "Со скидкой"]]
+def _build_pdf_table(snapshot: dict[str, Any]) -> tuple[list[list[Any]], list[tuple[Any, ...]], float, float]:
+    name_style = ParagraphStyle("tableName", fontName=FONT_REGULAR, fontSize=7, leading=9)
+    section_name_style = ParagraphStyle("sectionName", fontName=FONT_BOLD, fontSize=7, leading=9)
+    table_data: list[list[Any]] = [["Наименование", "Ед.", "Кол-во", "Цена", "Итого", "Со скидкой"]]
     section_styles: list[tuple[Any, ...]] = []
     grand_total = 0.0
     discounted_total = 0.0
@@ -113,7 +115,8 @@ def _build_pdf_table(snapshot: dict[str, Any]) -> tuple[list[list[str]], list[tu
         row_type = str(item.get("row_type") or "item")
         row_index = len(table_data)
         if row_type == "section":
-            table_data.append([str(item.get("name") or "Раздел"), "", "", "", "", ""])
+            section_text = str(item.get("name") or "Раздел")
+            table_data.append([Paragraph(section_text, section_name_style), "", "", "", "", ""])
             section_styles.extend(
                 [
                     ("SPAN", (0, row_index), (-1, row_index)),
@@ -125,9 +128,10 @@ def _build_pdf_table(snapshot: dict[str, Any]) -> tuple[list[list[str]], list[tu
 
         row_total = _to_float(item.get("total"))
         row_discounted_total = _to_float(item.get("discounted_total"))
+        item_name = str(item.get("name") or "")
         table_data.append(
             [
-                str(item.get("name") or ""),
+                Paragraph(item_name, name_style),
                 str(item.get("unit") or ""),
                 str(item.get("quantity") or ""),
                 str(item.get("price") or ""),

@@ -15,6 +15,7 @@ from webapp.excel_estimate_parser import (
     _header_contains_keywords,
     _looks_like_item,
     _looks_like_section,
+    _looks_like_signature_or_trash,
     _normalize_text,
     _read_row_values,
     _row_is_empty,
@@ -597,6 +598,123 @@ class RealFormatParseTests(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertEqual(result.rows[0].name, "Грунтовка потолка")
+
+
+class SignatureTrashRowTests(unittest.TestCase):
+    def test_director_not_imported(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "Генеральный директор"}))
+
+    def test_director_lowercase(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "генеральный директор Иванов И.И."}))
+
+    def test_just_director(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "Директор"}))
+
+    def test_chief_engineer(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "Главный инженер"}))
+
+    def test_chief_accountant(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "Главный бухгалтер"}))
+
+    def test_signature_keyword(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "Подпись"}))
+
+    def test_seal_keyword(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "Печать"}))
+
+    def test_mp_keyword(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "М.П."}))
+
+    def test_underscores_only(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "____________"}))
+
+    def test_dashes_only(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "——————"}))
+
+    def test_dots_only(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "......"}))
+
+    def test_year_alone(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "2026"}))
+
+    def test_year_with_g(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "2026 г."}))
+
+    def test_year_with_god(self):
+        self.assertTrue(_looks_like_signature_or_trash({"name": "2025 год"}))
+
+    def test_normal_item_not_trash(self):
+        self.assertFalse(_looks_like_signature_or_trash({"name": "Штукатурка стен"}))
+
+    def test_normal_section_not_trash(self):
+        self.assertFalse(_looks_like_signature_or_trash({"name": "Раздел 1: Демонтажные работы"}))
+
+    def test_item_with_quantity_not_trash(self):
+        self.assertFalse(_looks_like_signature_or_trash({"name": "2026", "quantity": "5", "price": "100", "total": "500"}))
+
+    def test_underscores_with_text_not_trash(self):
+        self.assertFalse(_looks_like_signature_or_trash({"name": "Штукатурка ______"}))
+
+    def test_year_row_in_xlsx_skipped(self):
+        data = [
+            ["Наименование", "Ед.", "Кол-во", "Цена", "Стоимость"],
+            ["Грунтовка", "м2", "10", "100", "1000"],
+            ["Генеральный директор", "", "", "", ""],
+            ["____________", "", "", "", ""],
+            ["2026 г.", "", "", "", ""],
+        ]
+        xlsx_bytes = _create_xlsx_bytes(data)
+        result = parse_estimate_xlsx(xlsx_bytes)
+        self.assertEqual(result.item_count, 1)
+        self.assertEqual(len(result.rows), 1)
+        self.assertTrue(any("служебная" in d or "подписная" in d for d in result.diagnostics))
+
+    def test_signature_rows_counted_in_diagnostics(self):
+        data = [
+            ["Наименование", "Ед.", "Кол-во", "Цена", "Стоимость"],
+            ["Штукатурка", "м2", "10", "100", "1000"],
+            ["Директор", "", "", "", ""],
+            ["М.П.", "", "", "", ""],
+        ]
+        xlsx_bytes = _create_xlsx_bytes(data)
+        result = parse_estimate_xlsx(xlsx_bytes)
+        self.assertEqual(result.item_count, 1)
+        signature_diag = [d for d in result.diagnostics if "служебная" in d or "подписная" in d]
+        self.assertEqual(len(signature_diag), 2)
+
+
+class SectionWithTotalTests(unittest.TestCase):
+    def test_section_with_total_only_is_section(self):
+        row = {"name": "Сантехнические работы (примерный расчёт)", "unit": "", "quantity": None, "price": None, "total": "235200", "discounted_total": None}
+        self.assertTrue(_looks_like_section(row))
+
+    def test_section_with_total_not_item(self):
+        data = [
+            ["Наименование", "Ед.", "Кол-во", "Цена", "Стоимость", "Ст. со скидкой"],
+            ["Сантехнические работы (примерный расчёт)", "", "", "", "235200", ""],
+            ["Установка раковины", "шт", "2", "3500", "7000", "6300"],
+        ]
+        xlsx_bytes = _create_xlsx_bytes(data)
+        result = parse_estimate_xlsx(xlsx_bytes)
+        self.assertEqual(result.section_count, 1)
+        self.assertEqual(result.item_count, 1)
+        self.assertEqual(result.rows[0].row_type, "section")
+        self.assertEqual(result.rows[0].name, "Сантехнические работы (примерный расчёт)")
+        self.assertIsNone(result.rows[0].quantity)
+        self.assertIsNone(result.rows[0].price)
+
+    def test_section_with_qty_still_item(self):
+        row = {"name": "Работы", "unit": "м2", "quantity": "10", "price": None, "total": "1000", "discounted_total": None}
+        self.assertFalse(_looks_like_section(row))
+        self.assertTrue(_looks_like_item(row))
+
+    def test_section_with_price_still_item(self):
+        row = {"name": "Работы", "unit": "", "quantity": None, "price": "100", "total": "1000", "discounted_total": None}
+        self.assertFalse(_looks_like_section(row))
+
+    def test_section_without_numbers_still_section(self):
+        row = {"name": "Отделочные работы", "unit": "", "quantity": None, "price": None, "total": None, "discounted_total": None}
+        self.assertTrue(_looks_like_section(row))
 
 
 if __name__ == "__main__":
