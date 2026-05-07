@@ -513,5 +513,25 @@ class LegacyUntouchedTests(ExcelImportRouteTests):
         self.assertIn("/projects/", legacy_response.headers["location"])
 
 
+class ImportExcelPageTemplateTests(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        from pathlib import Path
+        cls.template_html = (Path(__file__).resolve().parent.parent / "webapp" / "templates" / "import_excel.html").read_text(encoding="utf-8")
+
+    def test_append_warning_message_present(self):
+        self.assertIn("импорт добавляет строки", self.template_html)
+
+    def test_append_warning_is_alert_info(self):
+        self.assertIn('class="alert alert-info', self.template_html)
+
+    def test_apply_button_says_apply_import(self):
+        self.assertIn('Применить импорт', self.template_html)
+
+    def test_import_form_not_shown_for_non_draft(self):
+        self.assertIn("estimate.status.value != 'draft'", self.template_html)
+
+
 if __name__ == "__main__":
     unittest.main()

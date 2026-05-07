@@ -5,6 +5,9 @@
 {% block body %}
 <div class="container mt-4">
     <h2>Импорт Excel в смету «{{ estimate.title or estimate.estimate_number or estimate.id }}»</h2>
+    <div class="alert alert-info mt-3">
+        <strong>Внимание:</strong> импорт добавляет строки к текущей смете, а не заменяет существующие.
+    </div>
     <p class="text-muted">Загрузите .xlsx файл. Строки будут разобраны и показаны в preview перед применением.</p>
 
     {% if estimate.status.value != 'draft' %}
@@ -26,7 +29,7 @@
             <thead><tr><th>#</th><th>Тип</th><th>Название</th><th>Ед.</th><th>Кол.</th><th>Цена</th><th>Сумма</th><th>Со скидкой</th></tr></thead>
             <tbody id="preview-tbody"></tbody>
         </table>
-        <button class="btn btn-success" id="apply-btn">Применить</button>
+        <button class="btn btn-success" id="apply-btn">Применить импорт</button>
     </div>
 
     <div id="apply-result" class="mt-4" style="display:none;">
@@ -69,12 +72,20 @@ document.getElementById('import-form').addEventListener('submit', async function
         document.getElementById('preview-result').style.display = '';
         document.getElementById('apply-result').style.display = 'none';
         document.getElementById('error-result').style.display = 'none';
+        var applyBtn = document.getElementById('apply-btn');
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Применить импорт';
+        window._previewApplied = false;
         window._previewRows = data.rows;
     } catch(err) { showError('Сетевая ошибка: ' + err.message); }
 });
 
 document.getElementById('apply-btn').addEventListener('click', async function() {
-    if (!window._previewRows) return;
+    if (!window._previewRows || window._previewApplied) return;
+    if (!confirm('Импорт добавит строки из preview к текущей смете. Продолжить?')) return;
+    var applyBtn = document.getElementById('apply-btn');
+    applyBtn.disabled = true;
+    applyBtn.textContent = 'Применение...';
     try {
         const resp = await fetch('/estimates/{{ estimate.id }}/import-excel/apply', {
             method: 'POST',
@@ -82,13 +93,24 @@ document.getElementById('apply-btn').addEventListener('click', async function() 
             body: JSON.stringify({rows: window._previewRows})
         });
         const data = await resp.json();
-        if (!resp.ok) { showError(data.detail || 'Ошибка применения'); return; }
+        if (!resp.ok) {
+            applyBtn.disabled = false;
+            applyBtn.textContent = 'Применить импорт';
+            showError(data.detail || 'Ошибка применения');
+            return;
+        }
+        window._previewApplied = true;
+        applyBtn.textContent = 'Импорт применён';
         document.getElementById('apply-message').textContent =
             'Импортировано ' + data.imported_count + ' строк. Перенаправление...';
         document.getElementById('apply-result').style.display = '';
         document.getElementById('error-result').style.display = 'none';
         setTimeout(function() { window.location.href = data.redirect_url; }, 1500);
-    } catch(err) { showError('Сетевая ошибка: ' + err.message); }
+    } catch(err) {
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Применить импорт';
+        showError('Сетевая ошибка: ' + err.message);
+    }
 });
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
