@@ -1,5 +1,20 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-07 Stage 8.5.5 — Excel import UX polish
+- Предупреждение «импорт добавляет строки» (alert-info) на странице import-excel.
+- `confirm()` диалог: «Импорт добавит строки из preview к текущей смете. Продолжить?»
+- Кнопка применять: дизейблится во время запроса, после успеха показывает «Импорт применён».
+- Новый preview перезапускает кнопку (`disabled=false`, `_previewApplied=false`).
+- 4 новых template-теста в `ImportExcelPageTemplateTests`.
+- Визуальная полировка import_excel.html отложена до общего UI-audit этапа.
+- Коммит: `e9392bb`.
+
+## Stage 8.5 — Excel import (функционально закрыт)
+- 8.5.1 ✅ Parser (`55293ce`) | 8.5.1b ✅ Real format (`0586e6e`) | 8.5.2 ✅ Routes (`e28872b`)
+- 8.5.3 ✅ Live verify (`465aae8`) | 8.5.4 ✅ Button (`8c6f2a7`) | 8.5.4 fix ✅ Cleanup+PDF (`a9d24b0`)
+- 8.5.4c ✅ Estimate# (`cb5b9b7`) | 8.5.4d ✅ Filter year (`54bf6a4`) | 8.5.5 ✅ UX polish (`e9392bb`)
+- 92 parser теста, 22 import route теста, 18 UI тестов — все зелёные.
+
 ## 2026-05-07 Stage 8.5.4d — filter mixed signature year rows in Excel import
 - `_looks_like_signature_or_trash()` расширена эвристикой: строки с годом (г./год) и punctuation/underscores/quotes после удаления года → trash.
 - Фильтрует `"___" __________ 2026 год`, `____ __________ 2025 г.`, `«__________» ______ 2026 г.`.

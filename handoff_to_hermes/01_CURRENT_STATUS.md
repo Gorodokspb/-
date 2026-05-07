@@ -7,6 +7,8 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+e9392bb Stage 8.5.5: polish Excel import UX
+a2590e9 Document Stage 8.5.4 Excel import completion
 54bf6a4 Stage 8.5.4d: filter mixed signature year rows in Excel import
 cb5b9b7 Stage 8.5.4c: fix standalone draft estimate number generation
 a9d24b0 Stage 8.5.4: fix excel import cleanup and PDF wrapping
@@ -121,8 +123,11 @@ e28872b Stage 8.5.2 excel import preview/apply routes
 ## Состояние после push
 Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.
 
-Stage 8.5.1–8.5.4d завершены. Live verification пройдена.
-Следующий этап — Stage 8.5.5 финальная полировка UX импорта Excel (по отдельному решению).
+Stage 8.5.1–8.5.5 завершены. Live verification пройдена.
+**Stage 8.5 Excel import — функционально закрыт.**
+
+Визуальная полировка import_excel.html отложена до общего UI-аудита/UI-polish этапа
+после завершения работоспособности всех ключевых функций CRM.
 
 ### Stage 8.5.1–8.5.1b: Excel estimate parser module
 - `webapp/excel_estimate_parser.py` — чистый парсер .xlsx (openpyxl, без pandas, без DB).
@@ -194,3 +199,25 @@ Stage 8.5.1–8.5.4d завершены. Live verification пройдена.
 - Мусорные строки (подписи, печати, подчёркивания, годовые строки вида `"___" __________ 2026 год`) больше не попадают в редактор и PDF.
 - Длинные названия переносятся в PDF.
 - Скидка: поле «Скидка, %» находится в sidebar редактора — дублирование внизу не планируется.
+
+### Stage 8.5.5: Excel import UX polish
+- Предупреждение «импорт добавляет строки, а не заменяет существующие» на странице import-excel.
+- `confirm()` диалог перед apply.
+- Кнопка блокируется после успешного применения (защита от повторного apply, UX-level).
+- Кнопка перезапускается при новом preview.
+- 4 новых template-теста.
+- Коммит: `e9392bb`.
+- Визуальная полировка import_excel.html отложена до общего UI-audit этапа.
+
+### Stage 8.5 — итого (статус: функционально закрыт)
+| Подэтап | Статус | Коммит |
+|---------|--------|--------|
+| 8.5.1 | ✅ Parser | `55293ce` |
+| 8.5.1b | ✅ Real format | `0586e6e` |
+| 8.5.2 | ✅ Routes | `e28872b` |
+| 8.5.3 | ✅ Live verify | `465aae8` |
+| 8.5.4 | ✅ Button | `8c6f2a7` |
+| 8.5.4 fix | ✅ Cleanup+PDF | `a9d24b0` |
+| 8.5.4c | ✅ Estimate# | `cb5b9b7` |
+| 8.5.4d | ✅ Filter year | `54bf6a4` |
+| 8.5.5 | ✅ UX polish | `e9392bb` |
