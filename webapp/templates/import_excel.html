@@ -2,7 +2,7 @@
 
 {% block title %}Импорт Excel — Смета {{ estimate.id }}{% endblock %}
 
-{% block content %}
+{% block body %}
 <div class="container mt-4">
     <h2>Импорт Excel в смету «{{ estimate.title or estimate.estimate_number or estimate.id }}»</h2>
     <p class="text-muted">Загрузите .xlsx файл. Строки будут разобраны и показаны в preview перед применением.</p>
