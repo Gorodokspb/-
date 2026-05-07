@@ -124,6 +124,7 @@
 
                         <div class="estimate-workflow-actions" id="estimateWorkflowActions">
                             {% if estimate.status.value == 'draft' %}
+                                <a href="/estimates/{{ estimate.id }}/import-excel" class="ghost-button">Импорт из Excel</a>
                                 <button type="button" class="primary-button" data-action="send" data-estimate-id="{{ estimate.id }}">Отправить клиенту</button>
                             {% elif estimate.status.value == 'sent' %}
                                 <button type="button" class="primary-button" data-action="approve" data-estimate-id="{{ estimate.id }}">Согласовать</button>

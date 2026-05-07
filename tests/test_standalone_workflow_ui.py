@@ -110,6 +110,19 @@ class StandaloneWorkflowUITests(unittest.TestCase):
         self.assertIn('getElementById("stamp_applied")', self.editor_js)
         self.assertIn('getElementById("signature_applied")', self.editor_js)
 
+    def test_draft_editor_contains_excel_import_link(self):
+        self.assertIn("/import-excel", self.editor_html)
+        self.assertIn("Импорт из Excel", self.editor_html)
+
+    def test_excel_import_link_inside_draft_block(self):
+        draft_idx = self.editor_html.index("estimate.status.value == 'draft'")
+        import_idx = self.editor_html.index("/import-excel")
+        self.assertGreater(import_idx, draft_idx)
+
+    def test_legacy_editor_does_not_contain_excel_import(self):
+        self.assertNotIn("/import-excel", self.legacy_editor_html)
+        self.assertNotIn("Импорт из Excel", self.legacy_editor_html)
+
 
 if __name__ == "__main__":
     unittest.main()
