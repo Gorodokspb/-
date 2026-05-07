@@ -14,7 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from webapp.db import get_connection
+from webapp.db import create_project, get_connection
 from webapp.estimate_domain import (
     Estimate,
     EstimateDomainError,
@@ -875,6 +875,43 @@ class StandaloneEstimateService:
     def link_estimate_to_project(self, estimate_id: int, project_id: int) -> EstimateSummary:
         validate_service_action("create_project_from_estimate")
         return self.repository.link_estimate_to_project(estimate_id, project_id)
+
+    def create_project_from_estimate(self, estimate_id: int, *, username: str) -> int:
+        validate_service_action("create_project_from_estimate")
+        details = self.repository.get_estimate(estimate_id)
+        estimate = details.estimate
+        if estimate.project_id is not None:
+            raise EstimateDomainError(
+                f"Estimate {estimate_id} is already linked to project {estimate.project_id}"
+            )
+        if estimate.status is not EstimateStatus.APPROVED:
+            raise EstimateDomainError(
+                f"Project can only be created from approved estimates. Current status: {estimate.status.value}"
+            )
+        object_name = (estimate.object_name or "").strip()
+        customer_name = (estimate.customer_name or "").strip()
+        estimate_number = (estimate.estimate_number or "").strip()
+        if object_name:
+            project_name = object_name
+        elif customer_name:
+            project_name = f"Проект — {customer_name}"
+        elif estimate_number:
+            project_name = f"Проект по смете {estimate_number}"
+        else:
+            project_name = f"Проект по смете {estimate_id}"
+        project_id = create_project(
+            username=username,
+            project_name=project_name,
+            address=object_name,
+            counterparty_id=estimate.counterparty_id,
+            status="Черновик",
+            contract=(estimate.contract_label or ""),
+            contract_date="",
+            notes=f"Создан из standalone-сметы {estimate_number or estimate_id}",
+        )
+        self.repository.link_estimate_to_project(estimate_id, project_id)
+        self.change_estimate_status(estimate_id, EstimateStatus.IN_PROGRESS, changed_by=username)
+        return project_id
 
     def list_estimates(
         self,

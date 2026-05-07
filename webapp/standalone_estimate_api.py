@@ -481,6 +481,17 @@ async def standalone_estimate_approve(estimate_id: int, request: Request):
     return JSONResponse({"estimate": _serialize_summary(refreshed), "version_id": version["id"]})
 
 
+@router.post("/estimates/{estimate_id}/create-project")
+def standalone_estimate_create_project(estimate_id: int, request: Request):
+    _require_auth(request)
+    actor = _username(request)
+    try:
+        project_id = service.create_project_from_estimate(estimate_id, username=actor)
+    except EstimateDomainError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return RedirectResponse(url=f"/projects/{project_id}", status_code=status.HTTP_302_FOUND)
+
+
 @router.post("/estimates/{estimate_id}/reject")
 async def standalone_estimate_reject(estimate_id: int, request: Request):
     _require_auth(request)
