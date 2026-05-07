@@ -1,5 +1,13 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-07 Stage 8.5.4 — UI integration Excel import button
+- Кнопка «Импорт из Excel» (ghost-button) добавлена в `estimate-workflow-actions` редактора standalone-сметы.
+- Видна только для draft-статуса. Non-draft — кнопка скрыта.
+- Ссылка ведёт на `/estimates/{id}/import-excel`.
+- Ссылка «Назад к редактору» уже была на странице import-excel.
+- 3 новых template-теста: link present, inside draft block, absent in legacy.
+- 97 тестов, 1 known false positive. Commit: `8c6f2a7`.
+
 ## 2026-05-07 Stage 8.5.3 — live/manual verification
 - Draft standalone-смета ID=888 создана на crm198.ru.
 - Preview: 3 раздела, 12 позиций корректно распознаны; итоговые строки пропущены; discounted_total из колонки «Ст. со скидкой».

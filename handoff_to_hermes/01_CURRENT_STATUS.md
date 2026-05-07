@@ -7,11 +7,11 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+8c6f2a7 Stage 8.5.4 add Excel import button to estimate editor
 465aae8 Stage 8.5.3 fix import_excel.html template block name
 e28872b Stage 8.5.2 excel import preview/apply routes
 0586e6e Stage 8.5.1b adapt parser to real estimate format
 55293ce Stage 8.5.1 excel estimate parser module
-cf5324b Stage 8.4.7 legacy company details fallback
 ```
 
 Все отправлены на GitHub: `origin/hermes/integrate-origin-master-20260423`.
@@ -118,8 +118,8 @@ cf5324b Stage 8.4.7 legacy company details fallback
 ## Состояние после push
 Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.
 
-Stage 8.5.1–8.5.2 завершены. Stage 8.5.3 live verification пройдена.
-Следующий этап — Stage 8.5.3 UI + integration (кнопка «Импорт из Excel» в редакторе).
+Stage 8.5.1–8.5.4 завершены. Stage 8.5.3 live verification пройдена.
+Следующий этап — Stage 8.5.5 финальная полировка UX импорта Excel.
 
 ### Stage 8.5.1–8.5.1b: Excel estimate parser module
 - `webapp/excel_estimate_parser.py` — чистый парсер .xlsx (openpyxl, без pandas, без DB).
@@ -154,3 +154,13 @@ Stage 8.5.1–8.5.2 завершены. Stage 8.5.3 live verification пройд
 - Исправлен баг: `import_excel.html` использовал `{% block content %}` вместо `{% block body %}` (base.html использует `body`).
 - Тесты: 79 passed (18 import routes + 62 parser), 1 known false positive.
 - Логи: чисто, нет traceback/500.
+
+### Stage 8.5.4: UI integration Excel import button
+- Кнопка «Импорт из Excel» (ghost-button) добавлена в `estimate-workflow-actions` редактора standalone-сметы.
+- Видна только для draft (`{% if estimate.status.value == 'draft' %}`).
+- Ссылка ведёт на `/estimates/{id}/import-excel`.
+- Non-draft-сметы не показывают кнопку.
+- Ссылка «Назад к редактору» на странице import-excel уже была.
+- 3 новых template-теста: import link present, inside draft block, absent in legacy.
+- Тесты: 97 passed, 1 known false positive.
+- Commit: `8c6f2a7`.
