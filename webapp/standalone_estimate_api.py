@@ -25,6 +25,12 @@ from webapp.standalone_estimate_files import (
 )
 from webapp.storage import storage_relative_path, resolve_storage_path
 from webapp.company_repository import CompanyService
+from webapp.excel_estimate_parser import (
+    ExcelEstimateParseError,
+    parse_estimate_xlsx,
+    parsed_rows_to_estimate_items,
+    MAX_XLSX_BYTES,
+)
 
 router = APIRouter()
 settings = get_settings()
@@ -698,6 +704,152 @@ def standalone_estimates_list(request: Request):
             "username": _username(request),
         },
     )
+
+
+@router.get("/estimates/{estimate_id}/import-excel")
+def import_excel_page(estimate_id: int, request: Request):
+    _require_auth(request)
+    details = service.get_estimate(estimate_id)
+    if details.estimate.status is not EstimateStatus.DRAFT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Импорт Excel разрешён только для черновиков (status=draft).",
+        )
+    return templates.TemplateResponse(
+        "import_excel.html",
+        {
+            "request": request,
+            "estimate": details.estimate,
+            "username": _username(request),
+        },
+    )
+
+
+_ALLOWED_IMPORT_STATUSES = {EstimateStatus.DRAFT}
+
+
+def _require_draft_for_import(estimate_id: int) -> None:
+    details = service.get_estimate(estimate_id)
+    if details.estimate.status not in _ALLOWED_IMPORT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Импорт Excel разрешён только для черновиков. Текущий статус: {details.estimate.status.value}.",
+        )
+
+
+@router.post("/estimates/{estimate_id}/import-excel/preview")
+async def import_excel_preview(estimate_id: int, request: Request):
+    _require_auth(request)
+    _require_draft_for_import(estimate_id)
+
+    form = await request.form()
+    upload = form.get("file")
+    if not upload or not upload.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Файл не выбран. Загрузите .xlsx файл.",
+        )
+
+    filename = upload.filename
+    if not filename.lower().endswith(".xlsx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Допускаются только файлы .xlsx.",
+        )
+
+    file_bytes = await upload.read()
+    if len(file_bytes) > MAX_XLSX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Файл слишком большой: {len(file_bytes)} байт. Максимум: {MAX_XLSX_BYTES} байт (2 МБ).",
+        )
+
+    try:
+        result = parse_estimate_xlsx(file_bytes)
+    except ExcelEstimateParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+
+    rows_preview = []
+    for row in result.rows:
+        row_dict = {
+            "row_type": row.row_type,
+            "name": row.name,
+            "sort_order": row.sort_order,
+            "unit": row.unit,
+            "quantity": str(row.quantity) if row.quantity is not None else None,
+            "price": str(row.price) if row.price is not None else None,
+            "total": str(row.total) if row.total is not None else None,
+            "discounted_total": str(row.discounted_total) if row.discounted_total is not None else None,
+        }
+        rows_preview.append(row_dict)
+
+    return JSONResponse({
+        "estimate_id": estimate_id,
+        "rows_count": len(result.rows),
+        "sections_count": result.section_count,
+        "items_count": result.item_count,
+        "rows": rows_preview,
+        "diagnostics": result.diagnostics,
+        "parsed_sheet_name": result.parsed_sheet_name,
+    })
+
+
+@router.post("/estimates/{estimate_id}/import-excel/apply")
+async def import_excel_apply(estimate_id: int, request: Request):
+    _require_auth(request)
+    _require_draft_for_import(estimate_id)
+
+    payload = await _load_payload(request)
+    rows = payload.get("rows")
+    if not rows or not isinstance(rows, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Поле 'rows' обязательно и должно быть массивом (из preview).",
+        )
+
+    validated_items: list[EstimateItemInput] = []
+    for index, raw_row in enumerate(rows):
+        if not isinstance(raw_row, dict):
+            continue
+        name = str(raw_row.get("name") or "").strip()
+        if not name:
+            continue
+        row_type = str(raw_row.get("row_type") or "item")
+        if row_type not in ("section", "item"):
+            row_type = "item"
+        validated_items.append(EstimateItemInput(
+            name=name,
+            sort_order=int(raw_row.get("sort_order") or (index + 1)),
+            row_type=row_type,
+            unit=raw_row.get("unit"),
+            quantity=raw_row.get("quantity"),
+            price=raw_row.get("price"),
+            total=raw_row.get("total"),
+            discounted_total=raw_row.get("discounted_total"),
+            parent_section_id=raw_row.get("parent_section_id"),
+            section_key=raw_row.get("section_key"),
+            reference=raw_row.get("reference"),
+            price_source_type=raw_row.get("price_source_type"),
+            price_source_id=raw_row.get("price_source_id"),
+            is_manual_price=bool(raw_row.get("is_manual_price", True)),
+            notes=raw_row.get("notes"),
+        ))
+
+    if not validated_items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Нет валидных строк для импорта.",
+        )
+
+    saved = service.append_items_to_estimate(estimate_id, validated_items)
+    return JSONResponse({
+        "estimate_id": estimate_id,
+        "imported_count": len(saved),
+        "redirect_url": f"/estimates/{estimate_id}/edit",
+    })
 
 
 def register_standalone_estimate_exception_handlers(app) -> None:

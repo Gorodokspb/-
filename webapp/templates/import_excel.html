@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Импорт Excel — Смета {{ estimate.id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Импорт Excel в смету «{{ estimate.title or estimate.estimate_number or estimate.id }}»</h2>
+    <p class="text-muted">Загрузите .xlsx файл. Строки будут разобраны и показаны в preview перед применением.</p>
+
+    {% if estimate.status.value != 'draft' %}
+    <div class="alert alert-warning">Импорт разрешён только для черновиков (статус: {{ estimate.status.value }}).</div>
+    {% else %}
+    <form id="import-form" enctype="multipart/form-data">
+        <div class="mb-3">
+            <label for="file" class="form-label">Выберите .xlsx файл (макс. 2 МБ)</label>
+            <input type="file" class="form-control" id="file" name="file" accept=".xlsx" required>
+        </div>
+        <button type="submit" class="btn btn-primary" id="preview-btn">Предпросмотр</button>
+        <a href="/estimates/{{ estimate.id }}/edit" class="btn btn-secondary ms-2">Назад к редактору</a>
+    </form>
+
+    <div id="preview-result" class="mt-4" style="display:none;">
+        <h4>Предпросмотр</h4>
+        <p id="preview-stats"></p>
+        <table class="table table-sm table-bordered" id="preview-table">
+            <thead><tr><th>#</th><th>Тип</th><th>Название</th><th>Ед.</th><th>Кол.</th><th>Цена</th><th>Сумма</th><th>Со скидкой</th></tr></thead>
+            <tbody id="preview-tbody"></tbody>
+        </table>
+        <button class="btn btn-success" id="apply-btn">Применить</button>
+    </div>
+
+    <div id="apply-result" class="mt-4" style="display:none;">
+        <div class="alert alert-success" id="apply-message"></div>
+    </div>
+
+    <div id="error-result" class="mt-4" style="display:none;">
+        <div class="alert alert-danger" id="error-message"></div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.getElementById('import-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('file');
+    if (!fileInput.files.length) return;
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    try {
+        const resp = await fetch('/estimates/{{ estimate.id }}/import-excel/preview', {method: 'POST', body: formData});
+        const data = await resp.json();
+        if (!resp.ok) { showError(data.detail || 'Ошибка парсинга'); return; }
+        document.getElementById('preview-stats').textContent =
+            'Разделов: ' + data.sections_count + ', позиций: ' + data.items_count;
+        const tbody = document.getElementById('preview-tbody');
+        tbody.innerHTML = '';
+        data.rows.forEach(function(row, i) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td>' + (i+1) + '</td>' +
+                '<td>' + row.row_type + '</td>' +
+                '<td>' + escHtml(row.name) + '</td>' +
+                '<td>' + escHtml(row.unit || '') + '</td>' +
+                '<td>' + escHtml(row.quantity || '') + '</td>' +
+                '<td>' + escHtml(row.price || '') + '</td>' +
+                '<td>' + escHtml(row.total || '') + '</td>' +
+                '<td>' + escHtml(row.discounted_total || '') + '</td>';
+            tbody.appendChild(tr);
+        });
+        document.getElementById('preview-result').style.display = '';
+        document.getElementById('apply-result').style.display = 'none';
+        document.getElementById('error-result').style.display = 'none';
+        window._previewRows = data.rows;
+    } catch(err) { showError('Сетевая ошибка: ' + err.message); }
+});
+
+document.getElementById('apply-btn').addEventListener('click', async function() {
+    if (!window._previewRows) return;
+    try {
+        const resp = await fetch('/estimates/{{ estimate.id }}/import-excel/apply', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({rows: window._previewRows})
+        });
+        const data = await resp.json();
+        if (!resp.ok) { showError(data.detail || 'Ошибка применения'); return; }
+        document.getElementById('apply-message').textContent =
+            'Импортировано ' + data.imported_count + ' строк. Перенаправление...';
+        document.getElementById('apply-result').style.display = '';
+        document.getElementById('error-result').style.display = 'none';
+        setTimeout(function() { window.location.href = data.redirect_url; }, 1500);
+    } catch(err) { showError('Сетевая ошибка: ' + err.message); }
+});
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function showError(msg) {
+    document.getElementById('error-message').textContent = msg;
+    document.getElementById('error-result').style.display = '';
+    document.getElementById('preview-result').style.display = 'none';
+    document.getElementById('apply-result').style.display = 'none';
+}
+</script>
+{% endblock %}
