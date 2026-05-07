@@ -7,6 +7,9 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+54bf6a4 Stage 8.5.4d: filter mixed signature year rows in Excel import
+cb5b9b7 Stage 8.5.4c: fix standalone draft estimate number generation
+a9d24b0 Stage 8.5.4: fix excel import cleanup and PDF wrapping
 8c6f2a7 Stage 8.5.4 add Excel import button to estimate editor
 465aae8 Stage 8.5.3 fix import_excel.html template block name
 e28872b Stage 8.5.2 excel import preview/apply routes
@@ -118,8 +121,8 @@ e28872b Stage 8.5.2 excel import preview/apply routes
 ## Состояние после push
 Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.
 
-Stage 8.5.1–8.5.4 завершены. Stage 8.5.3 live verification пройдена.
-Следующий этап — Stage 8.5.5 финальная полировка UX импорта Excel.
+Stage 8.5.1–8.5.4d завершены. Live verification пройдена.
+Следующий этап — Stage 8.5.5 финальная полировка UX импорта Excel (по отдельному решению).
 
 ### Stage 8.5.1–8.5.1b: Excel estimate parser module
 - `webapp/excel_estimate_parser.py` — чистый парсер .xlsx (openpyxl, без pandas, без DB).
@@ -164,3 +167,30 @@ Stage 8.5.1–8.5.4 завершены. Stage 8.5.3 live verification пройд
 - 3 новых template-теста: import link present, inside draft block, absent in legacy.
 - Тесты: 97 passed, 1 known false positive.
 - Commit: `8c6f2a7`.
+
+### Stage 8.5.4 fix: Excel import cleanup + PDF wrapping
+- `_looks_like_signature_or_trash()` — фильтрует строки «Генеральный директор», «Печать», «М.П.», подчёркивания, годовые строки.
+- `_looks_like_section()` — строки с name+total, но без qty/price/unit, классифицируются как section, не item.
+- `_build_pdf_table()` — длинные имена в колонке «Наименование» переносятся через `Paragraph()`/`ParagraphStyle`.
+- `_build_pdf_table` возвращает `list[list[Any]]` вместо `list[list[str]]`.
+- Коммит: `a9d24b0`.
+
+### Stage 8.5.4c: Fix standalone draft estimate number generation
+- `standalone_estimate_new_redirect()` заменён `estimate_number=""` на `f"draft-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"`.
+- Предотвращает `UniqueViolation` на `idx_estimates_estimate_number` при наличии других draft с пустым номером.
+- Добавлен тест `test_two_consecutive_draft_estimates_have_unique_numbers`.
+- Коммит: `cb5b9b7`.
+
+### Stage 8.5.4d: Filter mixed signature year rows in Excel import
+- `_looks_like_signature_or_trash()` расширена новой эвристикой: строки с годом (г./год) и только punctuation/underscores/quotes после удаления года → trash.
+- Фильтрует `"___" __________ 2026 год`, `____ __________ 2025 г.`, `«__________» ______ 2026 г.`.
+- Защита от ложного срабатывания: строки с qty/price/total или с нормальным текстовым названием не фильтруются.
+- 5 новых тестов (3 позитивных, 2 негативных). Всего 92 теста парсера.
+- Коммит: `54bf6a4`.
+
+### Stage 8.5.4 live verification (итого)
+- Новая draft-смета создана через `/standalone-estimates/new` (после fix 8.5.4c).
+- Excel-импорт применён: разделы, позиции, discounted_total корректны.
+- Мусорные строки (подписи, печати, подчёркивания, годовые строки вида `"___" __________ 2026 год`) больше не попадают в редактор и PDF.
+- Длинные названия переносятся в PDF.
+- Скидка: поле «Скидка, %» находится в sidebar редактора — дублирование внизу не планируется.

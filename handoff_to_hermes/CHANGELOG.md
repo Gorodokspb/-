@@ -1,5 +1,26 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-07 Stage 8.5.4d — filter mixed signature year rows in Excel import
+- `_looks_like_signature_or_trash()` расширена эвристикой: строки с годом (г./год) и punctuation/underscores/quotes после удаления года → trash.
+- Фильтрует `"___" __________ 2026 год`, `____ __________ 2025 г.`, `«__________» ______ 2026 г.`.
+- Защита от ложного срабатывания: строки с qty/price/total или нормальным текстом не фильтруются.
+- 5 новых тестов (3 позитивных, 2 негативных). 92 теста парсера, все зелёные.
+- Коммит: `54bf6a4`.
+
+## 2026-05-07 Stage 8.5.4c — fix standalone draft estimate number generation
+- `standalone_estimate_new_redirect()`: `estimate_number=""` → `f"draft-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"`.
+- Предотвращает `UniqueViolation` на `idx_estimates_estimate_number` при наличии существующих draft с пустым номером.
+- Добавлен `import uuid` и `from datetime import datetime, timezone`.
+- Новый тест `test_two_consecutive_draft_estimates_have_unique_numbers`.
+- Коммит: `cb5b9b7`.
+
+## 2026-05-07 Stage 8.5.4 fix — excel import cleanup and PDF wrapping
+- `_looks_like_signature_or_trash()` — фильтрует строки «Генеральный директор», «Печать», «М.П.», подчёркивания, год.
+- `_looks_like_section()` — строки с name+total, но без qty/price/unit → section, не item.
+- `_build_pdf_table()` — длинные имена переносятся через `Paragraph()`/`ParagraphStyle`.
+- Возвращаемый тип `_build_pdf_table` изменён на `list[list[Any]]`.
+- Коммит: `a9d24b0`.
+
 ## 2026-05-07 Stage 8.5.4 — UI integration Excel import button
 - Кнопка «Импорт из Excel» (ghost-button) добавлена в `estimate-workflow-actions` редактора standalone-сметы.
 - Видна только для draft-статуса. Non-draft — кнопка скрыта.

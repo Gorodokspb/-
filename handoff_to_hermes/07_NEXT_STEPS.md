@@ -34,11 +34,30 @@
 - Негативные сценарии пройдены. Баг шаблона исправлен.
 - Commit: `465aae8`.
 
-### 8.5.4 ✅ UI integration (выполнено)
+### 8.5.4 ✅ UI integration + live verification (выполнено)
 - Кнопка «Импорт из Excel» в редакторе standalone-сметы (draft only).
 - 3 template-теста. Commit: `8c6f2a7`.
 
-### 8.5.5 Финальная полировка UX импорта Excel (следующий этап)
+### 8.5.4 fix ✅ Excel import cleanup + PDF wrapping (выполнено)
+- Фильтрация подписей/мусора, section с total, PDF wrapping длинных имён.
+- Коммит: `a9d24b0`.
+
+### 8.5.4c ✅ Fix standalone draft estimate number generation (выполнено)
+- `estimate_number=""` → `draft-{timestamp}-{uuid}`. UniqueViolation больше не возникает.
+- Коммит: `cb5b9b7`.
+
+### 8.5.4d ✅ Filter mixed signature year rows in Excel import (выполнено)
+- `_looks_like_signature_or_trash()` фильтрует строки вида `"___" __________ 2026 год`.
+- 5 новых тестов (92 всего в парсере).
+- Коммит: `54bf6a4`.
+
+### 8.5.4 live verification ✅ (пройдена)
+- Создана новая draft-смета через `/standalone-estimates/new`.
+- Excel-импорт применён, мусорные строки отфильтрованы.
+- PDF чистый, длинные названия переносятся.
+- Скидка: поле в sidebar, дублирование внизу не планируется.
+
+### 8.5.5 Финальная полировка UX импорта Excel (по отдельному решению)
 - Предупреждение, что импорт добавляет строки, а не заменяет существующие.
 - Подтверждение перед apply.
 - Показать количество уже существующих строк в смете.
