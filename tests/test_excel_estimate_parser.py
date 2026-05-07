@@ -655,6 +655,31 @@ class SignatureTrashRowTests(unittest.TestCase):
     def test_underscores_with_text_not_trash(self):
         self.assertFalse(_looks_like_signature_or_trash({"name": "Штукатурка ______"}))
 
+    def test_mixed_quotes_underscores_year_is_trash(self):
+        self.assertTrue(_looks_like_signature_or_trash({
+            "name": '"___" __________ 2026 год', "unit": "", "quantity": None, "price": None, "total": None
+        }))
+
+    def test_underscores_year_g_is_trash(self):
+        self.assertTrue(_looks_like_signature_or_trash({
+            "name": "____ __________ 2025 г.", "unit": "", "quantity": None, "price": None, "total": None
+        }))
+
+    def test_guillemets_underscores_year_is_trash(self):
+        self.assertTrue(_looks_like_signature_or_trash({
+            "name": "«__________» ______ 2026 г.", "unit": "", "quantity": None, "price": None, "total": None
+        }))
+
+    def test_mixed_signature_year_with_numbers_not_trash(self):
+        self.assertFalse(_looks_like_signature_or_trash({
+            "name": "Монтаж оборудования 2026", "unit": "", "quantity": "10", "price": "500", "total": "5000"
+        }))
+
+    def test_mixed_signature_normal_text_with_year_not_trash(self):
+        self.assertFalse(_looks_like_signature_or_trash({
+            "name": "Демонтажные работы 2026", "unit": "", "quantity": None, "price": None, "total": None
+        }))
+
     def test_year_row_in_xlsx_skipped(self):
         data = [
             ["Наименование", "Ед.", "Кол-во", "Цена", "Стоимость"],

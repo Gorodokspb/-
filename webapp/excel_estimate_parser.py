@@ -302,6 +302,16 @@ def _looks_like_signature_or_trash(row_values: dict[str, str | None]) -> bool:
             unit = (row_values.get("unit") or "").strip()
             if qty is None and price is None and not unit:
                 return True
+    qty = parse_decimal(row_values.get("quantity"))
+    price = parse_decimal(row_values.get("price"))
+    total_val = parse_decimal(row_values.get("total"))
+    unit = (row_values.get("unit") or "").strip()
+    if qty is None and price is None and total_val is None and not unit:
+        if re.search(r"\d{4}\s*(год\.?|г\.?)", name, re.IGNORECASE):
+            stripped = name.replace(" ", "").replace("\u00a0", "")
+            debris = re.sub(r"\d{4}\s*(год\.?|г\.?)", "", stripped, flags=re.IGNORECASE)
+            if debris and all(c in "_-.—–…·«»""„\"\u201c\u201d\u201e\u2018\u2019\u201a\u201b" for c in debris):
+                return True
     return False
 
 
