@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -232,8 +234,9 @@ def _create_snapshot_version(
 def standalone_estimate_new_redirect(request: Request):
     _require_auth(request)
     actor = _username(request)
+    draft_number = f"draft-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
     estimate = service.create_estimate(
-        estimate_number="",
+        estimate_number=draft_number,
         title=None,
         estimate_type=EstimateType.PRIMARY,
         origin_channel=OriginChannel.WEB,

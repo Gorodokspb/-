@@ -160,6 +160,33 @@ class StandaloneEstimateEditorRouteTests(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["id"], estimate_id)
 
+    def test_two_consecutive_draft_estimates_have_unique_numbers(self):
+        request1 = make_request("/standalone-estimates/new", session={"is_authenticated": True, "username": "testuser"})
+        response1 = standalone_api.standalone_estimate_new_redirect(request1)
+        self.assertEqual(response1.status_code, 302)
+        self.assertTrue(response1.headers["location"].endswith("/edit"))
+        estimate_id1 = int(response1.headers["location"].split("/")[-2])
+
+        request2 = make_request("/standalone-estimates/new", session={"is_authenticated": True, "username": "testuser"})
+        response2 = standalone_api.standalone_estimate_new_redirect(request2)
+        self.assertEqual(response2.status_code, 302)
+        self.assertTrue(response2.headers["location"].endswith("/edit"))
+        estimate_id2 = int(response2.headers["location"].split("/")[-2])
+
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, estimate_number FROM estimates WHERE id = %s", (estimate_id1,))
+                row1 = cur.fetchone()
+                cur.execute("SELECT id, estimate_number FROM estimates WHERE id = %s", (estimate_id2,))
+                row2 = cur.fetchone()
+
+        self.assertIsNotNone(row1)
+        self.assertIsNotNone(row2)
+        self.assertTrue(row1["estimate_number"], "estimate_number must not be empty")
+        self.assertTrue(row2["estimate_number"], "estimate_number must not be empty")
+        self.assertNotEqual(row1["estimate_number"], row2["estimate_number"],
+                            "Two draft estimates must have different estimate_numbers")
+
     @patch('webapp.standalone_estimate_api.templates.TemplateResponse')
     def test_create_edit_save_reopen_editor_workflow(self, mock_template_response):
         """Test the full workflow: create → add section/items → save → reopen editor."""
