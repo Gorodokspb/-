@@ -131,6 +131,11 @@
                                 <button type="button" class="ghost-button" data-action="reject" data-estimate-id="{{ estimate.id }}">Отклонить</button>
                                 <a href="/estimates/{{ estimate.id }}/download/pdf" class="ghost-button">Скачать PDF</a>
                             {% elif estimate.status.value == 'approved' %}
+                                {% if estimate.project_id %}
+                                    <a href="/projects/{{ estimate.project_id }}" class="primary-button">Открыть проект</a>
+                                {% else %}
+                                    <button type="button" class="primary-button" data-action="create-project" data-estimate-id="{{ estimate.id }}">Создать проект</button>
+                                {% endif %}
                                 {% if estimate.final_document_id %}
                                     <a href="/estimates/{{ estimate.id }}/download/final-pdf" class="primary-button">Скачать final PDF</a>
                                 {% else %}

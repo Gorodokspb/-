@@ -123,6 +123,30 @@ class StandaloneWorkflowUITests(unittest.TestCase):
         self.assertNotIn("/import-excel", self.legacy_editor_html)
         self.assertNotIn("Импорт из Excel", self.legacy_editor_html)
 
+    def test_editor_contains_create_project_action(self):
+        self.assertIn('data-action="create-project"', self.editor_html)
+
+    def test_editor_contains_open_project_link(self):
+        self.assertIn('href="/projects/', self.editor_html)
+
+    def test_create_project_data_action_inside_approved_block(self):
+        approved_idx = self.editor_html.index("estimate.status.value == 'approved'")
+        create_project_idx = self.editor_html.index('data-action="create-project"')
+        self.assertGreater(create_project_idx, approved_idx)
+
+    def test_open_project_link_inside_approved_block(self):
+        approved_idx = self.editor_html.index("estimate.status.value == 'approved'")
+        open_project_idx = self.editor_html.index('Открыть проект')
+        self.assertGreater(open_project_idx, approved_idx)
+
+    def test_legacy_editor_does_not_contain_create_project(self):
+        self.assertNotIn('data-action="create-project"', self.legacy_editor_html)
+        self.assertNotIn('Открыть проект', self.legacy_editor_html)
+
+    def test_js_redirects_for_create_project_action(self):
+        self.assertIn('"create-project"', self.editor_js)
+        self.assertIn('redirect_url', self.editor_js)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1712,6 +1712,7 @@
                 approve: "Согласование",
                 reject: "Отклонение",
                 "final-pdf": "Формирование final PDF",
+                "create-project": "Создание проекта",
             };
             const label = actionLabels[action] || action;
             let payload = {};
@@ -1743,6 +1744,10 @@
                     return;
                 }
                 const data = await response.json();
+                if (action === "create-project" && data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                    return;
+                }
                 if (action === "final-pdf" && data.download_url) {
                     window.location.reload();
                     return;

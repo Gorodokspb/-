@@ -149,8 +149,11 @@ class StandaloneEstimateCreateProjectTests(unittest.TestCase):
     def test_approved_estimate_creates_project_and_redirects(self):
         estimate_id = self._create_and_approve_estimate()
         response = self._post_create_project(estimate_id)
-        self.assertEqual(response.status_code, 302)
-        location = response.headers["location"]
+        self.assertEqual(response.status_code, 200)
+        import json
+        body = json.loads(response.body)
+        self.assertIn("redirect_url", body)
+        location = body["redirect_url"]
         self.assertTrue(location.startswith("/projects/"))
         project_id = int(location.rsplit("/", 1)[-1])
         from webapp.db import get_connection
@@ -167,8 +170,10 @@ class StandaloneEstimateCreateProjectTests(unittest.TestCase):
     def test_create_project_twice_rejects_duplicate(self):
         estimate_id = self._create_and_approve_estimate()
         response1 = self._post_create_project(estimate_id)
-        self.assertEqual(response1.status_code, 302)
-        project_id = int(response1.headers["location"].rsplit("/", 1)[-1])
+        self.assertEqual(response1.status_code, 200)
+        import json
+        body = json.loads(response1.body)
+        project_id = int(body["redirect_url"].rsplit("/", 1)[-1])
         self._mark_test_project(project_id)
         with self.assertRaises(HTTPException) as ctx:
             self._post_create_project(estimate_id)

@@ -489,7 +489,7 @@ def standalone_estimate_create_project(estimate_id: int, request: Request):
         project_id = service.create_project_from_estimate(estimate_id, username=actor)
     except EstimateDomainError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return RedirectResponse(url=f"/projects/{project_id}", status_code=status.HTTP_302_FOUND)
+    return JSONResponse({"redirect_url": f"/projects/{project_id}"})
 
 
 @router.post("/estimates/{estimate_id}/reject")
