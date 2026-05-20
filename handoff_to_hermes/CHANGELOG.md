@@ -1,5 +1,12 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-20 Stage 8.6 — Create project from approved estimate (функционально закрыт)
+- 8.6.1 ✅ Backend (`1a1c6af`): `POST /estimates/{id}/create-project` + service-метод, 6 route-тестов.
+- 8.6.2 ✅ UI (`4772c09`): кнопка «Создать проект» / ссылка «Открыть проект» в approved-блоке, JS обработчик, JSONResponse. 24 UI-теста.
+- 8.6.2b ✅ In-progress link (`bc58ade`): ссылка «Открыть проект» в in_progress-блоке. 25 UI-тестов.
+- Live verification: смета 881 → проект 9, ссылка работает после перехода в in_progress.
+- Future note: проект создаётся со статусом «Черновик», возможно должен быть «В работе».
+
 ## 2026-05-07 Stage 8.5.5 — Excel import UX polish
 - Предупреждение «импорт добавляет строки» (alert-info) на странице import-excel.
 - `confirm()` диалог: «Импорт добавит строки из preview к текущей смете. Продолжить?»

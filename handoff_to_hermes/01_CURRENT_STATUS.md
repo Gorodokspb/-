@@ -7,6 +7,11 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+bc58ade Stage 8.6.2b: show project link for in-progress estimates
+4772c09 Stage 8.6.2: add UI button for create project from approved estimate
+1a1c6af Stage 8.6.1: add backend project creation from approved estimate
+9759401 Document session 2026-05-20
+f396737 Document session 2026-05-07
 e9392bb Stage 8.5.5: polish Excel import UX
 a2590e9 Document Stage 8.5.4 Excel import completion
 54bf6a4 Stage 8.5.4d: filter mixed signature year rows in Excel import
@@ -126,8 +131,46 @@ e28872b Stage 8.5.2 excel import preview/apply routes
 Stage 8.5.1–8.5.5 завершены. Live verification пройдена.
 **Stage 8.5 Excel import — функционально закрыт.**
 
+Stage 8.6.1–8.6.2b завершены. Live verification пройдена.
+**Stage 8.6 Create project from approved estimate — функционально закрыт.**
+
 Визуальная полировка import_excel.html отложена до общего UI-аудита/UI-polish этапа
 после завершения работоспособности всех ключевых функций CRM.
+
+### Stage 8.6.1: Backend create project from approved estimate (выполнено)
+- `StandaloneEstimateService.create_project_from_estimate()` — service-метод.
+- Route `POST /estimates/{id}/create-project` — auth-gated, только approved.
+- Создаёт проект через legacy `create_project()`, линкует `estimates.project_id`.
+- Переводит смету в `in_progress`.
+- 6 route-тестов в `tests/test_standalone_estimate_create_project.py`.
+- Коммит: `1a1c6af`.
+
+### Stage 8.6.2: UI button for create project (выполнено)
+- Роут адаптирован под AJAX: `RedirectResponse` → `JSONResponse({"redirect_url": ...})`.
+- Кнопка «Создать проект» в approved-блоке (когда `project_id` пусто).
+- Ссылка «Открыть проект» в approved-блоке (когда `project_id` есть).
+- JS-обработчик `create-project` с redirect на `/projects/{id}`.
+- 6 новых UI-тестов (24 всего в workflow suite).
+- Коммит: `4772c09`.
+
+### Stage 8.6.2b: Show project link for in-progress estimates (выполнено)
+- Ссылка «Открыть проект» добавлена в `in_progress`-блок (когда `project_id` есть).
+- После создания проекта смета переходит в `in_progress` → ссылка сохраняется.
+- 1 новый UI-тест (25 всего в workflow suite).
+- Коммит: `bc58ade`.
+
+### Stage 8.6.2 live verification (итого)
+- Смета ID=881: кнопка «Создать проект» появилась в approved-статусе.
+- После нажатия создан проект 9, redirect на `/projects/9`.
+- После повторного открытия редактора смета в `in_progress`, ссылка «Открыть проект» ведёт на проект 9.
+- Созданный проект получает статус «Черновик» (позже можно пересмотреть, должен ли проект из согласованной сметы создаваться сразу «В работе»).
+
+### Stage 8.6 — итого (статус: функционально закрыт)
+| Подэтап | Статус | Коммит |
+|---------|--------|--------|
+| 8.6.1 | ✅ Backend | `1a1c6af` |
+| 8.6.2 | ✅ UI | `4772c09` |
+| 8.6.2b | ✅ In-progress link | `bc58ade` |
 
 ### Stage 8.5.1–8.5.1b: Excel estimate parser module
 - `webapp/excel_estimate_parser.py` — чистый парсер .xlsx (openpyxl, без pandas, без DB).
