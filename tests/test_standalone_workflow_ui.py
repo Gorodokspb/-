@@ -139,6 +139,10 @@ class StandaloneWorkflowUITests(unittest.TestCase):
         open_project_idx = self.editor_html.index('Открыть проект')
         self.assertGreater(open_project_idx, approved_idx)
 
+    def test_open_project_link_inside_in_progress_block(self):
+        in_progress_idx = self.editor_html.index("estimate.status.value == 'in_progress'")
+        self.assertIn('href="/projects/', self.editor_html[in_progress_idx:])
+
     def test_legacy_editor_does_not_contain_create_project(self):
         self.assertNotIn('data-action="create-project"', self.legacy_editor_html)
         self.assertNotIn('Открыть проект', self.legacy_editor_html)

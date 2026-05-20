@@ -151,6 +151,9 @@
                                 {% endif %}
                                 <a href="/estimates/{{ estimate.id }}/download/json" class="ghost-button">Скачать JSON</a>
                             {% elif estimate.status.value == 'in_progress' %}
+                                {% if estimate.project_id %}
+                                    <a href="/projects/{{ estimate.project_id }}" class="primary-button">Открыть проект</a>
+                                {% endif %}
                                 {% if estimate.final_document_id %}
                                     <a href="/estimates/{{ estimate.id }}/download/final-pdf" class="primary-button">Скачать final PDF</a>
                                 {% endif %}
