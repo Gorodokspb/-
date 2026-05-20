@@ -82,6 +82,8 @@ class FinanceModuleTests(unittest.TestCase):
         self.assertIn("project_transactions", template)
         self.assertIn("project_finance_summary.balance", template)
         self.assertIn("project_finance_summary.balance_label", template)
+        self.assertIn("project_finance_summary.income_label", template)
+        self.assertIn("project_finance_summary.expense_label", template)
         self.assertIn("Прибыль", template)
         self.assertIn("data-project-id=\"{{ project.id }}\"", template)
         self.assertIn("/finance/transactions", template)

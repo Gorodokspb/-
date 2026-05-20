@@ -77,12 +77,12 @@
             </article>
             <article class="metric-panel metric-panel-green">
                 <span class="metric-label">Оплачено</span>
-                <strong>0 руб.</strong>
+                <strong>{{ project_finance_summary.income_label }}</strong>
                 <p>Поступления по объекту</p>
             </article>
             <article class="metric-panel metric-panel-gold">
                 <span class="metric-label">Расход</span>
-                <strong>0 руб.</strong>
+                <strong>{{ project_finance_summary.expense_label }}</strong>
                 <p>Затраты по объекту</p>
             </article>
             <article class="metric-panel metric-panel-slate">
@@ -203,21 +203,21 @@
         <section class="project-balance-row">
             <article class="panel-card panel-card-wide mini-balance-card">
                 <span class="metric-label">Оплачено</span>
-                <strong>0 руб.</strong>
+                <strong>{{ project_finance_summary.income_label }}</strong>
                 <div class="classic-progress-line"><span style="width: 4%"></span></div>
-                <p>От базы: 1 руб.</p>
+                <p>Поступления по объекту</p>
             </article>
             <article class="panel-card panel-card-wide mini-balance-card">
                 <span class="metric-label">Расход</span>
-                <strong>0 руб.</strong>
+                <strong>{{ project_finance_summary.expense_label }}</strong>
                 <div class="classic-progress-line classic-progress-line-danger"><span style="width: 2%"></span></div>
-                <p>От базы: 1 руб.</p>
+                <p>Затраты по объекту</p>
             </article>
             <article class="panel-card panel-card-wide mini-balance-card">
                 <span class="metric-label">Баланс</span>
-                <strong>0 руб.</strong>
+                <strong>{{ project_finance_summary.balance_label }}</strong>
                 <div class="classic-progress-line classic-progress-line-blue"><span style="width: 3%"></span></div>
-                <p>От базы: 1 руб.</p>
+                <p>Прибыль по объекту</p>
             </article>
         </section>
 
