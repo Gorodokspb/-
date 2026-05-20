@@ -638,6 +638,24 @@ def create_counterparty(
     email: str,
     inn: str,
     notes: str,
+    kpp: str = "",
+    ogrn: str = "",
+    ogrnip: str = "",
+    passport_series_number: str = "",
+    passport_issued_by: str = "",
+    passport_department_code: str = "",
+    registration_address: str = "",
+    work_address: str = "",
+    birth_date: str = "",
+    checking_account: str = "",
+    correspondent_account: str = "",
+    bank_name: str = "",
+    bank_bik: str = "",
+    legal_address: str = "",
+    postal_address: str = "",
+    actual_address: str = "",
+    director_name: str = "",
+    director_basis: str = "",
 ):
     normalized_type = str(counterparty_type or "").strip() or "Физлицо"
     normalized_display_name = str(display_name or "").strip()
@@ -663,8 +681,22 @@ def create_counterparty(
             cur.execute(
                 """
                 INSERT INTO counterparties (
-                    type, name, full_name, phone, email, inn, company_name, notes, created_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    type, name, full_name, phone, email, inn, company_name, notes, created_at,
+                    kpp, ogrn, ogrnip,
+                    passport_series_number, passport_issued_by, passport_department_code,
+                    registration_address, work_address, birth_date,
+                    checking_account, correspondent_account, bank_name, bank_bik,
+                    legal_address, postal_address, actual_address,
+                    director_name, director_basis
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s, %s, %s,
+                    %s, %s, %s,
+                    %s, %s
+                )
                 RETURNING id
                 """,
                 (
@@ -677,6 +709,24 @@ def create_counterparty(
                     normalized_company_name,
                     normalized_notes,
                     now,
+                    str(kpp or "").strip(),
+                    str(ogrn or "").strip(),
+                    str(ogrnip or "").strip(),
+                    str(passport_series_number or "").strip(),
+                    str(passport_issued_by or "").strip(),
+                    str(passport_department_code or "").strip(),
+                    str(registration_address or "").strip(),
+                    str(work_address or "").strip(),
+                    str(birth_date or "").strip(),
+                    str(checking_account or "").strip(),
+                    str(correspondent_account or "").strip(),
+                    str(bank_name or "").strip(),
+                    str(bank_bik or "").strip(),
+                    str(legal_address or "").strip(),
+                    str(postal_address or "").strip(),
+                    str(actual_address or "").strip(),
+                    str(director_name or "").strip(),
+                    str(director_basis or "").strip(),
                 ),
             )
             row = cur.fetchone()

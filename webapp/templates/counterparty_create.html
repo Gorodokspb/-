@@ -42,6 +42,8 @@
             </div>
 
             <form class="detail-form" method="post" action="/counterparties/new">
+
+                <h3 class="section-heading">Основное</h3>
                 <div class="detail-form-grid">
                     <label>
                         <span class="sidebar-label">Тип</span>
@@ -75,6 +77,94 @@
                         <span class="sidebar-label">ИНН</span>
                         <input type="text" name="inn" value="{{ form_data.inn }}">
                     </label>
+                </div>
+
+                <h3 class="section-heading">Паспортные данные (физлицо)</h3>
+                <div class="detail-form-grid">
+                    <label>
+                        <span class="sidebar-label">Серия и номер паспорта</span>
+                        <input type="text" name="passport_series_number" value="{{ form_data.passport_series_number }}" placeholder="0000 000000">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Кем выдан</span>
+                        <input type="text" name="passport_issued_by" value="{{ form_data.passport_issued_by }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Код подразделения</span>
+                        <input type="text" name="passport_department_code" value="{{ form_data.passport_department_code }}" placeholder="000-000">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Дата рождения</span>
+                        <input type="text" name="birth_date" value="{{ form_data.birth_date }}" placeholder="ДД.ММ.ГГГГ">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Адрес регистрации</span>
+                        <input type="text" name="registration_address" value="{{ form_data.registration_address }}">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Адрес проведения работ</span>
+                        <input type="text" name="work_address" value="{{ form_data.work_address }}">
+                    </label>
+                </div>
+
+                <h3 class="section-heading">Реквизиты (ООО / ИП)</h3>
+                <div class="detail-form-grid">
+                    <label>
+                        <span class="sidebar-label">КПП</span>
+                        <input type="text" name="kpp" value="{{ form_data.kpp }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">ОГРН</span>
+                        <input type="text" name="ogrn" value="{{ form_data.ogrn }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">ОГРНИП</span>
+                        <input type="text" name="ogrnip" value="{{ form_data.ogrnip }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Юридический адрес</span>
+                        <input type="text" name="legal_address" value="{{ form_data.legal_address }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Почтовый адрес</span>
+                        <input type="text" name="postal_address" value="{{ form_data.postal_address }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Фактический адрес</span>
+                        <input type="text" name="actual_address" value="{{ form_data.actual_address }}">
+                    </label>
+                </div>
+
+                <h3 class="section-heading">Банковские реквизиты</h3>
+                <div class="detail-form-grid">
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Наименование банка</span>
+                        <input type="text" name="bank_name" value="{{ form_data.bank_name }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">БИК</span>
+                        <input type="text" name="bank_bik" value="{{ form_data.bank_bik }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Расчётный счёт</span>
+                        <input type="text" name="checking_account" value="{{ form_data.checking_account }}">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Корреспондентский счёт</span>
+                        <input type="text" name="correspondent_account" value="{{ form_data.correspondent_account }}">
+                    </label>
+                </div>
+
+                <h3 class="section-heading">Представитель</h3>
+                <div class="detail-form-grid">
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">ФИО руководителя</span>
+                        <input type="text" name="director_name" value="{{ form_data.director_name }}" placeholder="Шарипов Шехрозжон Шавкатович">
+                    </label>
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Действует на основании</span>
+                        <input type="text" name="director_basis" value="{{ form_data.director_basis }}" placeholder="Устава / Доверенности №…">
+                    </label>
                     <label class="detail-form-span-2">
                         <span class="sidebar-label">Заметки</span>
                         <textarea name="notes" rows="5" placeholder="Контакты, особенности по договору, комментарии.">{{ form_data.notes }}</textarea>
@@ -82,7 +172,7 @@
                 </div>
 
                 <div class="detail-form-footer">
-                    <div class="detail-inline-note">После сохранения контрагент появится в web-формах проекта и его можно будет выбирать без возврата в desktop-версию.</div>
+                    <div class="detail-inline-note">Все поля, кроме короткого имени/ФИО/названия компании, необязательны. Заполните нужные для договора.</div>
                     <div class="form-actions-inline">
                         <a class="ghost-button-light" href="/projects">Отмена</a>
                         <button type="submit" class="primary-button">Создать контрагента</button>
