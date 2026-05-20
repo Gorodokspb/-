@@ -163,10 +163,17 @@ class StandaloneEstimateCreateProjectTests(unittest.TestCase):
                 row = cur.fetchone()
                 self.assertEqual(row["project_id"], project_id)
                 self.assertEqual(row["status"], "in_progress")
-                cur.execute("SELECT id, status FROM projects WHERE id = %s", (project_id,))
+                cur.execute("SELECT id, status, customer FROM projects WHERE id = %s", (project_id,))
                 proj = cur.fetchone()
                 self.assertIsNotNone(proj)
                 self.assertEqual(proj["status"], "В работе")
+                self.assertEqual(proj["customer"], "Заказчик Проект")
+                cur.execute("SELECT id, approved_version_id, final_document_id FROM estimates WHERE id = %s", (estimate_id,))
+                est_row = cur.fetchone()
+                if est_row["final_document_id"]:
+                    cur.execute("SELECT project_id FROM documents WHERE id = %s", (est_row["final_document_id"],))
+                    doc = cur.fetchone()
+                    self.assertEqual(doc["project_id"], project_id)
         self._mark_test_project(project_id)
 
     def test_create_project_twice_rejects_duplicate(self):

@@ -911,6 +911,17 @@ class StandaloneEstimateService:
         )
         self.repository.link_estimate_to_project(estimate_id, project_id)
         self.change_estimate_status(estimate_id, EstimateStatus.IN_PROGRESS, changed_by=username)
+        customer_name = (estimate.customer_name or "").strip()
+        if customer_name and estimate.counterparty_id is None:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE projects SET customer = %s WHERE id = %s", (customer_name, project_id))
+                conn.commit()
+        if estimate.final_document_id is not None:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE documents SET project_id = %s WHERE id = %s", (project_id, estimate.final_document_id))
+                conn.commit()
         return project_id
 
     def list_estimates(
