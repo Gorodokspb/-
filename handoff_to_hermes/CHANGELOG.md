@@ -1,5 +1,11 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-20 Stage 8.7 — Carry customer and final PDF into project (закрыт)
+- `customer_name` из standalone-сметы переносится в `projects.customer`, если `counterparty_id` отсутствует.
+- `final_document_id` standalone-сметы привязывается к проекту через `documents.project_id`.
+- Коммит: `4be399d`.
+- Live verification: проект 11, заказчик «Заказчик Проект 8.7», Final PDF в документах проекта.
+
 ## 2026-05-20 Stage 8.6 — Create project from approved estimate (полностью закрыт)
 - 8.6.1 ✅ Backend (`1a1c6af`): `POST /estimates/{id}/create-project` + service-метод, 6 route-тестов.
 - 8.6.2 ✅ UI (`4772c09`): кнопка «Создать проект» / ссылка «Открыть проект» в approved-блоке, JS обработчик, JSONResponse. 24 UI-теста.

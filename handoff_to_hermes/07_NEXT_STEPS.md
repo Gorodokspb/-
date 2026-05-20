@@ -90,6 +90,16 @@
 
 ## Stage 8.6 ✅ Полностью закрыт
 
+## Stage 8.7: Customer + documents carry into project ✅ ЗАКРЫТ
+
+### 8.7 ✅ Carry customer and final PDF (выполнено)
+- `customer_name` из standalone-сметы переносится в `projects.customer`, если `counterparty_id` отсутствует.
+- `final_document_id` привязывается к проекту через `documents.project_id`.
+- Коммит: `4be399d`.
+
+### Live verification 8.7 ✅
+- Проект 11: статус «В работе», заказчик «Заказчик Проект 8.7», Final PDF в документах проекта.
+
 ### Будущий этап: UI-audit / UI-polish (после завершения всех ключевых функций CRM)
 - Привести import_excel.html и другие страницы к единому визуальному стилю CRM.
 - Визуальная полировка страниц импорта, списков, редактора.

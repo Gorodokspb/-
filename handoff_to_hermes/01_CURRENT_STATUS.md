@@ -178,6 +178,23 @@ Stage 8.6.1–8.6.2b завершены. Live verification пройдена.
 | 8.6.2b | ✅ In-progress link | `bc58ade` |
 | 8.6.3 | ✅ Active status | `e597a50` |
 
+### Stage 8.7: Carry customer and final PDF into project (выполнено)
+- `customer_name` из standalone-сметы переносится в `projects.customer`, если `counterparty_id` отсутствует.
+- `final_document_id` standalone-сметы привязывается к проекту через `documents.project_id`.
+- Коммит: `4be399d`.
+
+### Stage 8.7 live verification (итого)
+- Создан проект 11.
+- Статус проекта: «В работе».
+- Заказчик в проекте: «Заказчик Проект 8.7».
+- В проекте отображается 1 документ (Final PDF).
+- Итог workflow: approved standalone-смета → create project → customer перенесён → final PDF привязан → проект полноценный.
+
+### Stage 8.7 — итого (статус: закрыт)
+| Подэтап | Статус | Коммит |
+|---------|--------|--------|
+| 8.7 | ✅ Customer + documents | `4be399d` |
+
 ### Stage 8.5.1–8.5.1b: Excel estimate parser module
 - `webapp/excel_estimate_parser.py` — чистый парсер .xlsx (openpyxl, без pandas, без DB).
 - `ColumnMapping`, `ParsedEstimateRow`, `ExcelEstimateParseResult` dataclasses.
