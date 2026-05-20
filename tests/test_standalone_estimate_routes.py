@@ -2,8 +2,9 @@ import asyncio
 import json
 import shutil
 import unittest
+from pathlib import Path
 from urllib.parse import urlencode
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from fastapi import HTTPException
 from starlette.requests import Request
@@ -11,6 +12,7 @@ from starlette.requests import Request
 import webapp.main as main
 import webapp.standalone_estimate_api as standalone_api
 from tests.db_guard import guard_live_database
+from webapp.company_repository import Company
 from webapp.config import get_settings
 from webapp.db import get_connection
 
@@ -463,12 +465,18 @@ class StandaloneEstimateRouteTests(unittest.TestCase):
         self.assertIn("Печать и подпись", str(exc_context.exception))
 
     def _create_and_approve_estimate(self, items=None):
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM companies ORDER BY id LIMIT 1")
+                company_row = cur.fetchone()
+        company_id = int(company_row["id"]) if company_row else None
         payload = {
             "estimate_number": "ST-FINAL",
             "title": "Финальная смета",
             "customer_name": "Клиент Финал",
             "object_name": "Объект Финал",
             "company_name": "ООО Декорартстрой",
+            "company_id": company_id,
             "contract_label": "F-1",
             "items": items or [
                 {"name": "Монтаж", "sort_order": 10, "quantity": "5", "price": "200", "total": "1000", "discounted_total": "950"},
@@ -521,10 +529,17 @@ class StandaloneEstimateRouteTests(unittest.TestCase):
     def test_final_pdf_created_after_approval(self):
         estimate_id = self._create_and_approve_estimate()
         request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        fake_company = Company(
+            id=1, legal_name="Тест", short_name="Тест",
+            stamp_path="stamp.png", signature_path="sig.png",
+        )
         with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
             "webapp.standalone_estimate_api._load_payload",
             return_value={"stamp_applied": True, "signature_applied": True},
+        ), patch("webapp.standalone_estimate_api.CompanyService") as MockCompanyService, patch(
+            "webapp.standalone_estimate_api.resolve_storage_path", return_value=Path("/tmp/stamp.png"),
         ):
+            MockCompanyService.return_value.get_company.return_value = fake_company
             response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
         body = json.loads(response.body.decode("utf-8"))
         self.assertEqual(response.status_code, 200)
@@ -675,10 +690,17 @@ class StandaloneEstimateRouteTests(unittest.TestCase):
     def test_final_pdf_signed_creates_signed_pdf_document_kind(self):
         estimate_id = self._create_and_approve_estimate()
         request = make_request(f"/estimates/{estimate_id}/final-pdf", method="POST")
+        fake_company = Company(
+            id=1, legal_name="Тест", short_name="Тест",
+            stamp_path="stamp.png", signature_path="sig.png",
+        )
         with patch("webapp.standalone_estimate_api._require_auth", return_value=None), patch(
             "webapp.standalone_estimate_api._load_payload",
             return_value={"stamp_applied": True, "signature_applied": True},
+        ), patch("webapp.standalone_estimate_api.CompanyService") as MockCompanyService, patch(
+            "webapp.standalone_estimate_api.resolve_storage_path", return_value=Path("/tmp/stamp.png"),
         ):
+            MockCompanyService.return_value.get_company.return_value = fake_company
             response = asyncio.run(standalone_api.standalone_estimate_final_pdf(estimate_id, request))
         body = json.loads(response.body.decode("utf-8"))
         document_id = body["document_id"]
