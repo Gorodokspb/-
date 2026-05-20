@@ -904,7 +904,7 @@ class StandaloneEstimateService:
             project_name=project_name,
             address=object_name,
             counterparty_id=estimate.counterparty_id,
-            status="Черновик",
+            status="В работе",
             contract=(estimate.contract_label or ""),
             contract_date="",
             notes=f"Создан из standalone-сметы {estimate_number or estimate_id}",
