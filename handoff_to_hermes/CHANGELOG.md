@@ -1,5 +1,21 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-20 Stage 8.8.1 — Fix hardcoded finance totals in project detail
+- Верхние метрики и карточки баланса в `project_detail.html` теперь используют `project_finance_summary.income_label/expense_label/balance_label` вместо «0 руб.».
+- Коммит: `f5beac7`.
+- Live verification: проект 11 показывает реальные суммы (доход 50 000 ₽, расход 15 000 ₽, баланс 35 000 ₽).
+
+## 2026-05-20 Stage 8.8 — Finance module integration verified
+- Live-проверка на проекте 11: доход 50 000 ₽, расход 15 000 ₽, прибыль 35 000 ₽.
+- `/finance`: доходы 60 000 ₽, расходы 15 000 ₽, баланс 45 000 ₽.
+- Транзакции привязаны к проекту через `project_id`. Общая касса работает.
+
+## 2026-05-20 Test suite fixes
+- `test_estimate_repository.py`: 13/13 pass (ранее 9/13 из-за запуска против live DB).
+- `test_standalone_estimate_routes.py`: 27/27 pass (ранее 25/27 из-за `company_id=None` в final-pdf тестах).
+- Исправление: добавлен `company_id` в `_create_and_approve_estimate()` + mock `CompanyService`/`resolve_storage_path`.
+- Коммит: `9069b9d`.
+
 ## 2026-05-20 Stage 8.7 — Carry customer and final PDF into project (закрыт)
 - `customer_name` из standalone-сметы переносится в `projects.customer`, если `counterparty_id` отсутствует.
 - `final_document_id` standalone-сметы привязывается к проекту через `documents.project_id`.

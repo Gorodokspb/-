@@ -90,20 +90,36 @@
 
 ## Stage 8.6 ✅ Полностью закрыт
 
-## Stage 8.7: Customer + documents carry into project ✅ ЗАКРЫТ
+## Stage 8.7 ✅ ЗАКРЫТ
 
-### 8.7 ✅ Carry customer and final PDF (выполнено)
-- `customer_name` из standalone-сметы переносится в `projects.customer`, если `counterparty_id` отсутствует.
-- `final_document_id` привязывается к проекту через `documents.project_id`.
-- Коммит: `4be399d`.
+## Stage 8.8: Finance module integration ✅ ЗАКРЫТ
 
-### Live verification 8.7 ✅
-- Проект 11: статус «В работе», заказчик «Заказчик Проект 8.7», Final PDF в документах проекта.
+### 8.8 ✅ Finance integration verified (выполнено)
+- Live-проверка: проект 11, доход 50 000 ₽, расход 15 000 ₽, прибыль 35 000 ₽.
+- `/finance` баланс 45 000 ₽. Транзакции привязаны к проектам.
 
-### Будущий этап: UI-audit / UI-polish (после завершения всех ключевых функций CRM)
+## Stage 8.8.1: Fix hardcoded finance totals ✅ ЗАКРЫТ
+
+### 8.8.1 ✅ Real finance totals in project cards (выполнено)
+- Верхние метрики и карточки баланса в `project_detail.html` используют `project_finance_summary`.
+- Live-проверка: проект 11 показывает реальные суммы.
+- Коммит: `f5beac7`.
+
+## Test suite fixes ✅ ЗАКРЫТЫ
+- `test_estimate_repository.py`: 13/13 pass.
+- `test_standalone_estimate_routes.py`: 27/27 pass.
+- Коммит: `9069b9d`.
+
+## Функциональные блоки Stage 8.5–8.8.1 — все закрыты
+
+### Будущий этап: UI-audit / UI-polish (после подтверждения пользователя)
 - Привести import_excel.html и другие страницы к единому визуальному стилю CRM.
 - Визуальная полировка страниц импорта, списков, редактора.
-- Делать только после того, как работоспособность всех ключевых функций CRM будет завершена.
+- Делать отдельными маленькими этапами, не одним большим рефакторингом.
+- Начинать только после подтверждения пользователя.
+
+### Будущий этап: Mobile/adaptive layout
+- Не начат. Отдельный этап после завершения desktop-функционала.
 
 ## Ближайшие задачи по CRM/сметам (после 8.5)
 1. Доводить редактор сметы до плотного desktop-подобного вида.

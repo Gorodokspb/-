@@ -7,6 +7,9 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+9069b9d Fix standalone estimate final PDF route tests
+f5beac7 Stage 8.8.1: show real finance totals in project cards
+4be399d Stage 8.7: carry estimate customer and final PDF into project
 bc58ade Stage 8.6.2b: show project link for in-progress estimates
 4772c09 Stage 8.6.2: add UI button for create project from approved estimate
 1a1c6af Stage 8.6.1: add backend project creation from approved estimate
@@ -134,6 +137,17 @@ Stage 8.5.1–8.5.5 завершены. Live verification пройдена.
 Stage 8.6.1–8.6.2b завершены. Live verification пройдена.
 **Stage 8.6 Create project from approved estimate — функционально закрыт.**
 
+Stage 8.7 завершён. Live verification пройдена.
+**Stage 8.7 Carry customer and final PDF — закрыт.**
+
+Stage 8.8 live-проверка финансов/кассы прошла.
+**Stage 8.8 Finance module integration — закрыт.**
+
+Stage 8.8.1 fix hardcoded finance metrics прошёл live-проверку.
+**Stage 8.8.1 Real finance totals in project cards — закрыт.**
+
+Test suite fixes: test_estimate_repository.py 13/13, test_standalone_estimate_routes.py 27/27.
+
 Визуальная полировка import_excel.html отложена до общего UI-аудита/UI-polish этапа
 после завершения работоспособности всех ключевых функций CRM.
 
@@ -194,6 +208,38 @@ Stage 8.6.1–8.6.2b завершены. Live verification пройдена.
 | Подэтап | Статус | Коммит |
 |---------|--------|--------|
 | 8.7 | ✅ Customer + documents | `4be399d` |
+
+### Stage 8.8: Finance module integration (выполнено)
+- Live-проверка транзакций и кассы на проекте 11.
+- Доход проекта: 50 000 ₽, расход: 15 000 ₽, прибыль: 35 000 ₽.
+- `/finance`: доходы 60 000 ₽, расходы 15 000 ₽, баланс 45 000 ₽.
+- Транзакции привязаны к проекту через `project_id`.
+- Общая касса работает корректно.
+
+### Stage 8.8 live verification (итого)
+- Проект 11: доход 50 000 ₽, расход 15 000 ₽, прибыль 35 000 ₽.
+- `/finance` баланс: 45 000 ₽.
+- Транзакции привязаны к проекту.
+
+### Stage 8.8.1: Fix hardcoded finance totals in project detail (выполнено)
+- Верхние метрики и нижние карточки баланса в `project_detail.html` теперь используют `project_finance_summary.income_label/expense_label/balance_label` вместо захардкоженных «0 руб.».
+- Коммит: `f5beac7`.
+
+### Stage 8.8.1 live verification (итого)
+- Проект 11: карточки показывают реальные суммы (доход 50 000 ₽, расход 15 000 ₽, баланс 35 000 ₽).
+- Верхние метрики корректны.
+
+### Stage 8.8/8.8.1 — итого (статус: закрыт)
+| Подэтап | Статус | Коммит |
+|---------|--------|--------|
+| 8.8 | ✅ Finance integration | — |
+| 8.8.1 | ✅ Real totals | `f5beac7` |
+
+### Test suite fixes (выполнено)
+- `test_estimate_repository.py`: 13/13 pass (было 9/13 — исправлено через правильный DSN для test DB).
+- `test_standalone_estimate_routes.py`: 27/27 pass (было 25/27 — исправлены 2 final-pdf теста).
+- Исправление: добавлен `company_id` в `_create_and_approve_estimate()` + mock `CompanyService`/`resolve_storage_path` в тестах `test_final_pdf_created_after_approval` и `test_final_pdf_signed_creates_signed_pdf_document_kind`.
+- Коммит: `9069b9d`.
 
 ### Stage 8.5.1–8.5.1b: Excel estimate parser module
 - `webapp/excel_estimate_parser.py` — чистый парсер .xlsx (openpyxl, без pandas, без DB).
