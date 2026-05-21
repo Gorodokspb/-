@@ -95,27 +95,36 @@
                     </label>
                     <label>
                         <span class="sidebar-label">Авансовый платёж</span>
-                        <input type="text" name="advance_amount" value="{{ contract_settings.advance_amount }}" placeholder="Сумма аванса">
+                        <input type="text" name="advance_amount" value="{{ contract_settings.advance_amount }}" placeholder="Сумма аванса" class="money-format">
+                        <small class="sidebar-label" style="opacity:0.6">Можно вводить 1000000 — поле покажет 1.000.000</small>
                     </label>
                     <label>
                         <span class="sidebar-label">Окончательный расчёт</span>
-                        <input type="text" name="final_payment_amount" value="{{ contract_settings.final_payment_amount }}" placeholder="Оставить пустым для автоподсчёта">
+                        <input type="text" name="final_payment_amount" value="{{ contract_settings.final_payment_amount }}" placeholder="Оставить пустым для автоподсчёта" class="money-format">
+                        <small class="sidebar-label" style="opacity:0.6">Можно вводить 1000000 — поле покажет 1.000.000</small>
                     </label>
                 </div>
 
                 <h3 class="section-heading">График промежуточных платежей</h3>
-                <div class="detail-form-grid">
-                    {% for i in range(1, 8) %}
-                    {% set payment = contract_settings.payments[i - 1] if contract_settings.payments and i <= contract_settings.payments|length else {"date": "", "amount": ""} %}
+                <div id="payments-container">
+                {% for i in range(1, 8) %}
+                {% set payment = contract_settings.payments[i - 1] if contract_settings.payments and i <= contract_settings.payments|length else {"date": "", "amount": ""} %}
+                {% set has_value = (payment.date|string).strip() or (payment.amount|string).strip() %}
+                {% set min_row = i <= 2 %}
+                <div class="detail-form-grid payment-row" data-row="{{ i }}" style="{% if not has_value and not min_row %}display:none{% endif %}">
                     <label>
                         <span class="sidebar-label">Платёж {{ i }} — Дата</span>
                         <input type="text" name="payments_date_{{ i }}" value="{{ payment.date }}" placeholder="ДД.ММ.ГГГГ">
                     </label>
                     <label>
                         <span class="sidebar-label">Сумма</span>
-                        <input type="text" name="payments_amount_{{ i }}" value="{{ payment.amount }}" placeholder="Сумма">
+                        <input type="text" name="payments_amount_{{ i }}" value="{{ payment.amount }}" placeholder="Сумма" class="money-format">
                     </label>
-                    {% endfor %}
+                </div>
+                {% endfor %}
+                </div>
+                <div style="margin-top: 0.5rem;">
+                    <button type="button" id="add-payment-btn" class="ghost-button" style="display:none;">+ Добавить платёж</button>
                 </div>
 
                 <h3 class="section-heading">Пункт 8.1 — Рабочая группа / Соцсети</h3>
@@ -173,4 +182,77 @@
         </section>
     </div>
 </main>
+
+<script>
+(function() {
+    function formatMoney(val) {
+        var s = String(val).replace(/[^\d]/g, '');
+        if (!s) return '';
+        return s.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function stripMoney(val) {
+        return String(val).replace(/\./g, '').replace(/[^\d]/g, '');
+    }
+
+    function onInput(e) {
+        var raw = stripMoney(e.target.value);
+        var cursor = e.target.selectionStart;
+        var before = e.target.value.substring(0, cursor).replace(/\./g, '');
+        e.target.value = formatMoney(raw);
+        var newBefore = e.target.value.substring(0, cursor).replace(/\./g, '').length;
+        var dotsBefore = 0;
+        for (var c = 0; c < e.target.value.length && dotsBefore < newBefore; c++) {
+            if (e.target.value[c] === '.') dotsBefore++;
+            newBefore = c + 1;
+        }
+        try { e.target.setSelectionRange(newBefore, newBefore); } catch(ex) {}
+    }
+
+    var moneyFields = document.querySelectorAll('.money-format');
+    moneyFields.forEach(function(f) {
+        f.value = formatMoney(stripMoney(f.value));
+        f.addEventListener('input', onInput);
+        f.addEventListener('blur', function() { this.value = formatMoney(stripMoney(this.value)); });
+        f.addEventListener('focus', function() { this.value = stripMoney(this.value); });
+    });
+
+    var form = document.querySelector('form[action$="/contract-settings"]');
+    if (form) {
+        form.addEventListener('submit', function() {
+            moneyFields.forEach(function(f) {
+                f.value = stripMoney(f.value);
+            });
+        });
+    }
+
+    function updateAddButton() {
+        var rows = document.querySelectorAll('.payment-row');
+        var lastVisible = 0;
+        rows.forEach(function(r) { if (r.style.display !== 'none') lastVisible = parseInt(r.getAttribute('data-row')); });
+        var btn = document.getElementById('add-payment-btn');
+        if (lastVisible >= 7) {
+            btn.style.display = 'none';
+        } else {
+            btn.style.display = '';
+        }
+    }
+
+    var addBtn = document.getElementById('add-payment-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            var rows = document.querySelectorAll('.payment-row');
+            for (var i = 0; i < rows.length; i++) {
+                if (rows[i].style.display === 'none') {
+                    rows[i].style.display = '';
+                    break;
+                }
+            }
+            updateAddButton();
+        });
+    }
+
+    updateAddButton();
+})();
+</script>
 {% endblock %}

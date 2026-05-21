@@ -183,6 +183,51 @@ class ContractSettingsTemplateTests(unittest.TestCase):
         self.assertIn('name="payments_date_{{ i }}"', content)
         self.assertIn('name="payments_amount_{{ i }}"', content)
 
+    def test_contract_settings_template_has_add_payment_button(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn('id="add-payment-btn"', content)
+        self.assertIn("Добавить платёж", content)
+
+    def test_contract_settings_template_has_seven_payment_rows(self):
+        content = self.template.read_text(encoding="utf-8")
+        for i in range(1, 8):
+            self.assertIn(f'name="payments_date_{{{{ i }}}}"', content, f"Missing date field for row {i} in Jinja loop")
+            self.assertIn(f'name="payments_amount_{{{{ i }}}}"', content, f"Missing amount field for row {i} in Jinja loop")
+        self.assertIn("data-row=", content)
+
+    def test_contract_settings_template_has_money_format_class(self):
+        content = self.template.read_text(encoding="utf-8")
+        summary_count = content.count('class="money-format"')
+        self.assertGreaterEqual(summary_count, 2, "Should have money-format on advance_amount and final_payment_amount")
+        payment_money = content.count('class="money-format"') - summary_count
+        total_classes = content.count("money-format")
+        self.assertGreaterEqual(total_classes, 2, "Should have at least 2 money-format classes")
+
+    def test_contract_settings_template_has_money_formatting_js(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn("formatMoney", content)
+        self.assertIn("stripMoney", content)
+        self.assertIn("replace(/\\./g", content)
+
+    def test_contract_settings_template_has_submit_cleanup(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn("stripMoney", content)
+        submit_block_found = False
+        idx = content.find("form.addEventListener('submit'")
+        if idx > 0:
+            section = content[idx:idx + 500]
+            submit_block_found = "stripMoney" in section
+        self.assertTrue(submit_block_found, "Submit handler should strip money formatting")
+
+    def test_contract_settings_template_has_collapsed_payment_rows(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn('payment-row', content)
+        self.assertIn("display:none", content)
+
+    def test_contract_settings_template_has_money_hint(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn("Можно вводить 1000000", content)
+
     def test_contract_settings_template_shows_project_data(self):
         content = self.template.read_text(encoding="utf-8")
         self.assertIn("project.project_name", content)
