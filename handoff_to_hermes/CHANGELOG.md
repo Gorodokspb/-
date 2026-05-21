@@ -1,5 +1,25 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-21 Stage 8.9.2b — Improve contract payment UX
+- Платёжные строки: collapsible — показаны заполненные + минимум 2, остальные скрыты через `style="display:none"`.
+- Кнопка «+ Добавить платёж» показывает следующую скрытую строку (максимум 7 платежей).
+- Форматирование сумм через точки-разделители: 1000000 → 1.000.000 (`formatMoney`/`stripMoney` в inline JS).
+- `focus` показывает raw число, `blur` форматирует, `submit` очищает разделители.
+- Jinja `{% for i in range(1,8) %}` с `data-row` атрибутом для управления видимостью.
+- 29 тестов, все зелёные. Live-проверка пользователем пройдена.
+- Коммит: `6e41294`.
+
+## 2026-05-21 Stage 8.9.2 — Contract settings page and draft contract document
+- `/projects/{project_id}/contract` — страница настроек договора (GET отображает, POST сохраняет).
+- `contract_settings_json` сохраняется в `projects.contract_settings_json` (существующая TEXT-колонка, JSON blob, совместима с desktop CRM.py).
+- Document record создаётся/обновляется: `doc_type='Договор'`, `status='Черновик'`, `project_id` привязан.
+- `fetch_contract_settings()`, `save_contract_settings()`, `create_or_update_contract_document()`, `get_project_estimate_total()` в `webapp/db.py`.
+- `get_project_estimate_total()` — сумма `estimate_items.discounted_total` первой сметы проекта; возвращает `"0"` если сметы нет.
+- Ссылка «Настройки договора» в `project_detail.html` (progress card + documents section).
+- Шаблон `contract_settings.html`: данные проекта, данные контрагента, платёжные строки, inline JS.
+- 22 теста (10 DB + 12 template/route), все зелёные.
+- Коммит: `0ad9dd4`.
+
 ## 2026-05-21 Stage 8.9.1b — Counterparty list/detail/edit pages
 - `/counterparties` — список контрагентов (ID, тип, имя, телефон, email, ИНН, действия).
 - `/counterparties/{id}` — карточка контрагента со всеми 28 полями (основное, паспорт, реквизиты ООО/ИП, банк, директор/представитель, заметки).

@@ -126,15 +126,37 @@
 - Live-проверка пройдена.
 - Коммит: `70b22b7`.
 
-## Stage 8.9.2 — следующий логичный этап: договор как проектный документ
+## Stage 8.9.2: Contract settings page and draft contract document ✅ ЗАКРЫТ
 
-### Планируемые подэтапы 8.9.2
-1. **8.9.2a** — Модель договора: `contracts` table или `documents.doc_type='Договор'` с метаданными (номер, дата, контрагент, сумма, статус).
-2. **8.9.2b** — Генерация договора из проекта: заполнение плейсхолдеров из данных контрагента + проекта.
-3. **8.9.2c** — UI: кнопка «Сформировать договор» на карточке проекта, список договоров в проекте.
+### 8.9.2 ✅ Contract settings page + draft document (выполнено)
+- `/projects/{project_id}/contract` — GET отображает настройки, POST сохраняет.
+- `contract_settings_json` в `projects` (TEXT, JSON blob) — без новой миграции.
+- Document record `doc_type='Договор'`, `status='Черновик'`, `project_id` привязан.
+- `fetch_contract_settings()`, `save_contract_settings()`, `create_or_update_contract_document()`, `get_project_estimate_total()` в `webapp/db.py`.
+- Ссылка «Настройки договора» в `project_detail.html`.
+- 22 теста (10 DB + 12 template/route).
+- Коммит: `0ad9dd4`.
 
-### Ограничения (что НЕ делалось в 8.9.1)
-- DOCX/PDF генерация договора — не реализована.
+### 8.9.2b ✅ Improve contract payment UX (выполнено)
+- Платёжные строки: collapsible (заполненные + минимум 2, остальные скрыты).
+- Кнопка «+ Добавить платёж» (максимум 7 платежей).
+- Форматирование сумм через точки: `formatMoney`/`stripMoney` в inline JS.
+- `focus` → raw, `blur` → formatted, `submit` → strip separators.
+- 29 тестов, все зелёные. Live-проверка пройдена.
+- Коммит: `6e41294`.
+
+DOCX/PDF generation не делалась в Stage 8.9.2/8.9.2b; перед Stage 8.9.3 нужна отдельная диагностика и отдельное подтверждение пользователя.
+
+## Stage 8.9.3 — следующий логический этап: диагностика генерации договора из template
+
+### Планируемое содержание 8.9.3
+1. Диагностика `contract_template_physical.docx` — структура, 19 `[[PLACEHOLDER]]` полей, совместимость с python-docx.
+2. Реализация `build_contract_replacements()` — маппинг project + counterparty + estimate данных → placeholder values.
+3. Генерация DOCX из шаблона с заполненными плейсхолдерами.
+4. Скачивание DOCX и/или конвертация в PDF.
+
+### Ограничения (подтверждённые)
+- DOCX/PDF generation не делалась в 8.9.2/8.9.2b; перед 8.9.3 нужна отдельная диагностика и подтверждение пользователя.
 - Акты и приложения — не делались.
 - Смеси, финансы, legacy routes — не затронуты.
 - Mobile/adaptive layout — отложено.

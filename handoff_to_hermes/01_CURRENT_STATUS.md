@@ -7,6 +7,9 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+6e41294 Stage 8.9.2b: improve contract payment inputs
+0ad9dd4 Stage 8.9.2: add project contract settings page and draft contract document
+56153b9 Document Stage 8.9.1 counterparty pages completion
 70b22b7 Stage 8.9.1b: counterparty list/detail/edit pages, updated_at migration, route tests
 7e590dd Stage 8.9.1a: extend counterparty creation fields for contracts
 9069b9d Fix standalone estimate final PDF route tests
@@ -174,7 +177,33 @@ Stage 8.8.1 fix hardcoded finance metrics прошёл live-проверку.
 
 Данные контрагента для генерации договора теперь доступны через web: ФИО, паспорт, адрес, реквизиты, банк, директор.
 
-**Ограничения:** генерация договора (DOCX/PDF) не реализована; акты и приложения не делались.
+### Stage 8.9.2: Contract settings page and draft contract document (закрыт)
+
+- `/projects/{project_id}/contract` — страница настроек договора (GET отображает, POST сохраняет).
+- `contract_settings_json` сохраняется в `projects.contract_settings_json` (существующая TEXT-колонка, JSON blob).
+- Document record создаётся/обновляется: `doc_type='Договор'`, `status='Черновик'`, `project_id` привязан.
+- `fetch_contract_settings()`, `save_contract_settings()`, `create_or_update_contract_document()`, `get_project_estimate_total()` в `webapp/db.py`.
+- Ссылка «Настройки договора» в `project_detail.html` (progress card + documents section).
+- 22 теста (10 DB + 12 template/route), все зелёные.
+- Коммит: `0ad9dd4`.
+
+### Stage 8.9.2b: Improve contract payment UX (закрыт)
+
+- Платёжные строки: collapsible rows (показаны заполненные + минимум 2, остальные скрыты).
+- Кнопка «+ Добавить платёж» показывает следующую скрытую строку (максимум 7 платежей).
+- Форматирование сумм через точки: 1000000 → 1.000.000 (`formatMoney`/`stripMoney` в inline JS).
+- `focus` показывает raw число, `blur` форматирует, `submit` очищает разделители.
+- 29 тестов, все зелёные.
+- Live-проверка пользователем пройдена: всё работает.
+- Коммит: `6e41294`.
+
+### Stage 8.9.2 — итог (статус: закрыт)
+| Подэтап | Статус | Коммит |
+|---------|--------|--------|
+| 8.9.2 | ✅ Contract settings page + draft document | `0ad9dd4` |
+| 8.9.2b | ✅ Payment UX (collapsible, formatting) | `6e41294` |
+
+DOCX/PDF generation не делалась в Stage 8.9.2/8.9.2b; перед Stage 8.9.3 нужна отдельная диагностика и отдельное подтверждение пользователя.
 
 Test suite fixes: test_estimate_repository.py 13/13, test_standalone_estimate_routes.py 27/27.
 
