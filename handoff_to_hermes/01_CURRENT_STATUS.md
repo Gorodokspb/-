@@ -7,6 +7,8 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+70b22b7 Stage 8.9.1b: counterparty list/detail/edit pages, updated_at migration, route tests
+7e590dd Stage 8.9.1a: extend counterparty creation fields for contracts
 9069b9d Fix standalone estimate final PDF route tests
 f5beac7 Stage 8.8.1: show real finance totals in project cards
 4be399d Stage 8.7: carry estimate customer and final PDF into project
@@ -22,7 +24,7 @@ cb5b9b7 Stage 8.5.4c: fix standalone draft estimate number generation
 a9d24b0 Stage 8.5.4: fix excel import cleanup and PDF wrapping
 8c6f2a7 Stage 8.5.4 add Excel import button to estimate editor
 465aae8 Stage 8.5.3 fix import_excel.html template block name
-e28872b Stage 8.5.2 excel import preview/apply routes
+e28872b Stage 8.5.2 excel estimate import preview/apply routes
 0586e6e Stage 8.5.1b adapt parser to real estimate format
 55293ce Stage 8.5.1 excel estimate parser module
 ```
@@ -145,6 +147,34 @@ Stage 8.8 live-проверка финансов/кассы прошла.
 
 Stage 8.8.1 fix hardcoded finance metrics прошёл live-проверку.
 **Stage 8.8.1 Real finance totals in project cards — закрыт.**
+
+### Stage 8.9.1a: Extended counterparty creation fields (закрыт)
+- `/counterparties/new` теперь принимает 28 полей (было 9): паспорт, адреса, реквизиты, банк, директор.
+- `create_counterparty()` расширен — все 28 полей сохраняются в БД.
+- Live-проверка: «Тест Договор Физлицо» (id=3), все расширенные поля сохранены.
+- Коммит: `7e590dd`.
+
+### Stage 8.9.1b: Counterparty list/detail/edit pages (закрыт)
+- `/counterparties` — список контрагентов (ID, тип, имя, телефон, email, ИНН, действия).
+- `/counterparties/{id}` — карточка со всеми 28 полями.
+- `/counterparties/{id}/edit` — форма редактирования всех 28 полей.
+- `fetch_counterparty()`, `update_counterparty(**fields)` в db.py.
+- `ensure_counterparties_updated_at()` — миграция `updated_at TEXT DEFAULT ''`.
+- Ссылка «Контрагенты» в topbar. POST редиректит на detail.
+- 404 для несуществующего контрагента.
+- 34 теста (16 template/route + 18 DB), все зелёные.
+- Live-проверка пройдена.
+- Коммит: `70b22b7`.
+
+### Stage 8.9.1 — итог (статус: закрыт)
+| Подэтап | Статус | Коммит |
+|---------|--------|--------|
+| 8.9.1a | ✅ Extended creation fields | `7e590dd` |
+| 8.9.1b | ✅ List/detail/edit pages | `70b22b7` |
+
+Данные контрагента для генерации договора теперь доступны через web: ФИО, паспорт, адрес, реквизиты, банк, директор.
+
+**Ограничения:** генерация договора (DOCX/PDF) не реализована; акты и приложения не делались.
 
 Test suite fixes: test_estimate_repository.py 13/13, test_standalone_estimate_routes.py 27/27.
 

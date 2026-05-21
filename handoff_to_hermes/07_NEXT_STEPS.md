@@ -105,6 +105,40 @@
 - Live-проверка: проект 11 показывает реальные суммы.
 - Коммит: `f5beac7`.
 
+## Stage 8.9.1: Counterparty CRUD pages ✅ ЗАКРЫТ
+
+### 8.9.1a ✅ Extended counterparty creation fields (выполнено)
+- `/counterparties/new` принимает 28 полей (паспорт, адреса, реквизиты, банк, директор).
+- `create_counterparty()` в `webapp/db.py` — все 28 полей сохраняются.
+- Live-проверка: «Тест Договор Физлицо» (id=3), расширенные поля сохранены корректно.
+- Коммит: `7e590dd`.
+
+### 8.9.1b ✅ Counterparty list/detail/edit pages (выполнено)
+- `/counterparties` — список контрагентов с ID, тип, имя, телефон, email, ИНН.
+- `/counterparties/{id}` — карточка контрагента (все 28 полей: основное, паспорт, реквизиты, банк, директор).
+- `/counterparties/{id}/edit` — форма редактирования всех 28 полей (GET pre-fill, POST update).
+- `fetch_counterparty()`, `update_counterparty(**fields)` добавлены в `webapp/db.py`.
+- `ensure_counterparties_updated_at()` — миграция `updated_at TEXT DEFAULT ''` в `counterparties`.
+- Ссылка «Контрагенты» в topbar `projects.html`.
+- POST создания редиректит на `/counterparties/{id}`.
+- 404 для несуществующего контрагента.
+- 34 теста (16 template/route + 18 DB), все зелёные.
+- Live-проверка пройдена.
+- Коммит: `70b22b7`.
+
+## Stage 8.9.2 — следующий логичный этап: договор как проектный документ
+
+### Планируемые подэтапы 8.9.2
+1. **8.9.2a** — Модель договора: `contracts` table или `documents.doc_type='Договор'` с метаданными (номер, дата, контрагент, сумма, статус).
+2. **8.9.2b** — Генерация договора из проекта: заполнение плейсхолдеров из данных контрагента + проекта.
+3. **8.9.2c** — UI: кнопка «Сформировать договор» на карточке проекта, список договоров в проекте.
+
+### Ограничения (что НЕ делалось в 8.9.1)
+- DOCX/PDF генерация договора — не реализована.
+- Акты и приложения — не делались.
+- Смеси, финансы, legacy routes — не затронуты.
+- Mobile/adaptive layout — отложено.
+
 ## Test suite fixes ✅ ЗАКРЫТЫ
 - `test_estimate_repository.py`: 13/13 pass.
 - `test_standalone_estimate_routes.py`: 27/27 pass.

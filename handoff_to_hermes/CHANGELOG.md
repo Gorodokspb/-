@@ -1,5 +1,25 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-21 Stage 8.9.1b — Counterparty list/detail/edit pages
+- `/counterparties` — список контрагентов (ID, тип, имя, телефон, email, ИНН, действия).
+- `/counterparties/{id}` — карточка контрагента со всеми 28 полями (основное, паспорт, реквизиты ООО/ИП, банк, директор/представитель, заметки).
+- `/counterparties/{id}/edit` — форма редактирования 28 полей (GET pre-fill из БД, POST обновление с редиректом на карточку).
+- `fetch_counterparty()`, `update_counterparty(**fields)` добавлены в `webapp/db.py`.
+- `ensure_counterparties_updated_at()` — миграция `ALTER TABLE counterparties ADD COLUMN updated_at TEXT DEFAULT ''`.
+- Ссылка «Контрагенты» в topbar `projects.html`.
+- POST `/counterparties/new` редиректит на `/counterparties/{cp_id}` вместо `/projects?created=counterparty`.
+- 404 для несуществующего контрагента (detail и edit).
+- 34 теста (16 template/route + 18 DB), все зелёные.
+- Live-проверка пройдена: список, карточка, редактирование — все работают.
+- Коммит: `70b22b7`.
+
+## 2026-05-21 Stage 8.9.1a — Extended counterparty creation fields for contracts
+- `/counterparties/new` расширен с 9 до 28 полей: паспорт (серия/номер, кем выдан, код подразделения, дата рождения), адреса (регистрации, работ, юридический, почтовый, фактический), реквизиты (КПП, ОГРН, ОГРНИП), банк (наименование, БИК, расчётный счёт, корр. счёт), директор (ФИО, основание).
+- `create_counterparty()` в `webapp/db.py` принимает все 28 полей.
+- 8 DB-level тестов в `tests/test_counterparty_web.py`.
+- Live-проверка: «Тест Договор Физлицо» (id=3), все расширенные поля сохранены.
+- Коммит: `7e590dd`.
+
 ## 2026-05-20 Stage 8.8.1 — Fix hardcoded finance totals in project detail
 - Верхние метрики и карточки баланса в `project_detail.html` теперь используют `project_finance_summary.income_label/expense_label/balance_label` вместо «0 руб.».
 - Коммит: `f5beac7`.
