@@ -66,6 +66,7 @@
                 <span class="project-progress-step">3. Договор</span>
                 <strong>{% if project.contract %}{{ project.contract }}{% else %}Не хватает данных{% endif %}</strong>
                 <p>{% if project.contract %}Договор и дата уже сохранены в карточке проекта.{% else %}Укажите номер и дату договора, чтобы проект был оформлен полностью.{% endif %}</p>
+                <div style="margin-top: 0.5rem;"><a class="primary-button" href="/projects/{{ project.id }}/contract" style="font-size: 0.85rem; padding: 0.3rem 0.7rem;">Настройки договора</a></div>
             </article>
         </section>
 
@@ -143,6 +144,7 @@
                     {% endif %}
                     <div class="panel-inline-actions">
                         <a class="classic-success-button" href="/projects/{{ project.id }}/estimate">Открыть смету</a>
+                        <a class="classic-secondary-button" href="/projects/{{ project.id }}/contract">Договор</a>
                         <a class="classic-secondary-button" href="#project-edit-card">Добавить данные</a>
                     </div>
                 </div>

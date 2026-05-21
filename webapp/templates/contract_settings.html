@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Подготовка договора — {{ project.project_name }} | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="dashboard-shell dashboard-shell-v2">
+    <div class="workspace-frame">
+        <header class="topbar-card topbar-card-projects">
+            <div class="topbar-brand">
+                <span class="eyebrow">Dekorartstroy CRM</span>
+                <strong>Подготовка договора</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <a class="topbar-chip topbar-chip-link" href="/projects">Главная CRM</a>
+                <a class="topbar-chip topbar-chip-link" href="/projects/{{ project.id }}">Проект</a>
+            </div>
+
+            <div class="topbar-userbox topbar-userbox-compact">
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        {% if saved %}
+        <div class="notice-banner notice-banner-success">Настройки договора сохранены. Черновик документа договора создан/обновлён.</div>
+        {% endif %}
+
+        <section class="panel-card panel-card-wide">
+            <div class="panel-header panel-header-compact">
+                <div>
+                    <div class="eyebrow">Проект: {{ project.project_name }}</div>
+                    <h2>Данные для договора</h2>
+                </div>
+            </div>
+
+            <h3 class="section-heading">Данные проекта</h3>
+            <div class="detail-form-grid">
+                <div><span class="sidebar-label">Договор</span> <span>{{ project.contract or "—" }}</span></div>
+                <div><span class="sidebar-label">Дата договора</span> <span>{{ project.contract_date or "—" }}</span></div>
+                <div><span class="sidebar-label">Объект</span> <span>{{ project.project_name }}</span></div>
+                <div><span class="sidebar-label">Заказчик</span> <span>{{ project.customer or "—" }}</span></div>
+                <div><span class="sidebar-label">Сумма сметы</span> <span>{{ estimate_total }}</span></div>
+            </div>
+
+            {% if counterparty %}
+            <h3 class="section-heading">Данные контрагента</h3>
+            <div class="detail-form-grid">
+                <div><span class="sidebar-label">Тип</span> <span>{{ counterparty.type or "—" }}</span></div>
+                <div><span class="sidebar-label">ФИО / Название</span> <span>{{ counterparty.display_name }}</span></div>
+                {% if counterparty.type == "Физлицо" %}
+                <div><span class="sidebar-label">Паспорт</span> <span>{{ counterparty.passport_series_number or "—" }}</span></div>
+                <div><span class="sidebar-label">Кем выдан</span> <span>{{ counterparty.passport_issued_by or "—" }}</span></div>
+                <div><span class="sidebar-label">Код подразделения</span> <span>{{ counterparty.passport_department_code or "—" }}</span></div>
+                <div><span class="sidebar-label">Дата рождения</span> <span>{{ counterparty.birth_date or "—" }}</span></div>
+                <div><span class="sidebar-label">Адрес регистрации</span> <span>{{ counterparty.registration_address or "—" }}</span></div>
+                <div><span class="sidebar-label">Адрес работ</span> <span>{{ counterparty.work_address or "—" }}</span></div>
+                {% elif counterparty.type == "ООО" %}
+                <div><span class="sidebar-label">ИНН</span> <span>{{ counterparty.inn or "—" }}</span></div>
+                <div><span class="sidebar-label">КПП</span> <span>{{ counterparty.kpp or "—" }}</span></div>
+                <div><span class="sidebar-label">ОГРН</span> <span>{{ counterparty.ogrn or "—" }}</span></div>
+                <div><span class="sidebar-label">Юридический адрес</span> <span>{{ counterparty.legal_address or "—" }}</span></div>
+                {% elif counterparty.type == "ИП" %}
+                <div><span class="sidebar-label">ИНН</span> <span>{{ counterparty.inn or "—" }}</span></div>
+                <div><span class="sidebar-label">ОГРНИП</span> <span>{{ counterparty.ogrnip or "—" }}</span></div>
+                <div><span class="sidebar-label">Юридический адрес</span> <span>{{ counterparty.legal_address or "—" }}</span></div>
+                {% endif %}
+                <div><span class="sidebar-label">Телефон</span> <span>{{ counterparty.phone or "—" }}</span></div>
+                <div><span class="sidebar-label">Email</span> <span>{{ counterparty.email or "—" }}</span></div>
+                {% if counterparty.type in ["ООО", "ИП"] %}
+                <div><span class="sidebar-label">Наименование банка</span> <span>{{ counterparty.bank_name or "—" }}</span></div>
+                <div><span class="sidebar-label">БИК</span> <span>{{ counterparty.bank_bik or "—" }}</span></div>
+                <div><span class="sidebar-label">Расчётный счёт</span> <span>{{ counterparty.checking_account or "—" }}</span></div>
+                <div><span class="sidebar-label">Корр. счёт</span> <span>{{ counterparty.correspondent_account or "—" }}</span></div>
+                {% endif %}
+                <div><span class="sidebar-label">Руководитель</span> <span>{{ counterparty.director_name or "—" }}</span></div>
+                <div><span class="sidebar-label">Действует на основании</span> <span>{{ counterparty.director_basis or "—" }}</span></div>
+            </div>
+            {% else %}
+            <div class="error-box">Контрагент не привязан к проекту. Привяжите контрагента в карточке проекта, чтобы данные автоматически подставились в договор.</div>
+            {% endif %}
+
+            <form class="detail-form" method="post" action="/projects/{{ project.id }}/contract-settings">
+
+                <h3 class="section-heading">Настройки договора</h3>
+                <div class="detail-form-grid">
+                    <label>
+                        <span class="sidebar-label">Дата окончания работ</span>
+                        <input type="text" name="work_end_date" value="{{ contract_settings.work_end_date }}" placeholder="ДД.ММ.ГГГГ">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Авансовый платёж</span>
+                        <input type="text" name="advance_amount" value="{{ contract_settings.advance_amount }}" placeholder="Сумма аванса">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Окончательный расчёт</span>
+                        <input type="text" name="final_payment_amount" value="{{ contract_settings.final_payment_amount }}" placeholder="Оставить пустым для автоподсчёта">
+                    </label>
+                </div>
+
+                <h3 class="section-heading">График промежуточных платежей</h3>
+                <div class="detail-form-grid">
+                    {% for i in range(1, 8) %}
+                    {% set payment = contract_settings.payments[i - 1] if contract_settings.payments and i <= contract_settings.payments|length else {"date": "", "amount": ""} %}
+                    <label>
+                        <span class="sidebar-label">Платёж {{ i }} — Дата</span>
+                        <input type="text" name="payments_date_{{ i }}" value="{{ payment.date }}" placeholder="ДД.ММ.ГГГГ">
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Сумма</span>
+                        <input type="text" name="payments_amount_{{ i }}" value="{{ payment.amount }}" placeholder="Сумма">
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <h3 class="section-heading">Пункт 8.1 — Рабочая группа / Соцсети</h3>
+                <div class="detail-form-grid">
+                    <label class="detail-form-span-2">
+                        <span class="sidebar-label">Рабочая группа (WhatsApp / Telegram / ссылка)</span>
+                        <textarea name="working_group_text" rows="3" placeholder="Рабочая группа WhatsApp - https://chat.whatsapp.com/...">{{ contract_settings.working_group_text }}</textarea>
+                    </label>
+                </div>
+
+                <h3 class="section-heading">Параметры договора</h3>
+                <div class="detail-form-grid">
+                    <label>
+                        <span class="sidebar-label">Материалы</span>
+                        <select name="materials_mode">
+                            <option value="customer" {% if contract_settings.materials_mode == "customer" %}selected{% endif %}>Заказчик</option>
+                            <option value="contractor" {% if contract_settings.materials_mode == "contractor" %}selected{% endif %}>Подрядчик</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Исполнитель</span>
+                        <select name="contractor_mode">
+                            <option value="ooo" {% if contract_settings.contractor_mode == "ooo" %}selected{% endif %}>ООО Декорартстрой</option>
+                            <option value="ip" {% if contract_settings.contractor_mode == "ip" %}selected{% endif %}>ИП Гордеев А.Н.</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span class="sidebar-label">Род заказчика</span>
+                        <select name="customer_gender">
+                            <option value="auto" {% if contract_settings.customer_gender == "auto" %}selected{% endif %}>Авто</option>
+                            <option value="male" {% if contract_settings.customer_gender == "male" %}selected{% endif %}>Мужской</option>
+                            <option value="female" {% if contract_settings.customer_gender == "female" %}selected{% endif %}>Женский</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="detail-form-footer">
+                    <div class="form-actions-inline">
+                        <a class="ghost-button-light" href="/projects/{{ project.id }}">Отмена</a>
+                        <button type="submit" class="primary-button">Сохранить настройки договора</button>
+                    </div>
+                </div>
+            </form>
+
+            <h3 class="section-heading">Документ договора</h3>
+            <div class="detail-form-grid">
+                {% if contract_document %}
+                <div><span class="sidebar-label">ID документа</span> <span>{{ contract_document.id }}</span></div>
+                <div><span class="sidebar-label">Тип</span> <span>{{ contract_document.doc_type }}</span></div>
+                <div><span class="sidebar-label">Статус</span> <span>{{ contract_document.status }}</span></div>
+                {% else %}
+                <p class="panel-note">Документ договора будет создан как черновик при первом сохранении настроек.</p>
+                {% endif %}
+            </div>
+        </section>
+    </div>
+</main>
+{% endblock %}

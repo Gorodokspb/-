@@ -1561,6 +1561,95 @@ def ensure_counterparties_updated_at() -> None:
         conn.commit()
 
 
+def fetch_contract_settings(project_id: int) -> dict:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT contract_settings_json FROM projects WHERE id = %s",
+                (project_id,),
+            )
+            row = cur.fetchone()
+    if not row:
+        return {}
+    raw = row.get("contract_settings_json") or ""
+    raw = str(raw).strip()
+    if not raw:
+        return {}
+    try:
+        result = json.loads(raw)
+        return result if isinstance(result, dict) else {}
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+def save_contract_settings(project_id: int, settings: dict) -> None:
+    raw = json.dumps(settings, ensure_ascii=False)
+    now = _now_iso()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE projects SET contract_settings_json = %s, updated_at = %s WHERE id = %s",
+                (raw, now, project_id),
+            )
+        conn.commit()
+
+
+def create_or_update_contract_document(project_id: int) -> dict:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM documents WHERE project_id = %s AND doc_type = 'Договор'",
+                (project_id,),
+            )
+            existing = cur.fetchone()
+            now = _now_iso()
+            if existing:
+                doc_id = existing["id"]
+                cur.execute(
+                    "UPDATE documents SET updated_at = %s WHERE id = %s",
+                    (now, doc_id),
+                )
+            else:
+                cur.execute(
+                    """INSERT INTO documents (project_id, doc_type, title, status, created_at, updated_at)
+                       VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (project_id, "Договор", "Договор", "Черновик", now, now),
+                )
+                doc_id = cur.fetchone()["id"]
+        conn.commit()
+    return {"id": doc_id, "project_id": project_id, "doc_type": "Договор", "title": "Договор", "status": "Черновик"}
+
+
+def get_project_estimate_total(project_id: int) -> str:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM estimates WHERE project_id = %s ORDER BY id LIMIT 1",
+                (project_id,),
+            )
+            est_row = cur.fetchone()
+            if not est_row:
+                return "0"
+            estimate_id = est_row["id"]
+            cur.execute(
+                "SELECT COALESCE(SUM(discounted_total), 0) AS total FROM estimate_items WHERE estimate_id = %s",
+                (estimate_id,),
+            )
+            total_row = cur.fetchone()
+            if not total_row:
+                return "0"
+            total = total_row["total"]
+            if total == 0:
+                cur.execute(
+                    "SELECT COALESCE(SUM(total), 0) AS total FROM estimate_items WHERE estimate_id = %s",
+                    (estimate_id,),
+                )
+                fallback = cur.fetchone()
+                if fallback:
+                    total = fallback["total"]
+    return str(total)
+
+
 def ensure_catalog_items_table() -> None:
     from import_catalog_items import ensure_catalog_items_table as _ensure
 

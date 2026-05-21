@@ -51,6 +51,10 @@ from webapp.db import (
     summarize_transactions,
     update_project_card,
     update_web_user_password,
+    fetch_contract_settings,
+    save_contract_settings,
+    create_or_update_contract_document,
+    get_project_estimate_total,
 )
 from webapp.estimate_pdf import generate_estimate_pdf
 from webapp.standalone_estimate_api import (
@@ -1085,6 +1089,100 @@ def counterparty_edit_submit(
     )
     return RedirectResponse(
         url=f"/counterparties/{counterparty_id}",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@app.get("/projects/{project_id}/contract")
+def contract_settings_page(project_id: int, request: Request):
+    require_auth(request)
+    project = fetch_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+    counterparty = None
+    if project.get("counterparty_id"):
+        counterparty = fetch_counterparty(int(project["counterparty_id"]))
+    settings = fetch_contract_settings(project_id)
+    estimate_total = get_project_estimate_total(project_id)
+    contract_docs = [d for d in fetch_project_documents(project_id) if d.get("doc_type") == "Договор"]
+    contract_document = contract_docs[0] if contract_docs else None
+    settings.setdefault("work_end_date", "")
+    settings.setdefault("advance_amount", "")
+    settings.setdefault("final_payment_amount", "")
+    settings.setdefault("payments", [{"date": "", "amount": ""}, {"date": "", "amount": ""}])
+    settings.setdefault("working_group_text", "")
+    settings.setdefault("materials_mode", "customer")
+    settings.setdefault("contractor_mode", "ooo")
+    settings.setdefault("customer_gender", "auto")
+    settings.setdefault("intro_override", "")
+    settings.setdefault("payments_override", "")
+    settings.setdefault("communications_override", "")
+    return templates.TemplateResponse(
+        request=request,
+        name="contract_settings.html",
+        context={
+            **common_template_context(request, "projects"),
+            "project": project,
+            "counterparty": counterparty,
+            "contract_settings": settings,
+            "estimate_total": estimate_total,
+            "contract_document": contract_document,
+            "saved": request.query_params.get("created") == "contract-settings",
+        },
+    )
+
+
+@app.post("/projects/{project_id}/contract-settings")
+def contract_settings_submit(
+    project_id: int,
+    request: Request,
+    work_end_date: str = Form(""),
+    advance_amount: str = Form(""),
+    final_payment_amount: str = Form(""),
+    working_group_text: str = Form(""),
+    materials_mode: str = Form("customer"),
+    contractor_mode: str = Form("ooo"),
+    customer_gender: str = Form("auto"),
+    payments_date_1: str = Form(""),
+    payments_amount_1: str = Form(""),
+    payments_date_2: str = Form(""),
+    payments_amount_2: str = Form(""),
+    payments_date_3: str = Form(""),
+    payments_amount_3: str = Form(""),
+    payments_date_4: str = Form(""),
+    payments_amount_4: str = Form(""),
+    payments_date_5: str = Form(""),
+    payments_amount_5: str = Form(""),
+    payments_date_6: str = Form(""),
+    payments_amount_6: str = Form(""),
+    payments_date_7: str = Form(""),
+    payments_amount_7: str = Form(""),
+):
+    require_auth(request)
+    project = fetch_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+    payments = []
+    for i in range(1, 8):
+        d = locals().get(f"payments_date_{i}", "").strip()
+        a = locals().get(f"payments_amount_{i}", "").strip()
+        if d or a:
+            payments.append({"date": d, "amount": a})
+    if not payments:
+        payments = [{"date": "", "amount": ""}, {"date": "", "amount": ""}]
+    settings = fetch_contract_settings(project_id)
+    settings["work_end_date"] = (work_end_date or "").strip()
+    settings["advance_amount"] = (advance_amount or "").strip()
+    settings["final_payment_amount"] = (final_payment_amount or "").strip()
+    settings["working_group_text"] = (working_group_text or "").strip()
+    settings["materials_mode"] = (materials_mode or "customer").strip()
+    settings["contractor_mode"] = (contractor_mode or "ooo").strip()
+    settings["customer_gender"] = (customer_gender or "auto").strip()
+    settings["payments"] = payments
+    save_contract_settings(project_id, settings)
+    create_or_update_contract_document(project_id)
+    return RedirectResponse(
+        url=f"/projects/{project_id}/contract?created=contract-settings",
         status_code=status.HTTP_302_FOUND,
     )
 
