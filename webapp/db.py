@@ -734,6 +734,49 @@ def create_counterparty(
     return int(row["id"])
 
 
+def fetch_counterparty(counterparty_id: int):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM counterparties WHERE id = %s", (counterparty_id,))
+            row = cur.fetchone()
+    if row:
+        row["display_name"] = _counterparty_display_name(row) or "Без названия"
+    return row
+
+
+def update_counterparty(counterparty_id: int, **fields):
+    allowed = {
+        "type", "name", "full_name", "company_name", "phone", "email", "inn",
+        "kpp", "ogrn", "ogrnip",
+        "passport_series_number", "passport_issued_by", "passport_department_code",
+        "registration_address", "work_address", "birth_date",
+        "checking_account", "correspondent_account", "bank_name", "bank_bik",
+        "legal_address", "postal_address", "actual_address",
+        "director_name", "director_basis", "notes",
+    }
+    updates = []
+    values = []
+    for key, value in fields.items():
+        if key in allowed:
+            updates.append(f"{key} = %s")
+            values.append(str(value or "").strip())
+    if not updates:
+        return fetch_counterparty(counterparty_id)
+    values.append(_now_iso())
+    values.append(counterparty_id)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE counterparties SET {', '.join(updates)}, updated_at = %s WHERE id = %s RETURNING *",
+                values,
+            )
+            row = cur.fetchone()
+        conn.commit()
+    if row:
+        row["display_name"] = _counterparty_display_name(row) or "Без названия"
+    return row
+
+
 def create_project(
     username: str,
     *,
@@ -1508,6 +1551,15 @@ def summarize_transactions(transactions: list[dict]) -> dict:
 
 
 # --- Catalog items management -------------------------------------------------
+
+def ensure_counterparties_updated_at() -> None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "ALTER TABLE counterparties ADD COLUMN IF NOT EXISTS updated_at TEXT DEFAULT ''"
+            )
+        conn.commit()
+
 
 def ensure_catalog_items_table() -> None:
     from import_catalog_items import ensure_catalog_items_table as _ensure

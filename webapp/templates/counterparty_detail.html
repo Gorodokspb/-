@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Контрагент {% if counterparty %}{{ counterparty.display_name }}{% endif %} | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="dashboard-shell dashboard-shell-v2">
+    <div class="workspace-frame">
+        <header class="topbar-card topbar-card-projects">
+            <div class="topbar-brand">
+                <span class="eyebrow">Dekorartstroy CRM</span>
+                <strong>Контрагент</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <a class="topbar-chip topbar-chip-link" href="/projects">Главная CRM</a>
+                <a class="topbar-chip topbar-chip-link" href="/counterparties">Контрагенты</a>
+                <a class="topbar-chip topbar-chip-link" href="/counterparties/{{ counterparty.id }}/edit">Редактировать</a>
+            </div>
+
+            <div class="topbar-userbox topbar-userbox-compact">
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        <section class="panel-card panel-card-wide">
+            <div class="panel-header panel-header-compact">
+                <div>
+                    <div class="eyebrow">{{ counterparty.type }} · ID {{ counterparty.id }}</div>
+                    <h2>{{ counterparty.display_name }}</h2>
+                </div>
+            </div>
+
+            <h3 class="section-heading">Основное</h3>
+            <div class="detail-form-grid">
+                <div><span class="sidebar-label">Тип</span> <span>{{ counterparty.type or "—" }}</span></div>
+                <div><span class="sidebar-label">Короткое имя</span> <span>{{ counterparty.name or "—" }}</span></div>
+                <div><span class="sidebar-label">ФИО</span> <span>{{ counterparty.full_name or "—" }}</span></div>
+                <div><span class="sidebar-label">Название компании</span> <span>{{ counterparty.company_name or "—" }}</span></div>
+                <div><span class="sidebar-label">Телефон</span> <span>{{ counterparty.phone or "—" }}</span></div>
+                <div><span class="sidebar-label">Email</span> <span>{{ counterparty.email or "—" }}</span></div>
+                <div><span class="sidebar-label">ИНН</span> <span>{{ counterparty.inn or "—" }}</span></div>
+            </div>
+
+            <h3 class="section-heading">Паспортные данные (физлицо)</h3>
+            <div class="detail-form-grid">
+                <div><span class="sidebar-label">Серия и номер</span> <span>{{ counterparty.passport_series_number or "—" }}</span></div>
+                <div><span class="sidebar-label">Кем выдан</span> <span>{{ counterparty.passport_issued_by or "—" }}</span></div>
+                <div><span class="sidebar-label">Код подразделения</span> <span>{{ counterparty.passport_department_code or "—" }}</span></div>
+                <div><span class="sidebar-label">Дата рождения</span> <span>{{ counterparty.birth_date or "—" }}</span></div>
+                <div><span class="sidebar-label">Адрес регистрации</span> <span>{{ counterparty.registration_address or "—" }}</span></div>
+                <div><span class="sidebar-label">Адрес проведения работ</span> <span>{{ counterparty.work_address or "—" }}</span></div>
+            </div>
+
+            <h3 class="section-heading">Реквизиты (ООО / ИП)</h3>
+            <div class="detail-form-grid">
+                <div><span class="sidebar-label">КПП</span> <span>{{ counterparty.kpp or "—" }}</span></div>
+                <div><span class="sidebar-label">ОГРН</span> <span>{{ counterparty.ogrn or "—" }}</span></div>
+                <div><span class="sidebar-label">ОГРНИП</span> <span>{{ counterparty.ogrnip or "—" }}</span></div>
+                <div><span class="sidebar-label">Юридический адрес</span> <span>{{ counterparty.legal_address or "—" }}</span></div>
+                <div><span class="sidebar-label">Почтовый адрес</span> <span>{{ counterparty.postal_address or "—" }}</span></div>
+                <div><span class="sidebar-label">Фактический адрес</span> <span>{{ counterparty.actual_address or "—" }}</span></div>
+            </div>
+
+            <h3 class="section-heading">Банковские реквизиты</h3>
+            <div class="detail-form-grid">
+                <div><span class="sidebar-label">Наименование банка</span> <span>{{ counterparty.bank_name or "—" }}</span></div>
+                <div><span class="sidebar-label">БИК</span> <span>{{ counterparty.bank_bik or "—" }}</span></div>
+                <div><span class="sidebar-label">Расчётный счёт</span> <span>{{ counterparty.checking_account or "—" }}</span></div>
+                <div><span class="sidebar-label">Корреспондентский счёт</span> <span>{{ counterparty.correspondent_account or "—" }}</span></div>
+            </div>
+
+            <h3 class="section-heading">Представитель</h3>
+            <div class="detail-form-grid">
+                <div><span class="sidebar-label">ФИО руководителя</span> <span>{{ counterparty.director_name or "—" }}</span></div>
+                <div><span class="sidebar-label">Действует на основании</span> <span>{{ counterparty.director_basis or "—" }}</span></div>
+            </div>
+
+            {% if counterparty.notes %}
+            <h3 class="section-heading">Заметки</h3>
+            <div class="detail-form-grid">
+                <div class="detail-form-span-2">{{ counterparty.notes }}</div>
+            </div>
+            {% endif %}
+
+            <div class="detail-form-footer">
+                <div class="form-actions-inline">
+                    <a class="ghost-button-light" href="/counterparties">Назад к списку</a>
+                    <a class="primary-button" href="/counterparties/{{ counterparty.id }}/edit">Редактировать</a>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
+{% endblock %}

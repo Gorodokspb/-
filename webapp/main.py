@@ -22,6 +22,7 @@ from webapp.db import (
     duplicate_catalog_item,
     ensure_transactions_table,
     ensure_catalog_items_table,
+    ensure_counterparties_updated_at,
     migrate_catalog_item_categories,
     fetch_catalog_items,
     fetch_catalog_items_by_names,
@@ -34,6 +35,8 @@ from webapp.db import (
     ensure_web_user,
     ensure_web_users_table,
     fetch_counterparties,
+    fetch_counterparty,
+    update_counterparty,
     fetch_dashboard_finance,
     fetch_price_library,
     fetch_project,
@@ -97,6 +100,7 @@ def startup_web_auth() -> None:
     ensure_auth_bootstrap()
     ensure_transactions_table()
     ensure_catalog_items_table()
+    ensure_counterparties_updated_at()
     migrate_catalog_item_categories()
 
 
@@ -852,7 +856,7 @@ def counterparty_create_submit(
     }
 
     try:
-        create_counterparty(
+        cp_id = create_counterparty(
             request.session.get("username", settings.admin_username),
             counterparty_type=draft["counterparty_type"],
             display_name=draft["display_name"],
@@ -890,7 +894,197 @@ def counterparty_create_submit(
         )
 
     return RedirectResponse(
-        url="/projects?created=counterparty",
+        url=f"/counterparties/{cp_id}",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@app.get("/counterparties")
+def counterparty_list_page(request: Request):
+    require_auth(request)
+    counterparties = fetch_counterparties()
+    return templates.TemplateResponse(
+        request=request,
+        name="counterparties_list.html",
+        context={
+            "counterparties": counterparties,
+            "username": request.session.get("username", settings.admin_username),
+        },
+    )
+
+
+@app.get("/counterparties/{counterparty_id}")
+def counterparty_detail_page(counterparty_id: int, request: Request):
+    require_auth(request)
+    counterparty = fetch_counterparty(counterparty_id)
+    if not counterparty:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Контрагент не найден.")
+    return templates.TemplateResponse(
+        request=request,
+        name="counterparty_detail.html",
+        context={
+            "counterparty": counterparty,
+            "username": request.session.get("username", settings.admin_username),
+        },
+    )
+
+
+@app.get("/counterparties/{counterparty_id}/edit")
+def counterparty_edit_page(counterparty_id: int, request: Request):
+    require_auth(request)
+    counterparty = fetch_counterparty(counterparty_id)
+    if not counterparty:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Контрагент не найден.")
+    form_data = {
+        "counterparty_type": counterparty.get("type", "Физлицо") or "Физлицо",
+        "display_name": counterparty.get("name", ""),
+        "full_name": counterparty.get("full_name", ""),
+        "company_name": counterparty.get("company_name", ""),
+        "phone": counterparty.get("phone", ""),
+        "email": counterparty.get("email", ""),
+        "inn": counterparty.get("inn", ""),
+        "notes": counterparty.get("notes", ""),
+        "kpp": counterparty.get("kpp", ""),
+        "ogrn": counterparty.get("ogrn", ""),
+        "ogrnip": counterparty.get("ogrnip", ""),
+        "passport_series_number": counterparty.get("passport_series_number", ""),
+        "passport_issued_by": counterparty.get("passport_issued_by", ""),
+        "passport_department_code": counterparty.get("passport_department_code", ""),
+        "registration_address": counterparty.get("registration_address", ""),
+        "work_address": counterparty.get("work_address", ""),
+        "birth_date": counterparty.get("birth_date", ""),
+        "checking_account": counterparty.get("checking_account", ""),
+        "correspondent_account": counterparty.get("correspondent_account", ""),
+        "bank_name": counterparty.get("bank_name", ""),
+        "bank_bik": counterparty.get("bank_bik", ""),
+        "legal_address": counterparty.get("legal_address", ""),
+        "postal_address": counterparty.get("postal_address", ""),
+        "actual_address": counterparty.get("actual_address", ""),
+        "director_name": counterparty.get("director_name", ""),
+        "director_basis": counterparty.get("director_basis", ""),
+    }
+    return templates.TemplateResponse(
+        request=request,
+        name="counterparty_edit.html",
+        context={
+            "counterparty": counterparty,
+            "form_data": form_data,
+            "username": request.session.get("username", settings.admin_username),
+        },
+    )
+
+
+@app.post("/counterparties/{counterparty_id}/edit")
+def counterparty_edit_submit(
+    counterparty_id: int,
+    request: Request,
+    counterparty_type: str = Form("Физлицо"),
+    display_name: str = Form(""),
+    full_name: str = Form(""),
+    company_name: str = Form(""),
+    phone: str = Form(""),
+    email: str = Form(""),
+    inn: str = Form(""),
+    notes: str = Form(""),
+    kpp: str = Form(""),
+    ogrn: str = Form(""),
+    ogrnip: str = Form(""),
+    passport_series_number: str = Form(""),
+    passport_issued_by: str = Form(""),
+    passport_department_code: str = Form(""),
+    registration_address: str = Form(""),
+    work_address: str = Form(""),
+    birth_date: str = Form(""),
+    checking_account: str = Form(""),
+    correspondent_account: str = Form(""),
+    bank_name: str = Form(""),
+    bank_bik: str = Form(""),
+    legal_address: str = Form(""),
+    postal_address: str = Form(""),
+    actual_address: str = Form(""),
+    director_name: str = Form(""),
+    director_basis: str = Form(""),
+):
+    require_auth(request)
+    counterparty = fetch_counterparty(counterparty_id)
+    if not counterparty:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Контрагент не найден.")
+    draft = {
+        "counterparty_type": (counterparty_type or "").strip() or "Физлицо",
+        "display_name": (display_name or "").strip(),
+        "full_name": (full_name or "").strip(),
+        "company_name": (company_name or "").strip(),
+        "phone": (phone or "").strip(),
+        "email": (email or "").strip(),
+        "inn": (inn or "").strip(),
+        "notes": notes or "",
+        "kpp": (kpp or "").strip(),
+        "ogrn": (ogrn or "").strip(),
+        "ogrnip": (ogrnip or "").strip(),
+        "passport_series_number": (passport_series_number or "").strip(),
+        "passport_issued_by": (passport_issued_by or "").strip(),
+        "passport_department_code": (passport_department_code or "").strip(),
+        "registration_address": (registration_address or "").strip(),
+        "work_address": (work_address or "").strip(),
+        "birth_date": (birth_date or "").strip(),
+        "checking_account": (checking_account or "").strip(),
+        "correspondent_account": (correspondent_account or "").strip(),
+        "bank_name": (bank_name or "").strip(),
+        "bank_bik": (bank_bik or "").strip(),
+        "legal_address": (legal_address or "").strip(),
+        "postal_address": (postal_address or "").strip(),
+        "actual_address": (actual_address or "").strip(),
+        "director_name": (director_name or "").strip(),
+        "director_basis": (director_basis or "").strip(),
+    }
+    resolved_name = draft["display_name"] or draft["company_name"] or draft["full_name"]
+    if not resolved_name:
+        return templates.TemplateResponse(
+            request=request,
+            name="counterparty_edit.html",
+            context={
+                "counterparty": counterparty,
+                "form_data": draft,
+                "error": "Укажите имя контрагента, ФИО или название компании.",
+                "username": request.session.get("username", settings.admin_username),
+            },
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if draft["counterparty_type"] in {"ООО", "ИП"} and not draft["company_name"]:
+        draft["company_name"] = resolved_name
+    if draft["counterparty_type"] == "Физлицо" and not draft["full_name"]:
+        draft["full_name"] = resolved_name
+    update_counterparty(
+        counterparty_id,
+        type=draft["counterparty_type"],
+        name=resolved_name,
+        full_name=draft["full_name"],
+        company_name=draft["company_name"],
+        phone=draft["phone"],
+        email=draft["email"],
+        inn=draft["inn"],
+        kpp=draft["kpp"],
+        ogrn=draft["ogrn"],
+        ogrnip=draft["ogrnip"],
+        passport_series_number=draft["passport_series_number"],
+        passport_issued_by=draft["passport_issued_by"],
+        passport_department_code=draft["passport_department_code"],
+        registration_address=draft["registration_address"],
+        work_address=draft["work_address"],
+        birth_date=draft["birth_date"],
+        checking_account=draft["checking_account"],
+        correspondent_account=draft["correspondent_account"],
+        bank_name=draft["bank_name"],
+        bank_bik=draft["bank_bik"],
+        legal_address=draft["legal_address"],
+        postal_address=draft["postal_address"],
+        actual_address=draft["actual_address"],
+        director_name=draft["director_name"],
+        director_basis=draft["director_basis"],
+        notes=draft["notes"],
+    )
+    return RedirectResponse(
+        url=f"/counterparties/{counterparty_id}",
         status_code=status.HTTP_302_FOUND,
     )
 

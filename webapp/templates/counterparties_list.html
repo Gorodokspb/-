@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Контрагенты | Dekorartstroy CRM{% endblock %}
+
+{% block body %}
+<main class="dashboard-shell dashboard-shell-v2">
+    <div class="workspace-frame">
+        <header class="topbar-card topbar-card-projects">
+            <div class="topbar-brand">
+                <span class="eyebrow">Dekorartstroy CRM</span>
+                <strong>Контрагенты</strong>
+            </div>
+
+            <div class="topbar-meta">
+                <a class="topbar-chip topbar-chip-link" href="/projects">Главная CRM</a>
+                <a class="topbar-chip topbar-chip-link" href="/counterparties/new">+ Новый контрагент</a>
+            </div>
+
+            <div class="topbar-userbox topbar-userbox-compact">
+                <div class="topbar-usertext">
+                    <span class="sidebar-label">Пользователь</span>
+                    <strong>{{ username }}</strong>
+                </div>
+                <form method="post" action="/logout">
+                    <button type="submit" class="ghost-button">Выйти</button>
+                </form>
+            </div>
+        </header>
+
+        <section class="panel-card panel-card-wide">
+            <div class="panel-header panel-header-compact">
+                <div>
+                    <div class="eyebrow">Список</div>
+                    <h2>Контрагенты</h2>
+                </div>
+            </div>
+
+            {% if counterparties %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Тип</th>
+                        <th>Имя / Название</th>
+                        <th>Телефон</th>
+                        <th>Email</th>
+                        <th>ИНН</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cp in counterparties %}
+                    <tr>
+                        <td>{{ cp.id }}</td>
+                        <td>{{ cp.type }}</td>
+                        <td>{{ cp.display_name }}</td>
+                        <td>{{ cp.phone }}</td>
+                        <td>{{ cp.email }}</td>
+                        <td>{{ cp.inn }}</td>
+                        <td>
+                            <a href="/counterparties/{{ cp.id }} ">Открыть</a>
+                            <a href="/counterparties/{{ cp.id }}/edit">Редактировать</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="panel-note">Контрагенты не найдены. Создайте нового контрагента.</p>
+            {% endif %}
+        </section>
+    </div>
+</main>
+{% endblock %}
