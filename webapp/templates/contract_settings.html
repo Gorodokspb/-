@@ -30,6 +30,9 @@
         {% if saved %}
         <div class="notice-banner notice-banner-success">Настройки договора сохранены. Черновик документа договора создан/обновлён.</div>
         {% endif %}
+        {% if docx_created %}
+        <div class="notice-banner notice-banner-success">DOCX договора сформирован.</div>
+        {% endif %}
 
         <section class="panel-card panel-card-wide">
             <div class="panel-header panel-header-compact">
@@ -178,6 +181,20 @@
                 {% else %}
                 <p class="panel-note">Документ договора будет создан как черновик при первом сохранении настроек.</p>
                 {% endif %}
+            </div>
+            <div class="detail-form-footer" style="margin-top: 0.5rem;">
+                <div class="form-actions-inline">
+                    {% if contract_document %}
+                    <form method="post" action="/projects/{{ project.id }}/contract/generate-docx" style="display:inline;">
+                        <button type="submit" class="primary-button">Сформировать DOCX договора</button>
+                    </form>
+                    {% if contract_document.file_path %}
+                    <a class="ghost-button" href="/documents/{{ contract_document.id }}/download?kind=file">Скачать DOCX договора</a>
+                    {% endif %}
+                    {% else %}
+                    <span class="panel-note">Сохраните настройки договора, чтобы создать документ и сформировать DOCX.</span>
+                    {% endif %}
+                </div>
             </div>
         </section>
     </div>

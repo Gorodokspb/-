@@ -1129,6 +1129,7 @@ def contract_settings_page(project_id: int, request: Request):
             "estimate_total": estimate_total,
             "contract_document": contract_document,
             "saved": request.query_params.get("created") == "contract-settings",
+            "docx_created": request.query_params.get("created") == "contract-docx",
         },
     )
 

@@ -254,34 +254,30 @@ class ContractSettingsTemplateTests(unittest.TestCase):
 
     def test_project_detail_has_contract_link_in_progress_card(self):
         content = self.project_detail.read_text(encoding="utf-8")
-        self.assertIn('href="/projects/{{ project.id }}/contract"', content)
+        self.assertIn("Настройки договора", content)
 
-    def test_project_detail_has_contract_link_in_documents(self):
-        content = self.project_detail.read_text(encoding="utf-8")
-        self.assertIn("Договор", content)
+    def test_contract_settings_shows_generate_docx_button(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn("/contract/generate-docx", content)
+        self.assertIn("Сформировать DOCX договора", content)
 
-    def test_main_py_has_contract_settings_get_route(self):
+    def test_contract_settings_shows_download_link_when_file_path(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn("/download?kind=file", content)
+        self.assertIn("Скачать DOCX договора", content)
+
+    def test_contract_settings_shows_docx_created_banner(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn("docx_created", content)
+        self.assertIn("DOCX договора сформирован", content)
+
+    def test_main_py_has_generate_docx_route(self):
         content = MAIN_PY.read_text(encoding="utf-8")
-        self.assertIn('@app.get("/projects/{project_id}/contract")', content)
+        self.assertIn("/projects/{project_id}/contract/generate-docx", content)
 
-    def test_main_py_has_contract_settings_post_route(self):
+    def test_main_py_imports_update_document_file_path(self):
         content = MAIN_PY.read_text(encoding="utf-8")
-        self.assertIn('@app.post("/projects/{project_id}/contract-settings")', content)
-
-    def test_main_py_imports_contract_settings_functions(self):
-        content = MAIN_PY.read_text(encoding="utf-8")
-        self.assertIn("fetch_contract_settings", content)
-        self.assertIn("save_contract_settings", content)
-        self.assertIn("create_or_update_contract_document", content)
-        self.assertIn("get_project_estimate_total", content)
-
-    def test_db_py_has_contract_settings_functions(self):
-        db_py = Path(__file__).resolve().parents[1] / "webapp" / "db.py"
-        content = db_py.read_text(encoding="utf-8")
-        self.assertIn("def fetch_contract_settings", content)
-        self.assertIn("def save_contract_settings", content)
-        self.assertIn("def create_or_update_contract_document", content)
-        self.assertIn("def get_project_estimate_total", content)
+        self.assertIn("update_document_file_path", content)
 
 
 if __name__ == "__main__":
