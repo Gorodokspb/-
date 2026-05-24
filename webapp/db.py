@@ -1620,6 +1620,16 @@ def create_or_update_contract_document(project_id: int) -> dict:
     return {"id": doc_id, "project_id": project_id, "doc_type": "Договор", "title": "Договор", "status": "Черновик"}
 
 
+def update_document_file_path(document_id: int, relative_path: str) -> None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE documents SET file_path = %s, updated_at = %s WHERE id = %s",
+                (relative_path, _now_iso(), document_id),
+            )
+        conn.commit()
+
+
 def get_project_estimate_total(project_id: int) -> str:
     with get_connection() as conn:
         with conn.cursor() as cur:

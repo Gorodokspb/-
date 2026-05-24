@@ -54,6 +54,7 @@ from webapp.db import (
     fetch_contract_settings,
     save_contract_settings,
     create_or_update_contract_document,
+    update_document_file_path,
     get_project_estimate_total,
 )
 from webapp.estimate_pdf import generate_estimate_pdf
@@ -1183,6 +1184,25 @@ def contract_settings_submit(
     create_or_update_contract_document(project_id)
     return RedirectResponse(
         url=f"/projects/{project_id}/contract?created=contract-settings",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@app.post("/projects/{project_id}/contract/generate-docx")
+def contract_generate_docx(project_id: int, request: Request):
+    require_auth(request)
+    project = fetch_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+    try:
+        from webapp.contract_generator import generate_contract_docx
+        result = generate_contract_docx(project_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return RedirectResponse(
+        url=f"/projects/{project_id}/contract?created=contract-docx",
         status_code=status.HTTP_302_FOUND,
     )
 
