@@ -26,6 +26,7 @@ from webapp.db import (
     migrate_catalog_item_categories,
     fetch_catalog_items,
     fetch_catalog_items_by_names,
+    fetch_document,
     fetch_transaction,
     upsert_new_catalog_items,
     apply_catalog_conflict_items,

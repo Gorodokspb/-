@@ -275,9 +275,9 @@ class ContractSettingsTemplateTests(unittest.TestCase):
         content = MAIN_PY.read_text(encoding="utf-8")
         self.assertIn("/projects/{project_id}/contract/generate-docx", content)
 
-    def test_main_py_imports_update_document_file_path(self):
+    def test_main_py_imports_fetch_document(self):
         content = MAIN_PY.read_text(encoding="utf-8")
-        self.assertIn("update_document_file_path", content)
+        self.assertIn("fetch_document", content)
 
 
 if __name__ == "__main__":
