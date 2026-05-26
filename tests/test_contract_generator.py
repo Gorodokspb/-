@@ -507,6 +507,29 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
         full_text = "\n".join(p.text for p in doc.paragraphs)
         self.assertIn("Рабочая группа: https://chat.whatsapp.com/abc123", full_text)
 
+    def test_working_group_text_has_black_font_color(self):
+        from lxml import etree
+        replacements = {
+            "[[WORKING_GROUP_TEXT]]": "Telegram группа",
+        }
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        for p in doc.paragraphs:
+            if "Рабочая группа: Telegram группа" in p.text:
+                color_found = False
+                for run in p.runs:
+                    rpr = run._element.find(f"{{{ns['w']}}}rPr")
+                    if rpr is not None:
+                        color_elem = rpr.find(f"{{{ns['w']}}}color")
+                        if color_elem is not None:
+                            color_val = color_elem.get(f"{{{ns['w']}}}val")
+                            if color_val == "000000":
+                                color_found = True
+                self.assertTrue(color_found, "Working group text should have black font color (000000)")
+                break
+        else:
+            self.fail("Working group paragraph not found in document")
+
 
 class GenerateContractDocxIntegrationTests(unittest.TestCase):
     @classmethod

@@ -564,7 +564,6 @@ _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 
 def _replace_working_group_paragraph(doc: DocxDocument, working_group_text: str):
-    from copy import deepcopy
     from lxml import etree
 
     target_paragraph = None
@@ -583,24 +582,21 @@ def _replace_working_group_paragraph(doc: DocxDocument, working_group_text: str)
     for child in p_elem:
         if child.tag in child_tags_to_remove:
             children_to_remove.append(child)
-        elif child.tag == f"{{{_W_NS}}}BookmarkStart".lower():
-            pass
 
-    template_run = None
     for child in children_to_remove:
-        if child.tag == f"{{{_W_NS}}}r" and template_run is None:
-            template_run = child
         p_elem.remove(child)
 
-    rPr = None
-    if template_run is not None:
-        rPr_elem = template_run.find(f"{{{_W_NS}}}rPr")
-        if rPr_elem is not None:
-            rPr = rPr_elem
-
     new_run = etree.SubElement(p_elem, f"{{{_W_NS}}}r")
-    if rPr is not None:
-        new_run.insert(0, deepcopy(rPr))
+    new_rPr = etree.SubElement(new_run, f"{{{_W_NS}}}rPr")
+    new_rFonts = etree.SubElement(new_rPr, f"{{{_W_NS}}}rFonts")
+    new_rFonts.set(f"{{{_W_NS}}}ascii", "Times New Roman")
+    new_rFonts.set(f"{{{_W_NS}}}hAnsi", "Times New Roman")
+    new_sz = etree.SubElement(new_rPr, f"{{{_W_NS}}}sz")
+    new_sz.set(f"{{{_W_NS}}}val", "24")
+    new_szCs = etree.SubElement(new_rPr, f"{{{_W_NS}}}szCs")
+    new_szCs.set(f"{{{_W_NS}}}val", "24")
+    new_color = etree.SubElement(new_rPr, f"{{{_W_NS}}}color")
+    new_color.set(f"{{{_W_NS}}}val", "000000")
     new_t = etree.SubElement(new_run, f"{{{_W_NS}}}t")
     new_t.set(f"{{http://www.w3.org/XML/1998/namespace}}space", "preserve")
     new_t.text = working_group_text
