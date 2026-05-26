@@ -257,6 +257,78 @@ class BuildContractReplacementsTests(unittest.TestCase):
         has_materials_key = any("Работы" in k for k in result)
         self.assertTrue(has_materials_key)
 
+    def test_fizlitso_type_treated_as_physical_person(self):
+        from webapp.contract_generator import _normalize_counterparty_type
+        self.assertEqual(_normalize_counterparty_type("Физлицо"), "Физическое лицо")
+        self.assertEqual(_normalize_counterparty_type("Физическое лицо"), "Физическое лицо")
+        self.assertEqual(_normalize_counterparty_type("physical"), "Физическое лицо")
+
+    def test_ip_type_normalized(self):
+        from webapp.contract_generator import _normalize_counterparty_type
+        self.assertEqual(_normalize_counterparty_type("ИП"), "ИП")
+        self.assertEqual(_normalize_counterparty_type("ип"), "ИП")
+
+    def test_ooo_type_normalized(self):
+        from webapp.contract_generator import _normalize_counterparty_type
+        self.assertEqual(_normalize_counterparty_type("ООО"), "Юридическое лицо ООО")
+        self.assertEqual(_normalize_counterparty_type("Юридическое лицо ООО"), "Юридическое лицо ООО")
+        self.assertEqual(_normalize_counterparty_type("юрлицо"), "Юридическое лицо ООО")
+
+    def test_fizlitso_replacements_match_physical_person(self):
+        project = self._make_project()
+        counterparty = {
+            "type": "Физлицо",
+            "name": "Иванов Иван Иванович",
+            "full_name": "Иванов Иван Иванович",
+            "passport_series_number": "6100 235555",
+            "passport_issued_by": "Тестовым ОВД",
+            "passport_department_code": "780-032",
+            "registration_address": "г. СПб, ул. Ленина, д. 10",
+            "work_address": "г. СПб, ул. Рабочая, д. 5",
+            "phone": "+7(999)123-45-67",
+            "email": "ivanov@test.ru",
+        }
+        settings = self._make_settings(object_address="")
+        result = build_contract_replacements(project, counterparty, settings, "0")
+        self.assertIn("6100 235555", result.get("[[PASSPORT]]", ""))
+        self.assertIn("Тестовым ОВД", result.get("[[PASSPORT_ISSUED_BY]]", ""))
+        self.assertIn("780-032", result.get("[[PASSPORT_CODE]]", ""))
+        self.assertEqual(result.get("[[CUSTOMER_EMAIL]]"), "ivanov@test.ru")
+        self.assertEqual(result.get("[[CUSTOMER_PHONE]]"), "+7(999)123-45-67")
+        intro = result.get("[[CUSTOMER_INTRO]]", "")
+        self.assertIn("гражданин", intro)
+
+    def test_object_address_prefers_counterparty_work_address(self):
+        project = self._make_project()
+        counterparty = {
+            "type": "Физлицо",
+            "name": "Иванов",
+            "full_name": "Иванов Иван Иванович",
+            "work_address": "г. СПб, ул. Рабочая, д. 5",
+            "passport_series_number": "1234 567890",
+            "passport_issued_by": "ОВД",
+            "passport_department_code": "780-001",
+            "registration_address": "г. СПб, ул. Рег, д. 1",
+            "phone": "+7(999)000-00-00",
+            "email": "test@test.ru",
+        }
+        settings = self._make_settings(object_address="")
+        result = build_contract_replacements(project, counterparty, settings, "0")
+        self.assertEqual(result.get("[[OBJECT_ADDRESS]]"), "г. СПб, ул. Рабочая, д. 5")
+        self.assertEqual(result.get("[[WORK_ADDRESS]]"), "г. СПб, ул. Рабочая, д. 5")
+
+    def test_object_address_prefers_project_address_over_project_name(self):
+        project = self._make_project(address="г. СПб, ул. Проектная, д. 10")
+        settings = self._make_settings(object_address="")
+        result = build_contract_replacements(project, None, settings, "0")
+        self.assertEqual(result.get("[[OBJECT_ADDRESS]]"), "г. СПб, ул. Проектная, д. 10")
+
+    def test_object_address_fallback_to_project_name_when_no_address(self):
+        project = self._make_project(address="")
+        settings = self._make_settings(object_address="")
+        result = build_contract_replacements(project, None, settings, "0")
+        self.assertEqual(result.get("[[OBJECT_ADDRESS]]"), "Тестовый объект")
+
 
 class ReplacePlaceholdersInDocxTests(unittest.TestCase):
     def setUp(self):
@@ -356,15 +428,23 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
                 for row in table.rows:
                     for cell in row.cells:
                         full_text += "\n" + cell.text
-            double_bracket_placeholders = [
+            all_placeholders = [
                 "[[CONTRACT_NUMBER]]",
                 "[[CONTRACT_DATE]]",
                 "[[CUSTOMER_NAME]]",
+                "[[CUSTOMER_EMAIL]]",
+                "[[CUSTOMER_PHONE]]",
                 "[[OBJECT_ADDRESS]]",
+                "[[WORK_ADDRESS]]",
+                "[[PASSPORT]]",
+                "[[PASSPORT_ISSUED_BY]]",
+                "[[PASSPORT_CODE]]",
+                "[[REGISTRATION_ADDRESS]]",
                 "[[PRICE_TOTAL]]",
             ]
-            for ph in double_bracket_placeholders:
+            for ph in all_placeholders:
                 self.assertNotIn(ph, full_text, f"Unreplaced placeholder: {ph}")
+            self.assertIn("petrov@test.ru", full_text)
         finally:
             shutil.rmtree(output_dir, ignore_errors=True)
 

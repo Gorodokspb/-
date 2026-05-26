@@ -40,6 +40,17 @@ def _get_contracts_dir() -> Path:
     return contracts_dir
 
 
+def _normalize_counterparty_type(raw_type: str) -> str:
+    t = (raw_type or "").strip().lower()
+    if t in ("физлицо", "физическое лицо", "physical", "person", "физ. лицо"):
+        return "Физическое лицо"
+    if t in ("ип", "индивидуальный предприниматель"):
+        return "ИП"
+    if t in ("юридическое лицо ооо", "юридическое лицо", "ооо", "юрлицо", "company"):
+        return "Юридическое лицо ООО"
+    return raw_type or ""
+
+
 def _counterparty_display_name(row: dict | None) -> str:
     if not row:
         return ""
@@ -240,7 +251,7 @@ def _build_customer_intro(counterparty_row: dict | None, settings: dict) -> str:
     intro_override = str(settings.get("intro_override", "")).strip()
     if intro_override:
         return intro_override
-    counterparty_type = counterparty_row.get("type", "") if counterparty_row else ""
+    counterparty_type = _normalize_counterparty_type(counterparty_row.get("type", "")) if counterparty_row else ""
     display_name = str(
         settings.get("customer_name")
         or (_counterparty_display_name(counterparty_row) if counterparty_row else "")
@@ -393,7 +404,7 @@ def build_contract_replacements(
 ) -> dict[str, str]:
     contract_number = (settings.get("contract_number") or project.get("contract") or "б/н").strip()
     contract_date = format_contract_date(settings.get("contract_date") or project.get("date") or "")
-    counterparty_type = (counterparty or {}).get("type", "") if counterparty else ""
+    counterparty_type = _normalize_counterparty_type((counterparty or {}).get("type", "")) if counterparty else ""
     display_name = str(
         settings.get("customer_name")
         or (_counterparty_display_name(counterparty) if counterparty else "")
@@ -405,7 +416,7 @@ def build_contract_replacements(
         issued_by = settings.get("passport_issued_by") or counterparty.get("passport_issued_by") or "не указано"
         department_code = settings.get("passport_department_code") or counterparty.get("passport_department_code") or "не указано"
         registration_address = settings.get("registration_address") or counterparty.get("registration_address") or "не указано"
-        work_address = settings.get("object_address") or counterparty.get("work_address") or project.get("project_name") or project.get("address") or registration_address
+        work_address = settings.get("object_address") or counterparty.get("work_address") or project.get("address") or project.get("project_name") or registration_address
         phone = settings.get("customer_phone") or counterparty.get("phone") or "не указан"
         email = settings.get("customer_email") or counterparty.get("email") or "не указан"
     elif counterparty and counterparty_type == "Юридическое лицо ООО":
@@ -413,7 +424,7 @@ def build_contract_replacements(
         issued_by = " / ".join(part for part in [counterparty.get("kpp", ""), counterparty.get("ogrn", "")] if part) or "не указано"
         department_code = " / ".join(part for part in [counterparty.get("bank_name", ""), counterparty.get("bank_bik", "")] if part) or "не указано"
         registration_address = counterparty.get("legal_address") or "не указано"
-        work_address = settings.get("object_address") or counterparty.get("work_address") or project.get("project_name") or project.get("address") or registration_address
+        work_address = settings.get("object_address") or counterparty.get("work_address") or project.get("address") or project.get("project_name") or registration_address
         phone = settings.get("customer_phone") or counterparty.get("phone") or "не указан"
         email = settings.get("customer_email") or counterparty.get("email") or "не указан"
     elif counterparty:
@@ -426,7 +437,7 @@ def build_contract_replacements(
             ] if part
         ) or "не указано"
         registration_address = settings.get("registration_address") or counterparty.get("legal_address") or "не указано"
-        work_address = settings.get("object_address") or counterparty.get("work_address") or project.get("project_name") or project.get("address") or registration_address
+        work_address = settings.get("object_address") or counterparty.get("work_address") or project.get("address") or project.get("project_name") or registration_address
         phone = settings.get("customer_phone") or counterparty.get("phone") or "не указан"
         email = settings.get("customer_email") or counterparty.get("email") or "не указан"
     else:
@@ -434,11 +445,11 @@ def build_contract_replacements(
         issued_by = "не указано"
         department_code = "не указано"
         registration_address = "не указано"
-        work_address = settings.get("object_address") or project.get("project_name") or project.get("address") or "не указано"
+        work_address = settings.get("object_address") or project.get("address") or project.get("project_name") or "не указано"
         phone = "не указан"
         email = "не указан"
 
-    object_address = settings.get("object_address") or project.get("project_name") or project.get("address") or "не указано"
+    object_address = settings.get("object_address") or (counterparty.get("work_address") if counterparty else "") or project.get("address") or project.get("project_name") or "не указано"
     work_end_date = format_deadline_text(settings.get("work_end_date"))
 
     price_total_value = parse_money_value(settings.get("price_total"))
@@ -517,6 +528,8 @@ def build_contract_replacements(
 def replace_placeholders_in_docx(template_path: Path, replacements: dict[str, str]) -> DocxDocument:
     doc = DocxDocument(str(template_path))
 
+    _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
     for paragraph in doc.paragraphs:
         _replace_in_paragraph(paragraph, replacements)
 
@@ -526,7 +539,28 @@ def replace_placeholders_in_docx(template_path: Path, replacements: dict[str, st
                 for paragraph in cell.paragraphs:
                     _replace_in_paragraph(paragraph, replacements)
 
+    for section in doc.sections:
+        for header in [section.header, section.first_page_header]:
+            if header and header.paragraphs:
+                for paragraph in header.paragraphs:
+                    _replace_in_paragraph(paragraph, replacements)
+        for footer in [section.footer, section.first_page_footer]:
+            if footer and footer.paragraphs:
+                for paragraph in footer.paragraphs:
+                    _replace_in_paragraph(paragraph, replacements)
+
+    _replace_in_xml_text_nodes(doc, replacements, _W_NS)
+
     return doc
+
+
+def _replace_in_xml_text_nodes(doc: DocxDocument, replacements: dict[str, str], w_ns: str):
+    body = doc.element.body
+    for t_elem in body.iter("{%s}t" % w_ns):
+        if t_elem.text:
+            for key, value in replacements.items():
+                if key in t_elem.text:
+                    t_elem.text = t_elem.text.replace(key, value)
 
 
 def _replace_in_paragraph(paragraph, replacements: dict[str, str]):
@@ -539,26 +573,6 @@ def _replace_in_paragraph(paragraph, replacements: dict[str, str]):
         for run in paragraph.runs:
             if key in run.text:
                 run.text = run.text.replace(key, value)
-
-    remaining_text = paragraph.text
-    for key in replacements:
-        if key in remaining_text:
-            for run in paragraph.runs:
-                if key in run.text:
-                    run.text = run.text.replace(key, value)
-            remaining_text = paragraph.text
-
-    if any(key in remaining_text for key in replacements):
-        for key, value in replacements.items():
-            if key in remaining_text:
-                combined = "".join(r.text for r in paragraph.runs)
-                new_combined = combined.replace(key, value)
-                if new_combined != combined and paragraph.runs:
-                    paragraph.runs[0].text = new_combined
-                    for run in paragraph.runs[1:]:
-                        run.text = ""
-                remaining_text = paragraph.text
-                break
 
 
 def generate_contract_docx(project_id: int) -> dict:
@@ -600,7 +614,7 @@ def generate_contract_docx(project_id: int) -> dict:
     if not settings.get("customer_name") and counterparty:
         settings["customer_name"] = _counterparty_display_name(counterparty)
     if not settings.get("object_address"):
-        settings["object_address"] = project.get("project_name") or project.get("address") or ""
+        settings["object_address"] = (counterparty.get("work_address") if counterparty else "") or project.get("address") or project.get("project_name") or ""
     if not settings.get("customer_email") and counterparty:
         settings["customer_email"] = counterparty.get("email") or ""
     if not settings.get("customer_phone") and counterparty:
