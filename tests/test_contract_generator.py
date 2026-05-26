@@ -458,7 +458,7 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
         full_text = "\n".join(p.text for p in doc.paragraphs)
         self.assertNotIn("Рабочая группа WhatsApp", full_text)
         self.assertNotIn("chat.whatsapp.com", full_text)
-        self.assertIn("Telegram группа - https://t.me/example", full_text)
+        self.assertIn("Рабочая группа: Telegram группа - https://t.me/example", full_text)
 
     def test_working_group_text_empty_preserves_whatsapp_default(self):
         replacements = {}
@@ -484,9 +484,28 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
                     if name.startswith("word/") and name.endswith(".xml"):
                         xml += z.read(name).decode("utf-8", errors="ignore")
             self.assertNotIn("chat.whatsapp.com", xml)
-            self.assertIn("Viber группа", xml)
+            self.assertIn("Рабочая группа: Viber группа", xml)
         finally:
             shutil.rmtree(output_dir, ignore_errors=True)
+
+    def test_working_group_text_prefix_not_duplicated(self):
+        replacements = {
+            "[[WORKING_GROUP_TEXT]]": "Рабочая группа: https://t.me/example",
+        }
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        from docx import Document as DocxDocument
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        self.assertNotIn("Рабочая группа: Рабочая группа:", full_text)
+        self.assertIn("Рабочая группа: https://t.me/example", full_text)
+
+    def test_working_group_text_bare_url_gets_prefix(self):
+        replacements = {
+            "[[WORKING_GROUP_TEXT]]": "https://chat.whatsapp.com/abc123",
+        }
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        from docx import Document as DocxDocument
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        self.assertIn("Рабочая группа: https://chat.whatsapp.com/abc123", full_text)
 
 
 class GenerateContractDocxIntegrationTests(unittest.TestCase):

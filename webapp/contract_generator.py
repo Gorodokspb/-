@@ -551,7 +551,10 @@ def replace_placeholders_in_docx(template_path: Path, replacements: dict[str, st
 
     working_group_text = replacements.get("[[WORKING_GROUP_TEXT]]", "").strip()
     if working_group_text:
-        _replace_working_group_paragraph(doc, working_group_text)
+        prefixed_text = working_group_text
+        if not prefixed_text.lower().startswith("рабочая группа"):
+            prefixed_text = f"Рабочая группа: {working_group_text}"
+        _replace_working_group_paragraph(doc, prefixed_text)
 
     return doc
 
