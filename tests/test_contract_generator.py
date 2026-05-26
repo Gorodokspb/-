@@ -555,6 +555,48 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
         else:
             self.fail("Working group paragraph not found in document")
 
+    def test_working_group_text_noProof_disables_spelling(self):
+        from lxml import etree
+        replacements = {
+            "[[WORKING_GROUP_TEXT]]": "test yesy yesy yesy yesy yesy",
+        }
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        for p in doc.paragraphs:
+            if "Рабочая группа:" in p.text and "test yesy" in p.text:
+                noProof_found = False
+                color_000000 = False
+                underline_none = False
+                no_hyperlink = True
+                no_rstyle = True
+                hyperlinks = p._element.findall(f"{{{ns['w']}}}hyperlink")
+                if hyperlinks:
+                    no_hyperlink = False
+                for run in p.runs:
+                    rpr = run._element.find(f"{{{ns['w']}}}rPr")
+                    if rpr is not None:
+                        noProof_elem = rpr.find(f"{{{ns['w']}}}noProof")
+                        if noProof_elem is not None:
+                            noProof_found = True
+                        color_elem = rpr.find(f"{{{ns['w']}}}color")
+                        if color_elem is not None and color_elem.get(f"{{{ns['w']}}}val") == "000000":
+                            color_000000 = True
+                        u_elem = rpr.find(f"{{{ns['w']}}}u")
+                        if u_elem is not None and u_elem.get(f"{{{ns['w']}}}val") == "none":
+                            underline_none = True
+                        rstyle = rpr.find(f"{{{ns['w']}}}rStyle")
+                        if rstyle is not None:
+                            no_rstyle = False
+                self.assertTrue(noProof_found, "Working group run should have w:noProof to disable spelling/grammar check")
+                self.assertTrue(color_000000, "Working group run should have w:color val=000000")
+                self.assertTrue(underline_none, "Working group run should have w:u val=none")
+                self.assertTrue(no_hyperlink, "No w:hyperlink elements should remain in working group paragraph")
+                self.assertTrue(no_rstyle, "No w:rStyle should be set on working group run")
+                self.assertIn("Рабочая группа:", p.text)
+                break
+        else:
+            self.fail("Working group paragraph not found in document")
+
 
 class GenerateContractDocxIntegrationTests(unittest.TestCase):
     @classmethod

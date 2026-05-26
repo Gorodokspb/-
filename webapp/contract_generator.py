@@ -599,6 +599,7 @@ def _replace_working_group_paragraph(doc: DocxDocument, working_group_text: str)
     new_color.set(f"{{{_W_NS}}}val", "000000")
     new_u = etree.SubElement(new_rPr, f"{{{_W_NS}}}u")
     new_u.set(f"{{{_W_NS}}}val", "none")
+    etree.SubElement(new_rPr, f"{{{_W_NS}}}noProof")
     new_t = etree.SubElement(new_run, f"{{{_W_NS}}}t")
     new_t.set(f"{{http://www.w3.org/XML/1998/namespace}}space", "preserve")
     new_t.text = working_group_text
