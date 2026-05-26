@@ -820,6 +820,132 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
             self.assertFalse(found_theme, f"Replacement value '{check_text}' should not have theme color elements")
 
 
+class RemoveRedColorsTests(unittest.TestCase):
+    def setUp(self):
+        if not TEMPLATE_PATH.exists():
+            self.skipTest(f"Contract template not found at {TEMPLATE_PATH}")
+
+    def _make_full_replacements(self):
+        return {
+            "[[CONTRACT_NUMBER]]": "ДОГОВОР № 99/2023",
+            "[[CONTRACT_DATE]]": '" 15 " марта 2023 г.',
+            "[[CUSTOMER_CLAUSE]]": "и гражданин Петров Петр Петрович, именуемый в дальнейшем «Заказчик»,",
+            "[[CUSTOMER_INTRO]]": "Общество с ограниченной ответственностью «ДекорАртСтрой» именуемое в дальнейшем «Подрядчик», в лице Генерального директора Шарипова Шехрозжона Шавкатовича, действующего на основании Устава с одной стороны, и гражданин Петров Петр Петрович, именуемый в дальнейшем «Заказчик», вместе именуемые «Стороны», заключили настоящий договор (далее – «Договор») о нижеследующем:",
+            "[[CUSTOMER_NAME]]": "Петров Петр Петрович",
+            "[[OBJECT_ADDRESS]]": "г. Санкт-Петербург, ул. Тамбасова дом 7 стр. 1 кв. 500",
+            "[[PASSPORT]]": "6100 235555",
+            "[[PASSPORT_ISSUED_BY]]": "Тестовым ОВД по СПБ",
+            "[[PASSPORT_CODE]]": "780-032",
+            "[[REGISTRATION_ADDRESS]]": "г. Санкт-Петербург, ул. Регистрационная, д. 10, кв. 5",
+            "[[WORK_ADDRESS]]": "г. Санкт-Петербург, ул. Тамбасова дом 7 стр. 1 кв. 500",
+            "[[CUSTOMER_PHONE]]": "+79111111111",
+            "[[CUSTOMER_EMAIL]]": "test@yandex.ru",
+            "[[WORK_END_DATE]]": "не позднее «30» июня 2023 г.;",
+            "[[PRICE_TOTAL]]": "3 983 360 (три миллиона девятьсот восемьдесят три тысячи триста шестьдесят) рублей 00 копеек",
+            "[[FINAL_PAYMENT]]": "483 360 (четыреста восемьдесят три тысячи триста шестьдесят) рублей 00 копеек",
+            "[[ADVANCE_PAYMENT_LINE]]": "В день подписания настоящего Договора «Заказчик» выплачивает «Подрядчику» авансовый платеж в размере 50 000 (пятьдесят тысяч) рублей 00 копеек, НДС не облагается.",
+            "[[PAYMENT_LINE_1]]": "",
+            "[[PAYMENT_LINE_2]]": "",
+            "[[PAYMENT_LINE_3_PLUS]]": "",
+            "[[PAYMENTS_BLOCK]]": "",
+            "[[CONTRACTOR_EMAIL]]": "info@dekorartstroy.ru",
+            "[[WORKING_GROUP_TEXT]]": "test yesy yesy yesy yesy yesy",
+        }
+
+    def test_no_ff0000_color_in_document(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        red_color_elements = []
+        for color_elem in doc.element.body.iter(f"{{{ns_w}}}color"):
+            val = color_elem.get(f"{{{ns_w}}}val")
+            if val and val.upper() == "FF0000":
+                red_color_elements.append(val)
+        self.assertEqual(len(red_color_elements), 0, f"Found {len(red_color_elements)} red color elements (FF0000) in document")
+
+    def test_no_lowercase_ff0000_color_in_document(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        red_color_elements = []
+        for color_elem in doc.element.body.iter(f"{{{ns_w}}}color"):
+            val = color_elem.get(f"{{{ns_w}}}val")
+            if val and val.lower() == "ff0000":
+                red_color_elements.append(val)
+        self.assertEqual(len(red_color_elements), 0, f"Found {len(red_color_elements)} red color elements (ff0000/FF0000) in document")
+
+    def test_passport_line_no_red(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if "6100 235555" in (paragraph.text or ""):
+                            for run in paragraph.runs:
+                                rpr = run._element.find(f"{{{ns_w}}}rPr")
+                                if rpr is not None:
+                                    color_elem = rpr.find(f"{{{ns_w}}}color")
+                                    if color_elem is not None:
+                                        val = color_elem.get(f"{{{ns_w}}}val")
+                                        self.assertNotEqual(val.upper() if val else "", "FF0000",
+                                                            f"Passport line run '{run.text}' should not have red color")
+
+    def test_issued_by_line_no_red(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if "Тестовым ОВД" in (paragraph.text or ""):
+                            for run in paragraph.runs:
+                                rpr = run._element.find(f"{{{ns_w}}}rPr")
+                                if rpr is not None:
+                                    color_elem = rpr.find(f"{{{ns_w}}}color")
+                                    if color_elem is not None:
+                                        val = color_elem.get(f"{{{ns_w}}}val")
+                                        self.assertNotEqual(val.upper() if val else "", "FF0000",
+                                                            f"Удан line run '{run.text}' should not have red color")
+
+    def test_department_code_line_no_red(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if "780-032" in (paragraph.text or ""):
+                            for run in paragraph.runs:
+                                rpr = run._element.find(f"{{{ns_w}}}rPr")
+                                if rpr is not None:
+                                    color_elem = rpr.find(f"{{{ns_w}}}color")
+                                    if color_elem is not None:
+                                        val = color_elem.get(f"{{{ns_w}}}val")
+                                        self.assertNotEqual(val.upper() if val else "", "FF0000",
+                                                            f"Department code line run '{run.text}' should not have red color")
+
+    def test_contract_text_unchanged(self):
+        replacements_full = self._make_full_replacements()
+        doc_full = replace_placeholders_in_docx(TEMPLATE_PATH, replacements_full)
+        full_text_parts = []
+        for paragraph in doc_full.paragraphs:
+            full_text_parts.append(paragraph.text)
+        for table in doc_full.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        full_text_parts.append(paragraph.text)
+        full_text = "\n".join(full_text_parts)
+        self.assertIn("Петров Петр Петрович", full_text)
+        self.assertIn("6100 235555", full_text)
+        self.assertIn("780-032", full_text)
+        self.assertIn("г. Санкт-Петербург, ул. Тамбасова дом 7 стр. 1 кв. 500", full_text)
+
+
 class GenerateContractDocxIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

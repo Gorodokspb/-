@@ -559,11 +559,32 @@ def replace_placeholders_in_docx(template_path: Path, replacements: dict[str, st
     replacement_values = [v for v in replacements.values() if v]
     _normalize_replacement_colors(doc, replacement_values)
 
+    _remove_red_colors(doc)
+
     return doc
 
 
 _WORKING_GROUP_MARKER = "Рабочая группа WhatsApp"
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+
+def _remove_red_colors(doc: DocxDocument):
+    from lxml import etree
+    body = doc.element.body
+    for color_elem in body.iter(f"{{{_W_NS}}}color"):
+        val = color_elem.get(f"{{{_W_NS}}}val")
+        if val and val.upper() == "FF0000":
+            color_elem.set(f"{{{_W_NS}}}val", "000000")
+            for attr_name in [f"{{{_W_NS}}}theme", f"{{{_W_NS}}}tint", f"{{{_W_NS}}}shade"]:
+                for attr_key in list(color_elem.attrib.keys()):
+                    if attr_key == attr_name:
+                        del color_elem.attrib[attr_key]
+            rPr = color_elem.getparent()
+            if rPr is not None:
+                for tag in [f"{{{_W_NS}}}themeColor", f"{{{_W_NS}}}themeTint", f"{{{_W_NS}}}themeShade"]:
+                    child = rPr.find(tag)
+                    if child is not None:
+                        rPr.remove(child)
 
 
 def _normalize_run_color_to_black(run):
