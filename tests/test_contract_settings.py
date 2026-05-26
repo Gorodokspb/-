@@ -279,6 +279,14 @@ class ContractSettingsTemplateTests(unittest.TestCase):
         content = MAIN_PY.read_text(encoding="utf-8")
         self.assertIn("fetch_document", content)
 
+    def test_download_route_sets_cache_control_no_store(self):
+        content = MAIN_PY.read_text(encoding="utf-8")
+        self.assertIn("no-store", content)
+        self.assertIn("no-cache", content)
+        self.assertIn("must-revalidate", content)
+        self.assertIn("Pragma", content)
+        self.assertIn("Expires", content)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1461,4 +1461,12 @@ def download_document(document_id: int, request: Request, kind: str = "file"):
             detail="Файл отсутствует в серверном хранилище.",
         )
 
-    return FileResponse(path=absolute_path, filename=absolute_path.name)
+    return FileResponse(
+        path=absolute_path,
+        filename=absolute_path.name,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
