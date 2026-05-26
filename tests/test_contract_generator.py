@@ -448,6 +448,46 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
         finally:
             shutil.rmtree(output_dir, ignore_errors=True)
 
+    def test_working_group_text_replaces_whatsapp_paragraph(self):
+        replacements = {
+            "[[WORKING_GROUP_TEXT]]": "Telegram группа - https://t.me/example",
+        }
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        from docx import Document as DocxDocument
+        import re
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        self.assertNotIn("Рабочая группа WhatsApp", full_text)
+        self.assertNotIn("chat.whatsapp.com", full_text)
+        self.assertIn("Telegram группа - https://t.me/example", full_text)
+
+    def test_working_group_text_empty_preserves_whatsapp_default(self):
+        replacements = {}
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        from docx import Document as DocxDocument
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        self.assertIn("Рабочая группа WhatsApp", full_text)
+
+    def test_working_group_text_custom_replaces_whatsapp_in_xml(self):
+        from zipfile import ZipFile
+        custom_text = "Viber группа - https://viber.com/test"
+        replacements = {
+            "[[WORKING_GROUP_TEXT]]": custom_text,
+        }
+        output_dir = Path(tempfile.mkdtemp())
+        output_path = output_dir / "test_wg_contract.docx"
+        try:
+            doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+            doc.save(str(output_path))
+            with ZipFile(str(output_path)) as z:
+                xml = ""
+                for name in z.namelist():
+                    if name.startswith("word/") and name.endswith(".xml"):
+                        xml += z.read(name).decode("utf-8", errors="ignore")
+            self.assertNotIn("chat.whatsapp.com", xml)
+            self.assertIn("Viber группа", xml)
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
 
 class GenerateContractDocxIntegrationTests(unittest.TestCase):
     @classmethod

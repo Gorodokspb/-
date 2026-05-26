@@ -528,8 +528,6 @@ def build_contract_replacements(
 def replace_placeholders_in_docx(template_path: Path, replacements: dict[str, str]) -> DocxDocument:
     doc = DocxDocument(str(template_path))
 
-    _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-
     for paragraph in doc.paragraphs:
         _replace_in_paragraph(paragraph, replacements)
 
@@ -551,7 +549,58 @@ def replace_placeholders_in_docx(template_path: Path, replacements: dict[str, st
 
     _replace_in_xml_text_nodes(doc, replacements, _W_NS)
 
+    working_group_text = replacements.get("[[WORKING_GROUP_TEXT]]", "").strip()
+    if working_group_text:
+        _replace_working_group_paragraph(doc, working_group_text)
+
     return doc
+
+
+_WORKING_GROUP_MARKER = "Рабочая группа WhatsApp"
+_W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+
+def _replace_working_group_paragraph(doc: DocxDocument, working_group_text: str):
+    from copy import deepcopy
+    from lxml import etree
+
+    target_paragraph = None
+    for paragraph in doc.paragraphs:
+        if _WORKING_GROUP_MARKER in paragraph.text:
+            target_paragraph = paragraph
+            break
+
+    if target_paragraph is None:
+        return
+
+    p_elem = target_paragraph._element
+
+    child_tags_to_remove = [f"{{{_W_NS}}}r", f"{{{_W_NS}}}hyperlink"]
+    children_to_remove = []
+    for child in p_elem:
+        if child.tag in child_tags_to_remove:
+            children_to_remove.append(child)
+        elif child.tag == f"{{{_W_NS}}}BookmarkStart".lower():
+            pass
+
+    template_run = None
+    for child in children_to_remove:
+        if child.tag == f"{{{_W_NS}}}r" and template_run is None:
+            template_run = child
+        p_elem.remove(child)
+
+    rPr = None
+    if template_run is not None:
+        rPr_elem = template_run.find(f"{{{_W_NS}}}rPr")
+        if rPr_elem is not None:
+            rPr = rPr_elem
+
+    new_run = etree.SubElement(p_elem, f"{{{_W_NS}}}r")
+    if rPr is not None:
+        new_run.insert(0, deepcopy(rPr))
+    new_t = etree.SubElement(new_run, f"{{{_W_NS}}}t")
+    new_t.set(f"{{http://www.w3.org/XML/1998/namespace}}space", "preserve")
+    new_t.text = working_group_text
 
 
 def _replace_in_xml_text_nodes(doc: DocxDocument, replacements: dict[str, str], w_ns: str):
