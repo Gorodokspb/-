@@ -597,6 +597,228 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
         else:
             self.fail("Working group paragraph not found in document")
 
+    def _make_full_replacements(self):
+        return {
+            "[[CONTRACT_NUMBER]]": "ДОГОВОР № 99/2023",
+            "[[CONTRACT_DATE]]": '" 15 " марта 2023 г.',
+            "[[CUSTOMER_CLAUSE]]": "и гражданин Петров Петр Петрович, именуемый в дальнейшем «Заказчик»,",
+            "[[CUSTOMER_INTRO]]": "Общество с ограниченной ответственностью «ДекорАртСтрой» именуемое в дальнейшем «Подрядчик», в лице Генерального директора Шарипова Шехрозжона Шавкатовича, действующего на основании Устава с одной стороны, и гражданин Петров Петр Петрович, именуемый в дальнейшем «Заказчик», вместе именуемые «Стороны», заключили настоящий договор (далее – «Договор») о нижеследующем:",
+            "[[CUSTOMER_NAME]]": "Петров Петр Петрович",
+            "[[OBJECT_ADDRESS]]": "г. Санкт-Петербург, ул. Тамбасова дом 7 стр. 1 кв. 500",
+            "[[PASSPORT]]": "6100 235555",
+            "[[PASSPORT_ISSUED_BY]]": "Миграционный пункт №32",
+            "[[PASSPORT_CODE]]": "780-032",
+            "[[REGISTRATION_ADDRESS]]": "г. Санкт-Петербург, ул. Регистрационная, д. 10, кв. 5",
+            "[[WORK_ADDRESS]]": "г. Санкт-Петербург, ул. Тамбасова дом 7 стр. 1 кв. 500",
+            "[[CUSTOMER_PHONE]]": "+79111111111",
+            "[[CUSTOMER_EMAIL]]": "test@yandex.ru",
+            "[[WORK_END_DATE]]": "не позднее «30» июня 2023 г.;",
+            "[[PRICE_TOTAL]]": "3 983 360 (три миллиона девятьсот восемьдесят три тысячи триста шестьдесят) рублей 00 копеек",
+            "[[FINAL_PAYMENT]]": "483 360 (четыреста восемьдесят три тысячи триста шестьдесят) рублей 00 копеек",
+            "[[ADVANCE_PAYMENT_LINE]]": "В день подписания настоящего Договора «Заказчик» выплачивает «Подрядчику» авансовый платеж в размере 50 000 (пятьдесят тысяч) рублей 00 копеек, НДС не облагается.",
+            "[[PAYMENT_LINE_1]]": "",
+            "[[PAYMENT_LINE_2]]": "",
+            "[[PAYMENT_LINE_3_PLUS]]": "",
+            "[[PAYMENTS_BLOCK]]": "",
+            "[[CONTRACTOR_EMAIL]]": "info@dekorartstroy.ru",
+            "[[WORKING_GROUP_TEXT]]": "test yesy yesy yesy yesy yesy",
+        }
+
+    @staticmethod
+    def _find_runs_containing(doc, search_text):
+        results = []
+        for paragraph in doc.paragraphs:
+            if search_text in (paragraph.text or ""):
+                for run in paragraph.runs:
+                    if search_text in (run.text or ""):
+                        results.append(run)
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if search_text in (paragraph.text or ""):
+                            for run in paragraph.runs:
+                                if search_text in (run.text or ""):
+                                    results.append(run)
+        return results
+
+    @staticmethod
+    def _find_xml_runs_containing(doc, search_text):
+        ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        results = []
+        body = doc.element.body
+        for t_elem in body.iter(f"{{{ns}}}t"):
+            if t_elem.text and search_text in t_elem.text:
+                r_elem = t_elem.getparent()
+                while r_elem is not None and r_elem.tag != f"{{{ns}}}r":
+                    r_elem = r_elem.getparent() if r_elem is not None else None
+                if r_elem is not None:
+                    results.append(r_elem)
+        return results
+
+    @staticmethod
+    def _find_paragraphs_containing(doc, search_text):
+        results = []
+        for paragraph in doc.paragraphs:
+            if search_text in (paragraph.text or ""):
+                results.append(paragraph)
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        if search_text in (paragraph.text or ""):
+                            results.append(paragraph)
+        return results
+
+    def test_replacement_object_address_is_black(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        runs = self._find_runs_containing(doc, "Тамбасова")
+        self.assertGreater(len(runs), 0, "Should find runs containing 'Тамбасова'")
+        for run in runs:
+            rpr = run._element.find(f"{{{ns['w']}}}rPr")
+            if rpr is not None:
+                color_elem = rpr.find(f"{{{ns['w']}}}color")
+                if color_elem is not None:
+                    color_val = color_elem.get(f"{{{ns['w']}}}val")
+                    self.assertEqual(color_val, "000000", f"Object address run should have black color, got {color_val}")
+
+    def test_replacement_price_total_is_black(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        runs = self._find_runs_containing(doc, "983 360")
+        self.assertGreater(len(runs), 0, "Should find runs containing price total")
+        for run in runs:
+            rpr = run._element.find(f"{{{ns['w']}}}rPr")
+            if rpr is not None:
+                color_elem = rpr.find(f"{{{ns['w']}}}color")
+                if color_elem is not None:
+                    color_val = color_elem.get(f"{{{ns['w']}}}val")
+                    self.assertEqual(color_val, "000000", f"Price total run should have black color, got {color_val}")
+
+    def test_replacement_final_payment_is_black(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        runs = self._find_runs_containing(doc, "483 360")
+        self.assertGreater(len(runs), 0, "Should find runs containing final payment")
+        for run in runs:
+            rpr = run._element.find(f"{{{ns['w']}}}rPr")
+            if rpr is not None:
+                color_elem = rpr.find(f"{{{ns['w']}}}color")
+                if color_elem is not None:
+                    color_val = color_elem.get(f"{{{ns['w']}}}val")
+                    self.assertEqual(color_val, "000000", f"Final payment run should have black color, got {color_val}")
+
+    def test_replacement_customer_name_is_black(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        paragraphs = self._find_paragraphs_containing(doc, "Петров Петр Петрович")
+        self.assertGreater(len(paragraphs), 0, "Should find paragraphs containing customer name")
+        found_black = False
+        for p in paragraphs:
+            for run in p.runs:
+                if "Петров" in (run.text or ""):
+                    rpr = run._element.find(f"{{{ns['w']}}}rPr")
+                    if rpr is not None:
+                        color_elem = rpr.find(f"{{{ns['w']}}}color")
+                        if color_elem is not None:
+                            color_val = color_elem.get(f"{{{ns['w']}}}val")
+                            if color_val == "000000":
+                                found_black = True
+                            else:
+                                self.assertEqual(color_val, "000000", f"Customer name run should have black color, got {color_val}")
+        self.assertTrue(found_black, "Should find at least one customer name run with black color")
+
+    def test_replacement_passport_is_black(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        runs = self._find_runs_containing(doc, "6100")
+        self.assertGreater(len(runs), 0, "Should find runs containing passport number")
+        for run in runs:
+            rpr = run._element.find(f"{{{ns['w']}}}rPr")
+            if rpr is not None:
+                color_elem = rpr.find(f"{{{ns['w']}}}color")
+                if color_elem is not None:
+                    color_val = color_elem.get(f"{{{ns['w']}}}val")
+                    self.assertEqual(color_val, "000000", f"Passport run should have black color, got {color_val}")
+
+    def test_replacement_email_is_black(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        xml_runs = self._find_xml_runs_containing(doc, "test@yandex.ru")
+        self.assertGreater(len(xml_runs), 0, "Should find XML runs containing customer email")
+        for r_elem in xml_runs:
+            rpr = r_elem.find(f"{{{ns_w}}}rPr")
+            if rpr is not None:
+                color_elem = rpr.find(f"{{{ns_w}}}color")
+                if color_elem is not None:
+                    color_val = color_elem.get(f"{{{ns_w}}}val")
+                    self.assertEqual(color_val, "000000", f"Email run should have black color, got {color_val}")
+
+    def test_replacement_phone_is_black(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        runs = self._find_runs_containing(doc, "+79111111111")
+        self.assertGreater(len(runs), 0, "Should find runs containing customer phone")
+        for run in runs:
+            rpr = run._element.find(f"{{{ns['w']}}}rPr")
+            if rpr is not None:
+                color_elem = rpr.find(f"{{{ns['w']}}}color")
+                if color_elem is not None:
+                    color_val = color_elem.get(f"{{{ns['w']}}}val")
+                    self.assertEqual(color_val, "000000", f"Phone run should have black color, got {color_val}")
+
+    def test_no_red_color_in_replacement_values(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        check_values = ["Тамбасова", "983 360", "483 360", "Петров Петр Петрович", "6100 235555"]
+        for check_text in check_values:
+            found_red = False
+            for t_elem in doc.element.body.iter(f"{{{ns_w}}}t"):
+                if t_elem.text and check_text in t_elem.text:
+                    r_elem = t_elem.getparent()
+                    while r_elem is not None and r_elem.tag != f"{{{ns_w}}}r":
+                        r_elem = r_elem.getparent() if r_elem is not None else None
+                    if r_elem is not None:
+                        rpr = r_elem.find(f"{{{ns_w}}}rPr")
+                        if rpr is not None:
+                            color_elem = rpr.find(f"{{{ns_w}}}color")
+                            if color_elem is not None:
+                                color_val = color_elem.get(f"{{{ns_w}}}val")
+                                if color_val and color_val.upper() not in ("000000", "AUTO"):
+                                    found_red = True
+            self.assertFalse(found_red, f"Replacement value '{check_text}' should not have red color in any run")
+
+    def test_no_theme_color_on_replacement_runs(self):
+        replacements = self._make_full_replacements()
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        check_values = ["Тамбасова", "983 360", "Петров Петр Петрович", "6100 235555"]
+        for check_text in check_values:
+            found_theme = False
+            for t_elem in doc.element.body.iter(f"{{{ns_w}}}t"):
+                if t_elem.text and check_text in t_elem.text:
+                    r_elem = t_elem.getparent()
+                    while r_elem is not None and r_elem.tag != f"{{{ns_w}}}r":
+                        r_elem = r_elem.getparent() if r_elem is not None else None
+                    if r_elem is not None:
+                        rpr = r_elem.find(f"{{{ns_w}}}rPr")
+                        if rpr is not None:
+                            theme_color = rpr.find(f"{{{ns_w}}}themeColor")
+                            theme_tint = rpr.find(f"{{{ns_w}}}themeTint")
+                            theme_shade = rpr.find(f"{{{ns_w}}}themeShade")
+                            if theme_color is not None or theme_tint is not None or theme_shade is not None:
+                                found_theme = True
+            self.assertFalse(found_theme, f"Replacement value '{check_text}' should not have theme color elements")
+
 
 class GenerateContractDocxIntegrationTests(unittest.TestCase):
     @classmethod

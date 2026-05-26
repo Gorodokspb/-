@@ -556,11 +556,92 @@ def replace_placeholders_in_docx(template_path: Path, replacements: dict[str, st
             prefixed_text = f"Рабочая группа: {working_group_text}"
         _replace_working_group_paragraph(doc, prefixed_text)
 
+    replacement_values = [v for v in replacements.values() if v]
+    _normalize_replacement_colors(doc, replacement_values)
+
     return doc
 
 
 _WORKING_GROUP_MARKER = "Рабочая группа WhatsApp"
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+
+def _normalize_run_color_to_black(run):
+    from lxml import etree
+    rPr = run._element.find(f"{{{_W_NS}}}rPr")
+    if rPr is None:
+        rPr = etree.SubElement(run._element, f"{{{_W_NS}}}rPr")
+        run._element.insert(0, rPr)
+    color_elem = rPr.find(f"{{{_W_NS}}}color")
+    if color_elem is None:
+        color_elem = etree.SubElement(rPr, f"{{{_W_NS}}}color")
+    color_elem.set(f"{{{_W_NS}}}val", "000000")
+    for attr_name in [f"{{{_W_NS}}}theme", f"{{{_W_NS}}}tint", f"{{{_W_NS}}}shade"]:
+        for attr_key in list(color_elem.attrib.keys()):
+            if attr_key == attr_name:
+                del color_elem.attrib[attr_key]
+    for tag in [f"{{{_W_NS}}}themeColor", f"{{{_W_NS}}}themeTint", f"{{{_W_NS}}}themeShade"]:
+        child = rPr.find(tag)
+        if child is not None:
+            rPr.remove(child)
+
+
+def _normalize_replacement_colors(doc: DocxDocument, replacement_values: list[str]):
+    from lxml import etree
+    significant_values = [v for v in replacement_values if v and len(v) >= 3]
+    if not significant_values:
+        return
+
+    def _text_contains_value(text):
+        for val in significant_values:
+            if val in text:
+                return True
+        return False
+
+    def _normalize_run_color_in_element(r_elem):
+        rPr = r_elem.find(f"{{{_W_NS}}}rPr")
+        if rPr is None:
+            rPr = etree.SubElement(r_elem, f"{{{_W_NS}}}rPr")
+            r_elem.insert(0, rPr)
+        color_elem = rPr.find(f"{{{_W_NS}}}color")
+        if color_elem is None:
+            color_elem = etree.SubElement(rPr, f"{{{_W_NS}}}color")
+        color_elem.set(f"{{{_W_NS}}}val", "000000")
+        for attr_name in [f"{{{_W_NS}}}theme", f"{{{_W_NS}}}tint", f"{{{_W_NS}}}shade"]:
+            for attr_key in list(color_elem.attrib.keys()):
+                if attr_key == attr_name:
+                    del color_elem.attrib[attr_key]
+        for tag in [f"{{{_W_NS}}}themeColor", f"{{{_W_NS}}}themeTint", f"{{{_W_NS}}}themeShade"]:
+            child = rPr.find(tag)
+            if child is not None:
+                rPr.remove(child)
+
+    def _normalize_paragraph(paragraph):
+        for run in paragraph.runs:
+            run_text = run.text or ""
+            if run_text.strip():
+                _normalize_run_color_to_black(run)
+
+    def _normalize_xml_paragraph(p_elem):
+        if not _text_contains_value("".join(t.text or "" for t in p_elem.iter(f"{{{_W_NS}}}t"))):
+            return
+        for r_elem in p_elem.iter(f"{{{_W_NS}}}r"):
+            t_elem = r_elem.find(f"{{{_W_NS}}}t")
+            if t_elem is not None and (t_elem.text or "").strip():
+                _normalize_run_color_in_element(r_elem)
+
+    for paragraph in doc.paragraphs:
+        if _text_contains_value(paragraph.text or ""):
+            _normalize_paragraph(paragraph)
+            _normalize_xml_paragraph(paragraph._element)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    if _text_contains_value(paragraph.text or ""):
+                        _normalize_paragraph(paragraph)
+                        _normalize_xml_paragraph(paragraph._element)
 
 
 def _replace_working_group_paragraph(doc: DocxDocument, working_group_text: str):
