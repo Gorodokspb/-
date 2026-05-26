@@ -189,7 +189,7 @@
                         <button type="submit" class="primary-button">Сформировать DOCX договора</button>
                     </form>
                     {% if contract_document.file_path %}
-                    <a class="ghost-button" href="/documents/{{ contract_document.id }}/download?kind=file">Скачать DOCX договора</a>
+                    <a class="ghost-button" href="/documents/{{ contract_document.id }}/download?kind=file&_t={{ contract_document.updated_at }}">Скачать DOCX договора</a>
                     {% endif %}
                     {% else %}
                     <span class="panel-note">Сохраните настройки договора, чтобы создать документ и сформировать DOCX.</span>

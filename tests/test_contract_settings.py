@@ -266,6 +266,10 @@ class ContractSettingsTemplateTests(unittest.TestCase):
         self.assertIn("/download?kind=file", content)
         self.assertIn("Скачать DOCX договора", content)
 
+    def test_download_link_has_cache_busting_param(self):
+        content = self.template.read_text(encoding="utf-8")
+        self.assertIn("&_t={{ contract_document.updated_at }}", content)
+
     def test_contract_settings_shows_docx_created_banner(self):
         content = self.template.read_text(encoding="utf-8")
         self.assertIn("docx_created", content)
