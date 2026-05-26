@@ -517,6 +517,7 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
         for p in doc.paragraphs:
             if "Рабочая группа: Telegram группа" in p.text:
                 color_found = False
+                underline_none_found = False
                 for run in p.runs:
                     rpr = run._element.find(f"{{{ns['w']}}}rPr")
                     if rpr is not None:
@@ -525,7 +526,31 @@ class ReplacePlaceholdersInDocxTests(unittest.TestCase):
                             color_val = color_elem.get(f"{{{ns['w']}}}val")
                             if color_val == "000000":
                                 color_found = True
+                        u_elem = rpr.find(f"{{{ns['w']}}}u")
+                        if u_elem is not None and u_elem.get(f"{{{ns['w']}}}val") == "none":
+                            underline_none_found = True
                 self.assertTrue(color_found, "Working group text should have black font color (000000)")
+                self.assertTrue(underline_none_found, "Working group text should have underline=none")
+                break
+        else:
+            self.fail("Working group paragraph not found in document")
+
+    def test_working_group_text_no_hyperlink_nor_rstyle(self):
+        from lxml import etree
+        replacements = {
+            "[[WORKING_GROUP_TEXT]]": "Custom group",
+        }
+        doc = replace_placeholders_in_docx(TEMPLATE_PATH, replacements)
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        for p in doc.paragraphs:
+            if "Рабочая группа: Custom group" in p.text:
+                hyperlinks = p._element.findall(f"{{{ns['w']}}}hyperlink")
+                self.assertEqual(len(hyperlinks), 0, "No hyperlink elements should remain")
+                for run in p.runs:
+                    rpr = run._element.find(f"{{{ns['w']}}}rPr")
+                    if rpr is not None:
+                        rstyle = rpr.find(f"{{{ns['w']}}}rStyle")
+                        self.assertIsNone(rstyle, "No rStyle should be set on working group run")
                 break
         else:
             self.fail("Working group paragraph not found in document")
