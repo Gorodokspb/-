@@ -270,6 +270,10 @@ def generate_estimate_pdf(estimate: dict, username: str) -> Path:
     elements.append(header)
     elements.append(Spacer(1, 2 * mm))
 
+    heading_style = ParagraphStyle("Heading", fontName=FONT_BOLD, fontSize=9, leading=11, alignment=1)
+    elements.append(Paragraph("Смета на выполнение отделочных работ", heading_style))
+    elements.append(Spacer(1, 2 * mm))
+
     discount_label = (
         f"Со скидкой ({int(discount_percent) if float(discount_percent).is_integer() else discount_percent}%)"
         if discount_percent > 0
