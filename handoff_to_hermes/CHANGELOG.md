@@ -1,5 +1,73 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-26 Stage 8.9.4n — Remove remaining red font from contract DOCX
+- `_remove_red_colors(doc)` — финальная замена всех `w:color val="FF0000"/"ff0000"` на `000000`.
+- Удаление `w:themeColor`, `w:themeTint`, `w:themeShade`.
+- 6 новых тестов в классе `RemoveRedColorsTests`.
+- Коммит: `773663d`.
+
+## 2026-05-26 Stage 8.9.4m — Set contract replacement text color black
+- `_normalize_replacement_colors()` — нормализация цвета подставленных данных: параграфы/ячейки с replacement values перекрашиваются в чёрный.
+- `_normalize_run_color_to_black()` + `_normalize_run_color_in_element()` — XML-level color normalization.
+- `w:color=000000`, удаление `themeColor/themeTint/themeShade`.
+- Обработка скрытых runs (`rStyle="af2"`) через `_normalize_xml_paragraph()`.
+- 9 новых тестов + `_find_xml_runs_containing` helper.
+- Коммит: `72ca825`.
+
+## 2026-05-26 Stage 8.9.4l — Disable proofing for contract working group text
+- `w:noProof` добавлен в rPr нового run рабочей группы — отключает проверку орфографии/грамматики Word.
+- Коммит: `dc6cae1`.
+
+## 2026-05-26 Stage 8.9.4k — Remove hyperlink styling from contract working group text
+- `w:u val="none"` явно отключает подчёркивание; нет `w:hyperlink`, нет `w:rStyle`.
+- Коммит: `1633f7d`.
+
+## 2026-05-26 Stage 8.9.4j — Set contract working group text color black
+- Явный `w:color val="000000"` вместо `deepcopy(rPr)`.
+- Коммит: `e94eb36`.
+
+## 2026-05-26 Stage 8.9.4i — Prefix contract working group text
+- "Рабочая группа: " автоматически добавляется, не дублируется.
+- Коммит: `618f332`.
+
+## 2026-05-26 Stage 8.9.4h — Fix contract working group text replacement
+- `_replace_working_group_paragraph()` — paragraph-level replacement вместо placeholder-based.
+- Template P115 содержит статическую WhatsApp-строку, не `[[PLACEHOLDER]]`.
+- `_W_NS` вынесен в module-level constant.
+- Коммит: `fd2d471`.
+
+## 2026-05-26 Stage 8.9.4g — Add cache busting to contract DOCX download link
+- `&_t={{ contract_document.updated_at }}` в ссылке скачивания DOCX.
+- Коммит: `f24b2d2`.
+
+## 2026-05-26 Stage 8.9.4f — Prevent cached document downloads
+- Cache-Control: no-store, no-cache, must-revalidate + Pragma: no-cache + Expires: 0.
+- Коммит: `c53f617`.
+
+## 2026-05-26 Stage 8.9.4e — Fix contract DOCX customer data replacements
+- `[[CUSTOMER_EMAIL]]` заменяется через `_replace_in_xml_text_nodes()` (fallback для hidden runs с `rStyle="af2"`).
+- `_normalize_counterparty_type()`: Физлицо→Физическое лицо, ИП→ИП, ООО→Юридическое лицо ООО.
+- `object_address` приоритет: settings → counterparty.work_address → project.address → project.project_name.
+- Коммит: `80de1c3`.
+
+## 2026-05-26 Stage 8.9.4c — Fix document download fetch_document import
+- Исправлен `FetchDocument` import в `main.py`, вызвавший 500 на `/documents/{id}/download?kind=file`.
+- Коммит: `3eab5ef`.
+
+## 2026-05-26 Stage 8.9.4b — Add contract DOCX generation UI
+- Кнопка «Сформировать DOCX договора» на странице `/projects/{id}/contract`.
+- Ссылка «Скачать DOCX договора» после генерации.
+- Баннер `created=contract-docx`.
+- Коммит: `959d683`.
+
+## 2026-05-26 Stage 8.9.4a — Implement DOCX contract generation service
+- `webapp/contract_generator.py`: `build_contract_replacements()`, `replace_placeholders_in_docx()`, `generate_contract_docx()`.
+- `python-docx==1.2.0` добавлен в requirements.txt.
+- `POST /projects/{id}/contract/generate-docx` — генерация DOCX.
+- 19 placeholder-полей + replacement logic.
+- Двухпроходная замена: paragraph.runs → XML `w:t` nodes.
+- Коммит: `b290592`.
+
 ## 2026-05-21 Stage 8.9.2b — Improve contract payment UX
 - Платёжные строки: collapsible — показаны заполненные + минимум 2, остальные скрыты через `style="display:none"`.
 - Кнопка «+ Добавить платёж» показывает следующую скрытую строку (максимум 7 платежей).

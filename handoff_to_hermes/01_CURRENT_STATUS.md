@@ -7,6 +7,19 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+773663d Remove remaining red font from contract DOCX
+72ca825 Set contract replacement text color black
+dc6cae1 Disable proofing for contract working group text
+1633f7d Remove hyperlink styling from contract working group text
+e94eb36 Set contract working group text color black
+618f332 Prefix contract working group text
+fd2d471 Fix contract working group text replacement
+f24b2d2 Add cache busting to contract DOCX download link
+c53f617 Prevent cached document downloads
+3eab5ef Fix document download fetch_document import
+80de1c3 Fix contract DOCX customer data replacements
+959d683 Add contract DOCX generation UI
+b290592 Implement DOCX contract generation service
 6e41294 Stage 8.9.2b: improve contract payment inputs
 0ad9dd4 Stage 8.9.2: add project contract settings page and draft contract document
 56153b9 Document Stage 8.9.1 counterparty pages completion
@@ -150,6 +163,41 @@ Stage 8.8 live-проверка финансов/кассы прошла.
 
 Stage 8.8.1 fix hardcoded finance metrics прошёл live-проверку.
 **Stage 8.8.1 Real finance totals in project cards — закрыт.**
+
+### Stage 8.9.4: DOCX contract generation (ЗАКРЫТ)
+
+| Подэтап | Статус | Коммит |
+|---------|--------|--------|
+| 8.9.4a | ✅ DOCX generation service | `b290592` |
+| 8.9.4b | ✅ Contract DOCX generation UI | `959d683` |
+| 8.9.4c | ✅ Fix document download import | `3eab5ef` |
+| 8.9.4e | ✅ Fix customer data replacements | `80de1c3` |
+| 8.9.4f | ✅ Prevent cached document downloads | `c53f617` |
+| 8.9.4g | ✅ Cache busting download link | `f24b2d2` |
+| 8.9.4h | ✅ Fix working group text replacement | `fd2d471` |
+| 8.9.4i | ✅ Prefix working group text | `618f332` |
+| 8.9.4j | ✅ Working group text color black | `e94eb36` |
+| 8.9.4k | ✅ Remove hyperlink styling | `1633f7d` |
+| 8.9.4l | ✅ Disable proofing for working group | `dc6cae1` |
+| 8.9.4m | ✅ Set replacement text color black | `72ca825` |
+| 8.9.4n | ✅ Remove remaining red font | `773663d` |
+
+Ключевые файлы:
+- `webapp/contract_generator.py` — DOCX generation: `build_contract_replacements`, `replace_placeholders_in_docx`, `generate_contract_docx`, `_replace_in_xml_text_nodes`, `_normalize_counterparty_type`, `_replace_working_group_paragraph`, `_normalize_replacement_colors`, `_remove_red_colors`, `_build_communications_block`, `_W_NS`
+- `webapp/main.py` — routes: POST `/projects/{id}/contract/generate-docx`, GET `/documents/{id}/download` with Cache-Control headers
+- `webapp/db.py` — `fetch_contract_settings()`, `save_contract_settings()`, `create_or_update_contract_document()`, `update_document_file_path()`, counterparty CRUD
+- `webapp/templates/contract_settings.html` — contract settings page with download link (cache-busting `&_t={{ updated_at }}`)
+- `webapp/storage.py` — `resolve_storage_path()`, `sanitize_filename()`
+- `requirements.txt` — `python-docx==1.2.0`
+- `tests/test_contract_generator.py` — 64 tests (unit + integration)
+- `tests/test_contract_settings.py` — 21 tests (template/route + DB)
+- `contract_template_physical.docx` — 19 placeholders + static WhatsApp text in P115, NOT MODIFIED
+
+Live-проверка на project 11: DOCX генерируется, скачивается, данные заказчика корректны, email подставлен, адрес объекта корректен, рабочая группа из CRM, цвет шрифта чёрный, красных элементов нет.
+
+Routes:
+- `POST /projects/{project_id}/contract/generate-docx` — generate and download DOCX
+- `GET /documents/{document_id}/download?kind=file&_t={updated_at}` — download with cache-busting
 
 ### Stage 8.9.1a: Extended counterparty creation fields (закрыт)
 - `/counterparties/new` теперь принимает 28 полей (было 9): паспорт, адреса, реквизиты, банк, директор.

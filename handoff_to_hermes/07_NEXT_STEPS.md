@@ -126,7 +126,69 @@
 - Live-проверка пройдена.
 - Коммит: `70b22b7`.
 
-## Stage 8.9.2: Contract settings page and draft contract document ✅ ЗАКРЫТ
+## Stage 8.9.4: DOCX contract generation ✅ ЗАВЕРШЁН
+
+### 8.9.4a ✅ DOCX generation service (выполнено)
+- `webapp/contract_generator.py`: `build_contract_replacements()`, `replace_placeholders_in_docx()`, `generate_contract_docx()`.
+- `python-docx==1.2.0` добавлен в requirements.txt.
+- `POST /projects/{id}/contract/generate-docx` — генерация и скачивание DOCX.
+- 19 placeholder-полей + replacement logic.
+- Двухпроходная замена: paragraph.runs → XML `w:t` nodes.
+- Коммит: `b290592`.
+
+### 8.9.4b ✅ Contract DOCX generation UI (выполнено)
+- Кнопка «Сформировать DOCX договора» на странице настроек договора.
+- Ссылка «Скачать DOCX договора» после генерации.
+- Баннер `created=contract-docx`.
+- Коммит: `959d683`.
+
+### 8.9.4c ✅ Fix document download (выполнено)
+- Исправлена ошибка 500: `fetch_document` import отсутствовал.
+- Коммит: `3eab5ef`.
+
+### 8.9.4e ✅ Fix contract DOCX customer data replacements (выполнено)
+- `[[CUSTOMER_EMAIL]]` заменяется через `_replace_in_xml_text_nodes()` (hidden `rStyle="af2"`).
+- `_normalize_counterparty_type()`: Физлицо→Физическое лицо, ИП→ИП, ООО→Юридическое лицо ООО.
+- `object_address` приоритет: settings → counterparty.work_address → project.address → project.project_name.
+- Коммит: `80de1c3`.
+
+### 8.9.4f ✅ Prevent cached document downloads (выполнено)
+- Cache-Control: no-store, no-cache, must-revalidate + Pragma: no-cache + Expires: 0.
+- Коммит: `c53f617`.
+
+### 8.9.4g ✅ Cache busting download link (выполнено)
+- `&_t={{ contract_document.updated_at }}` в ссылке скачивания.
+- Коммит: `f24b2d2`.
+
+### 8.9.4h ✅ Fix working group text replacement (выполнено)
+- Template P115 содержит статическую WhatsApp-строку, не placeholder.
+- `_replace_working_group_paragraph()` — paragraph-level replacement.
+- Коммит: `fd2d471`.
+
+### 8.9.4i ✅ Prefix contract working group text (выполнено)
+- Префикс "Рабочая группа: " добавляется автоматически, не дублируется.
+- Коммит: `618f332`.
+
+### 8.9.4j–8.9.4l ✅ Working group text styling (выполнено)
+- `w:color=000000`, `w:u=none`, `w:rFonts` Times New Roman, `w:sz=24`, no `w:hyperlink`, no `w:rStyle`, `w:noProof`.
+- Коммиты: `e94eb36`, `1633f7d`, `dc6cae1`.
+
+### 8.9.4m ✅ Set contract replacement text color black (выполнено)
+- `_normalize_replacement_colors()` — нормализация цвета подставленных данных.
+- `_normalize_run_color_to_black()` + `_normalize_run_color_in_element()` — `w:color=000000`, удаление themeColor/themeTint/themeShade.
+- Коммит: `72ca825`.
+
+### 8.9.4n ✅ Remove remaining red font from contract DOCX (выполнено)
+- `_remove_red_colors()` — финальная замена всех `w:color val="FF0000"/"ff0000"` на `000000`.
+- Удаление `w:themeColor`, `w:themeTint`, `w:themeShade`.
+- Коммит: `773663d`.
+
+### Live verification 8.9.4 ✅
+- Project 11: DOCX генерируется, скачивается, данные корректны.
+- Красных элементов нет, все подставленные данные чёрным шрифтом.
+- Working group text: "Рабочая группа: ..." чёрным, без hyperlink, без проверки орфографии.
+
+## Stage 8.9.4 ✅ Полностью закрыт
 
 ### 8.9.2 ✅ Contract settings page + draft document (выполнено)
 - `/projects/{project_id}/contract` — GET отображает настройки, POST сохраняет.
@@ -145,7 +207,21 @@
 - 29 тестов, все зелёные. Live-проверка пройдена.
 - Коммит: `6e41294`.
 
-DOCX/PDF generation не делалась в Stage 8.9.2/8.9.2b; перед Stage 8.9.3 нужна отдельная диагностика и отдельное подтверждение пользователя.
+DOCX/PDF generation: DOCX contract generation завершён (Stage 8.9.4). PDF conversion — следующий отдельный этап только после отдельного подтверждения пользователя.
+
+## Backlog: обнаруженные задачи (НЕ начинать без подтверждения)
+
+### A. PDF сметы — заголовок
+При скачивании PDF файла сметы нет заголовка: "Смета на выполнение отделочных работ". Нужно добавить заголовок по центру перед самой сметой. Слева сверху реквизиты компании, справа сверху данные клиента/номер договора/ФИО — это уже есть.
+
+### B. Прайс-лист — категория не сохраняется
+При изменении категории работы с "Прочее" на другую визуально сначала сохраняется, но после перезахода на сайт всё возвращается обратно. Нужна диагностика route/UI/DB.
+
+### C. PDF сметы — защита от копирования
+Нужно рассмотреть запрет копирования строк/данных из PDF сметы через PDF permissions/encryption. Не абсолютная защита, но можно ограничить обычное копирование.
+
+### D. PDF conversion договора через LibreOffice headless
+Отдельный будущий этап. LibreOffice не устанавливался. ~300MB. Только после отдельного подтверждения пользователя.
 
 ## Stage 8.9.3 — следующий логический этап: диагностика генерации договора из template
 
