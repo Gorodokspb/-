@@ -1,5 +1,15 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-29 Stage 8.9.7 — Contract PDF generation via LibreOffice
+- Полная реализация генерации PDF договора из DOCX через LibreOffice headless.
+- **8.9.7a**: Установлен `libreoffice-writer` + `fonts-liberation`, LibreOffice 24.2.7.2 на `/usr/bin/soffice`.
+- **8.9.7b/c**: `generate_contract_pdf()`, `POST /projects/{id}/contract/generate-pdf`, `update_document_pdf_path()`. UI: кнопка «Сформировать PDF договора», ссылка «Скачать PDF договора», banner. Коммит: `990717d`.
+- **8.9.7d**: Fix timeout — двойной `file://` в `-env:UserInstallation` URI. `Path.as_uri()` уже возвращает `file:///...`, `_build_soffice_cmd` добавлял ещё `file://`. LibreOffice не мог распарсить → зависание → timeout. Fix: `"-env:UserInstallation=" + profile_dir`. Добавлены flags `--nodefault --nofirststartwizard --nolockcheck`. Timeout 30→60 сек. Коммит: `5ac15f9`.
+- Live-проверка проект 11: PDF 6 страниц, кириллица, данные заказчика/объекта/рабочей группы корректны. Пользователь подтвердил: «По моему всё хорошо».
+- 23 теста в `tests/test_contract_pdf_generation.py`.
+- Ключевые файлы: `webapp/contract_generator.py`, `webapp/db.py`, `webapp/main.py`, `webapp/templates/contract_settings.html`.
+- **Все задачи Stage 8.9 по DOCX/PDF/прайсу закрыты.**
+
 ## 2026-05-29 Stage 8.9.6a — PDF copy protection
 - Для PDF сметы включена ReportLab encryption/permissions через `pdfencrypt.StandardEncryption`.
 - `userPassword=""` — PDF открывается без пароля.

@@ -257,8 +257,43 @@ DOCX/PDF generation: DOCX contract generation завершён (Stage 8.9.4). PD
 ### C. PDF сметы — защита от копирования ✅ FIXED
 Исправлено в Stage 8.9.6a. ReportLab `pdfencrypt.StandardEncryption` с 128-bit encryption. `canCopy=0`, `canModify=0`, `canAnnotate=0`, `canPrint=1`. PDF открывается без пароля. Защита не абсолютная, но ограничивает обычное копирование в стандартных просмотрщиках.
 
-### D. PDF conversion договора через LibreOffice headless
-Отдельный будущий этап. LibreOffice не устанавливался. ~300MB. Только после отдельного подтверждения пользователя.
+### D. PDF conversion договора через LibreOffice headless ✅ FIXED
+Реализовано в Stage 8.9.7. LibreOffice 24.2.7.2 установлен. `generate_contract_pdf()` конвертирует DOCX→PDF через `soffice --headless`. Уникальный UserInstallation profile per invocation. Timeout 60 сек. Live-проверка проект 11 пройдена. Коммиты: `990717d`, `5ac15f9`.
+
+## Stage 8.9.7: Contract PDF generation via LibreOffice ✅ ЗАКРЫТ
+
+### 8.9.7a ✅ LibreOffice installed
+- `libreoffice-writer` + `fonts-liberation` на Ubuntu 24.04.4 LTS.
+- `/usr/bin/soffice` и `/usr/bin/libreoffice` доступны (24.2.7.2).
+- Код приложения не менялся.
+
+### 8.9.7b ✅ Backend contract PDF generation (выполнено)
+- `generate_contract_pdf()` в `webapp/contract_generator.py`.
+- `POST /projects/{id}/contract/generate-pdf` route.
+- `update_document_pdf_path()` в `webapp/db.py`.
+- Конвертация DOCX→PDF через LibreOffice headless subprocess.
+- Коммит: `990717d`.
+
+### 8.9.7c ✅ UI contract PDF buttons (выполнено)
+- Кнопка «Сформировать PDF договора» (POST, показывается если есть DOCX).
+- Ссылка «Скачать PDF договора» (GET, показывается если есть PDF).
+- Banner «PDF договора сформирован.»
+- `pdf_created` context variable в `main.py`.
+- Коммит: `990717d`.
+
+### 8.9.7d ✅ Fix LibreOffice profile URI timeout (выполнено)
+- Баг: `Path.as_uri()` возвращал `file:///tmp/...`, `_build_soffice_cmd` добавлял `file://` ещё раз → `file://file:///tmp/...`.
+- LibreOffice не парсил URI → зависание → timeout 30 сек.
+- Fix: `"-env:UserInstallation=" + profile_dir` (без дублирующего `file://`).
+- Добавлены flags: `--nodefault`, `--nofirststartwizard`, `--nolockcheck`.
+- Timeout увеличен с 30 до 60 секунд.
+- 23 теста в `tests/test_contract_pdf_generation.py`.
+- Коммит: `5ac15f9`.
+- Live-проверка проект 11: PDF сформирован за ~1.5 сек, 6 страниц, кириллица корректна.
+
+## Все задачи Stage 8.9 по DOCX/PDF/прайсу — ЗАКРЫТЫ
+
+Следующие задачи не начинать без отдельного решения пользователя.
 
 ## Stage 8.9.3 — следующий логический этап: диагностика генерации договора из template
 

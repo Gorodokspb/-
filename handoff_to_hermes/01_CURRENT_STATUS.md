@@ -7,6 +7,8 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+5ac15f9 Fix LibreOffice profile URI for contract PDF conversion
+990717d Add contract PDF generation and UI
 4c6e355 Protect estimate PDFs from copying
 d087b49 Add heading 'Смета на выполнение отделочных работ' to estimate PDF
 a2f8f99 Document Stage 8.9.5 catalog category fix
@@ -21,7 +23,7 @@ e94eb36 Set contract working group text color black
 fd2d471 Fix contract working group text replacement
 f24b2d2 Add cache busting to contract DOCX download link
 c53f617 Prevent cached document downloads
-3eab5ef Fix document download fetch_document import
+3eab5af Fix document download fetch_document import
 80de1c3 Fix contract DOCX customer data replacements
 959d683 Add contract DOCX generation UI
 b290592 Implement DOCX contract generation service
@@ -154,6 +156,9 @@ e28872b Stage 8.5.2 excel estimate import preview/apply routes
 ## Состояние после push
 Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.
 
+**Все текущие задачи Stage 8.9 по DOCX/PDF/прайсу закрыты.**
+Следующие задачи не начинать без отдельного решения пользователя.
+
 Stage 8.5.1–8.5.5 завершены. Live verification пройдена.
 **Stage 8.5 Excel import — функционально закрыт.**
 
@@ -244,6 +249,33 @@ Routes:
 - Live-проверка пройдена: пользователь подтвердил, что копирование текста из PDF заблокировано.
 - **Уточнение**: защита применяется только к новым/переформированным PDF; старые PDF, созданные до Stage 8.9.6a, останутся без защиты, пока их заново не сформировать.
 - **Ограничение**: PDF permissions/encryption не является абсолютной криптографической защитой от продвинутого обхода, но ограничивает обычное копирование в стандартных PDF-просмотрщиках (Adobe Reader и др.).
+
+### Stage 8.9.7: Contract PDF generation via LibreOffice (ЗАКРЫТ)
+
+| Подэтап | Статус | Описание | Коммит |
+|---------|--------|----------|--------|
+| 8.9.7a | ✅ LibreOffice installed | `libreoffice-writer` + `fonts-liberation`, `/usr/bin/soffice` 24.2.7.2 | — |
+| 8.9.7b | ✅ Backend PDF generation | `generate_contract_pdf()`, `POST /projects/{id}/contract/generate-pdf`, `update_document_pdf_path` | `990717d` |
+| 8.9.7c | ✅ UI buttons | «Сформировать PDF договора», «Скачать PDF договора», banner | `990717d` |
+| 8.9.7d | ✅ Fix LibreOffice URI timeout | Двойной `file://` в `-env:UserInstallation`, добавлены `--nodefault --nofirststartwizard --nolockcheck`, timeout 30→60 сек | `5ac15f9` |
+
+Ключевые детали:
+- `generate_contract_pdf()` сначала вызывает `generate_contract_docx()`, затем конвертирует DOCX→PDF через `soffice --headless`.
+- Уникальный `UserInstallation` profile per invocation через `tempfile.TemporaryDirectory` + `Path.as_uri()`.
+- `_build_soffice_cmd()` формирует команду: soffice + `-env:UserInstallation={uri}` + `--headless --norestore --nodefault --nofirststartwizard --nolockcheck --convert-to pdf --outdir {dir} {docx}`.
+- `_CONVERSION_TIMEOUT = 60` секунд.
+- `_find_soffice()` ищет `soffice` затем `libreoffice` через `shutil.which()`.
+- PDF сохраняется в `documents.pdf_path`, скачивается через `GET /documents/{id}/download?kind=pdf`.
+- 23 теста в `tests/test_contract_pdf_generation.py`.
+- Live-проверка проект 11: PDF 6 страниц, кириллица корректна, данные заказчика/объекта/рабочей группы на месте, реквизиты и подписи на последней странице.
+- Пользователь подтвердил: «По моему всё хорошо»
+
+Ключевые файлы:
+- `webapp/contract_generator.py` — `generate_contract_pdf()`, `_find_soffice()`, `_build_soffice_cmd()`, `_CONVERSION_TIMEOUT`
+- `webapp/db.py` — `update_document_pdf_path()`
+- `webapp/main.py` — `POST /projects/{id}/contract/generate-pdf` route, `pdf_created` context
+- `webapp/templates/contract_settings.html` — PDF button, download link, success banner
+- `tests/test_contract_pdf_generation.py` — 23 тестов
 
 ### Stage 8.9.1a: Extended counterparty creation fields (закрыт)
 - `/counterparties/new` теперь принимает 28 полей (было 9): паспорт, адреса, реквизиты, банк, директор.
