@@ -33,6 +33,9 @@
         {% if docx_created %}
         <div class="notice-banner notice-banner-success">DOCX договора сформирован.</div>
         {% endif %}
+        {% if pdf_created %}
+        <div class="notice-banner notice-banner-success">PDF договора сформирован.</div>
+        {% endif %}
 
         <section class="panel-card panel-card-wide">
             <div class="panel-header panel-header-compact">
@@ -190,6 +193,14 @@
                     </form>
                     {% if contract_document.file_path %}
                     <a class="ghost-button" href="/documents/{{ contract_document.id }}/download?kind=file&_t={{ contract_document.updated_at }}">Скачать DOCX договора</a>
+                    {% endif %}
+                    {% if contract_document.file_path %}
+                    <form method="post" action="/projects/{{ project.id }}/contract/generate-pdf" style="display:inline;">
+                        <button type="submit" class="primary-button">Сформировать PDF договора</button>
+                    </form>
+                    {% endif %}
+                    {% if contract_document.pdf_path %}
+                    <a class="ghost-button" href="/documents/{{ contract_document.id }}/download?kind=pdf&_t={{ contract_document.updated_at }}">Скачать PDF договора</a>
                     {% endif %}
                     {% else %}
                     <span class="panel-note">Сохраните настройки договора, чтобы создать документ и сформировать DOCX.</span>

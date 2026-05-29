@@ -1133,6 +1133,7 @@ def contract_settings_page(project_id: int, request: Request):
             "contract_document": contract_document,
             "saved": request.query_params.get("created") == "contract-settings",
             "docx_created": request.query_params.get("created") == "contract-docx",
+            "pdf_created": request.query_params.get("created") == "contract-pdf",
         },
     )
 
@@ -1207,6 +1208,27 @@ def contract_generate_docx(project_id: int, request: Request):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return RedirectResponse(
         url=f"/projects/{project_id}/contract?created=contract-docx",
+        status_code=status.HTTP_302_FOUND,
+    )
+
+
+@app.post("/projects/{project_id}/contract/generate-pdf")
+def contract_generate_pdf(project_id: int, request: Request):
+    require_auth(request)
+    project = fetch_project(project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Проект не найден.")
+    try:
+        from webapp.contract_generator import generate_contract_pdf
+        generate_contract_pdf(project_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    return RedirectResponse(
+        url=f"/projects/{project_id}/contract?created=contract-pdf",
         status_code=status.HTTP_302_FOUND,
     )
 

@@ -1630,6 +1630,16 @@ def update_document_file_path(document_id: int, relative_path: str) -> None:
         conn.commit()
 
 
+def update_document_pdf_path(document_id: int, pdf_relative_path: str) -> None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE documents SET pdf_path = %s, updated_at = %s WHERE id = %s",
+                (pdf_relative_path, _now_iso(), document_id),
+            )
+        conn.commit()
+
+
 def get_project_estimate_total(project_id: int) -> str:
     with get_connection() as conn:
         with conn.cursor() as cur:

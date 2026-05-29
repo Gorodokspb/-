@@ -9,13 +9,17 @@ from __future__ import annotations
 
 import datetime
 import re
+import shutil
+import subprocess
+import tempfile
+import uuid
 from copy import deepcopy
 from pathlib import Path
 
 from docx import Document as DocxDocument
 
 from webapp.config import get_settings
-from webapp.storage import sanitize_filename, storage_relative_path
+from webapp.storage import sanitize_filename, storage_relative_path, resolve_storage_path
 
 
 TEMPLATE_FILENAME = "contract_template_physical.docx"
@@ -809,4 +813,96 @@ def generate_contract_docx(project_id: int) -> dict:
         "project_id": project_id,
         "file_path": relative_path,
         "output_filename": output_filename,
+    }
+
+
+def _find_soffice() -> str:
+    for cmd in ("soffice", "libreoffice"):
+        path = shutil.which(cmd)
+        if path:
+            return path
+    raise RuntimeError(
+        "LibreOffice не найден. Установите libreoffice-writer для конвертации DOCX → PDF."
+    )
+
+
+def _build_soffice_cmd(soffice_path: str, docx_path: str, outdir: str, profile_dir: str) -> list[str]:
+    return [
+        soffice_path,
+        "-env:UserInstallation=file://" + profile_dir,
+        "--headless",
+        "--norestore",
+        "--convert-to",
+        "pdf",
+        "--outdir",
+        outdir,
+        docx_path,
+    ]
+
+
+_CONVERSION_TIMEOUT = 30
+
+
+def generate_contract_pdf(project_id: int) -> dict:
+    from webapp.db import (
+        fetch_project,
+        update_document_pdf_path,
+    )
+
+    result = generate_contract_docx(project_id)
+    document_id = result["document_id"]
+
+    from webapp.db import fetch_document
+    document = fetch_document(document_id)
+    if not document:
+        raise ValueError(f"Document {document_id} not found")
+
+    docx_relative = document.get("file_path") or ""
+    if not docx_relative:
+        raise FileNotFoundError("DOCX договора не найден. Сначала сформируйте DOCX.")
+
+    docx_absolute = resolve_storage_path(docx_relative)
+    if not docx_absolute or not docx_absolute.exists():
+        raise FileNotFoundError(f"DOCX файл не найден на диске: {docx_relative}")
+
+    pdf_path = docx_absolute.with_suffix(".pdf")
+    outdir = str(docx_absolute.parent)
+
+    soffice_path = _find_soffice()
+
+    with tempfile.TemporaryDirectory(prefix="dekorcrm-lo-") as profile_dir:
+        profile_uri = Path(profile_dir).as_uri()
+        cmd = _build_soffice_cmd(soffice_path, str(docx_absolute), outdir, profile_uri)
+
+        try:
+            proc = subprocess.run(
+                cmd,
+                timeout=_CONVERSION_TIMEOUT,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                f"Конвертация DOCX → PDF превысила таймаут ({_CONVERSION_TIMEOUT} сек)."
+            )
+
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"LibreOffice вернул ошибку (код {proc.returncode}): "
+                f"stdout={proc.stdout[:500]}, stderr={proc.stderr[:500]}"
+            )
+
+    if not pdf_path.exists():
+        raise FileNotFoundError(
+            f"PDF файл не создан после конвертации. Ожидался: {pdf_path}"
+        )
+
+    pdf_relative = storage_relative_path(pdf_path)
+    update_document_pdf_path(document_id, pdf_relative)
+
+    return {
+        "document_id": document_id,
+        "project_id": project_id,
+        "pdf_path": pdf_relative,
+        "pdf_filename": pdf_path.name,
     }
