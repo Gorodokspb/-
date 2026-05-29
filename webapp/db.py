@@ -1705,12 +1705,15 @@ def fetch_catalog_items_by_names(names: list[str]) -> list[dict]:
 
 
 def create_catalog_item(name: str, unit: str, price, category: str) -> int:
-    from import_catalog_items import normalize_category, parse_price
+    from import_catalog_items import CATEGORY_OPTIONS, parse_price
 
     normalized_name = str(name or '').strip()
     if not normalized_name:
         raise ValueError('Название работы обязательно.')
-    normalized_category = normalize_category(category, normalized_name)
+    normalized_category = str(category or '').strip()
+    if normalized_category not in CATEGORY_OPTIONS:
+        from import_catalog_items import normalize_category
+        normalized_category = normalize_category(category, normalized_name)
     price_value = parse_price(price)
     ensure_catalog_items_table()
     with get_connection() as conn:
@@ -1729,12 +1732,15 @@ def create_catalog_item(name: str, unit: str, price, category: str) -> int:
 
 
 def update_catalog_item(item_id: int, name: str, unit: str, price, category: str) -> None:
-    from import_catalog_items import normalize_category, parse_price
+    from import_catalog_items import CATEGORY_OPTIONS, parse_price
 
     normalized_name = str(name or '').strip()
     if not normalized_name:
         raise ValueError('Название работы обязательно.')
-    normalized_category = normalize_category(category, normalized_name)
+    normalized_category = str(category or '').strip()
+    if normalized_category not in CATEGORY_OPTIONS:
+        from import_catalog_items import normalize_category
+        normalized_category = normalize_category(category, normalized_name)
     price_value = parse_price(price)
     ensure_catalog_items_table()
     with get_connection() as conn:

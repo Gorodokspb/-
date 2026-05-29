@@ -172,6 +172,54 @@
         });
     }
 
+    document.querySelectorAll(".catalog-row-save").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const row = button.closest(".catalog-row");
+            if (!row) return;
+            const itemId = row.dataset.itemId;
+            const nameInput = row.querySelector(".catalog-name-input");
+            const unitInput = row.querySelector(".catalog-unit-input");
+            const priceInput = row.querySelector(".catalog-price-input");
+            const categorySelect = row.querySelector(".catalog-category-select-borderless");
+            if (!itemId || !nameInput) return;
+            const formData = new FormData();
+            formData.append("name", nameInput.value);
+            formData.append("unit", unitInput ? unitInput.value : "");
+            formData.append("price", priceInput ? priceInput.value : "");
+            formData.append("category", categorySelect ? categorySelect.value : "Прочее");
+            button.disabled = true;
+            button.textContent = "Сохраняю...";
+            try {
+                const response = await fetch(`/catalog/items/${itemId}`, {
+                    method: "POST",
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                    body: formData,
+                });
+                if (response.ok) {
+                    button.textContent = "Сохранено";
+                    if (categorySelect) {
+                        categorySelect.dataset.originalCategory = categorySelect.value;
+                        const dirtySelect = categorySelect;
+                        dirtySelect.classList.remove("is-dirty");
+                    }
+                    row.classList.remove("is-dirty");
+                    const idx = Number(itemId);
+                    if (catalogCategoryChanges.has(idx)) {
+                        catalogCategoryChanges.delete(idx);
+                        updateBulkSaveState();
+                    }
+                    setTimeout(() => { button.textContent = "Сохранить"; button.disabled = false; }, 1500);
+                } else {
+                    window.location.reload();
+                }
+            } catch (error) {
+                button.disabled = false;
+                button.textContent = "Сохранить";
+                alert("Ошибка сохранения: " + (error.message || "неизвестная ошибка"));
+            }
+        });
+    });
+
     document.querySelectorAll(".global-action-open[data-open-modal], [data-open-modal]").forEach((button) => {
         button.addEventListener("click", () => {
             const modal = document.getElementById(button.dataset.openModal);

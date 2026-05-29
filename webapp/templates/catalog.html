@@ -51,24 +51,22 @@
                     <td colspan="5">{{ group.category }} <span>{{ group.rows|length }}</span></td>
                 </tr>
                 {% for item in group.rows %}
-                <tr class="catalog-row" data-search="{{ item.name }} {{ item.unit }} {{ item.category }}">
-                    <form method="post" action="/catalog/items/{{ item.id }}">
-                        <td><input class="catalog-input catalog-name-input" name="name" value="{{ item.name }}" required></td>
-                        <td><input class="catalog-input catalog-unit-input" name="unit" value="{{ item.unit }}"></td>
-                        <td><input class="catalog-input catalog-price-input" name="price" value="{{ item.price if item.price is not none else '' }}"></td>
-                        <td>
-                            <select class="catalog-select catalog-category-select-borderless" name="category" data-bulk-category-select data-item-id="{{ item.id }}" data-original-category="{{ item.category }}">
-                                {% for category in categories %}
-                                <option value="{{ category }}" {% if category == item.category %}selected{% endif %}>{{ category }}</option>
-                                {% endfor %}
-                            </select>
-                        </td>
-                        <td class="catalog-actions">
-                            <button class="mini-button" type="submit">Сохранить</button>
-                    </form>
-                            <form method="post" action="/catalog/items/{{ item.id }}/copy"><button class="mini-button" type="submit">Копировать</button></form>
-                            <form method="post" action="/catalog/items/{{ item.id }}/delete" onsubmit="return confirm('Удалить работу из каталога?')"><button class="mini-button danger" type="submit">Удалить</button></form>
-                        </td>
+                <tr class="catalog-row" data-search="{{ item.name }} {{ item.unit }} {{ item.category }}" data-item-id="{{ item.id }}">
+                    <td><input class="catalog-input catalog-name-input" name="name" value="{{ item.name }}" required></td>
+                    <td><input class="catalog-input catalog-unit-input" name="unit" value="{{ item.unit }}"></td>
+                    <td><input class="catalog-input catalog-price-input" name="price" value="{{ item.price if item.price is not none else '' }}"></td>
+                    <td>
+                        <select class="catalog-select catalog-category-select-borderless" name="category" data-bulk-category-select data-item-id="{{ item.id }}" data-original-category="{{ item.category }}">
+                            {% for category in categories %}
+                            <option value="{{ category }}" {% if category == item.category %}selected{% endif %}>{{ category }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="catalog-actions">
+                        <button class="mini-button catalog-row-save" type="button" data-item-id="{{ item.id }}">Сохранить</button>
+                        <form method="post" action="/catalog/items/{{ item.id }}/copy" style="display:inline"><button class="mini-button" type="submit">Копировать</button></form>
+                        <form method="post" action="/catalog/items/{{ item.id }}/delete" style="display:inline" onsubmit="return confirm('Удалить работу из каталога?')"><button class="mini-button danger" type="submit">Удалить</button></form>
+                    </td>
                 </tr>
                 {% endfor %}
             {% endfor %}

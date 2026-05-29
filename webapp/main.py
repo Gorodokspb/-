@@ -578,6 +578,8 @@ def catalog_item_update(
 ):
     require_auth(request)
     update_catalog_item(item_id, name, unit, price, category)
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return {"ok": True, "id": item_id}
     return RedirectResponse(url="/catalog?message=Работа обновлена", status_code=status.HTTP_302_FOUND)
 
 
