@@ -17,7 +17,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-from reportlab.lib import colors
+from reportlab.lib import colors, pdfencrypt
 from reportlab.lib.styles import ParagraphStyle
 
 from webapp.config import get_settings
@@ -29,6 +29,20 @@ if TYPE_CHECKING:
 
 FONT_REGULAR = "DejaVuSans"
 FONT_BOLD = "DejaVuSans-Bold"
+
+_OWNER_PASSWORD = "DEKORCRM_ESTIMATE_PDF_OWNER_2026"
+
+
+def _make_encryption():
+    return pdfencrypt.StandardEncryption(
+        userPassword="",
+        ownerPassword=_OWNER_PASSWORD,
+        canPrint=1,
+        canModify=0,
+        canCopy=0,
+        canAnnotate=0,
+        strength=128,
+    )
 
 
 def _ensure_fonts() -> None:
@@ -341,6 +355,7 @@ def export_standalone_estimate_pdf(snapshot: dict[str, Any], *, stamp_applied: b
     watermark_text = _resolve_watermark_text(company_name, company)
 
     def add_watermark(canvas, _doc):
+        canvas._doc.encrypt = _make_encryption()
         if not watermark_enabled:
             return
         canvas.saveState()
@@ -386,6 +401,7 @@ def export_final_approved_pdf(
     watermark_text = _resolve_watermark_text(estimate.get("company_name") or "ООО Декорартстрой", company)
 
     def add_watermark(canvas, _doc):
+        canvas._doc.encrypt = _make_encryption()
         return
 
     doc.build(elements, onFirstPage=add_watermark, onLaterPages=add_watermark)

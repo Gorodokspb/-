@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from reportlab.lib import colors
+from reportlab.lib import colors, pdfencrypt
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
@@ -16,6 +16,20 @@ from webapp.storage import build_estimate_pdf_path
 FONT_REGULAR = "DejaVuSans"
 FONT_BOLD = "DejaVuSans-Bold"
 SMETA_DOC_TYPE = "Смета (приложение № 1)"
+
+_OWNER_PASSWORD = "DEKORCRM_ESTIMATE_PDF_OWNER_2026"
+
+
+def _make_encryption():
+    return pdfencrypt.StandardEncryption(
+        userPassword="",
+        ownerPassword=_OWNER_PASSWORD,
+        canPrint=1,
+        canModify=0,
+        canCopy=0,
+        canAnnotate=0,
+        strength=128,
+    )
 
 
 def _ensure_fonts() -> None:
@@ -234,6 +248,7 @@ def generate_estimate_pdf(estimate: dict, username: str) -> Path:
     watermark_text = "ИП ГОРДЕЕВ А.Н." if company_name == "ИП Гордеев А.Н." else "ДЕКОРАРТСТРОЙ"
 
     def add_watermark(canvas, _doc):
+        canvas._doc.encrypt = _make_encryption()
         if not watermark:
             return
         canvas.saveState()
