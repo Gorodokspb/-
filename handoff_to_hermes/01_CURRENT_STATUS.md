@@ -7,6 +7,8 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+ff559d2 Fix catalog item category saving
+383faf1 Document Stage 8.9.4 DOCX contract completion
 773663d Remove remaining red font from contract DOCX
 72ca825 Set contract replacement text color black
 dc6cae1 Disable proofing for contract working group text
@@ -198,6 +200,18 @@ Live-проверка на project 11: DOCX генерируется, скачи
 Routes:
 - `POST /projects/{project_id}/contract/generate-docx` — generate and download DOCX
 - `GET /documents/{document_id}/download?kind=file&_t={updated_at}` — download with cache-busting
+
+### Stage 8.9.5a: Fix catalog item category saving (ЗАКРЫТ)
+
+- Баг: изменение категории работы в прайс-листе визуально сохранялось, но после обновления страницы возвращалось обратно.
+- Причина: `<form>` внутри `<tr>` — невалидный HTML, браузер репарентит форму, category не отправлялась.
+- Исправление: убран `<form>` из `<tr>`, добавлен per-row AJAX save через JS.
+- Кнопка «Сохранить» собирает `name/unit/price/category` из текущей строки, отправляет `FormData` POST.
+- Backend: `update_catalog_item()` и `create_catalog_item()` сохраняют валидные категории из `CATEGORY_OPTIONS` напрямую, `normalize_category` используется только при пустой/невалидной категории.
+- Route `catalog_item_update` возвращает `{"ok": True}` для AJAX-запросов.
+- Live-проверка пройдена: категория сохраняется корректно, название работы редактируется.
+- Коммит: `ff559d2`.
+- Файлы: `webapp/templates/catalog.html`, `webapp/static/app.js`, `webapp/db.py`, `webapp/main.py`, `tests/test_catalog_category_update.py` (28 tests).
 
 ### Stage 8.9.1a: Extended counterparty creation fields (закрыт)
 - `/counterparties/new` теперь принимает 28 полей (было 9): паспорт, адреса, реквизиты, банк, директор.

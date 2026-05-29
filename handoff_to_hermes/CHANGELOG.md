@@ -1,5 +1,15 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-29 Stage 8.9.5a — Fix catalog item category saving
+- Баг: изменение категории работы в прайс-листе визуально сохранялось, но после обновления страницы возвращалось обратно.
+- Причина: `<form>` внутри `<tr>` — невалидный HTML, браузер репарентит форму, category не отправлялась.
+- Исправление: убран `<form>` из `<tr>`, добавлен per-row AJAX save handler в JS.
+- Backend: `update_catalog_item()` и `create_catalog_item()` сохраняют валидные категории из `CATEGORY_OPTIONS` напрямую.
+- Route `catalog_item_update` возвращает `{"ok": True}` для AJAX-запросов (`X-Requested-With: XMLHttpRequest`).
+- 28 новых тестов в `tests/test_catalog_category_update.py`.
+- Live-проверка пройдена: категория сохраняется, название работы редактируется.
+- Коммит: `ff559d2`.
+
 ## 2026-05-26 Stage 8.9.4n — Remove remaining red font from contract DOCX
 - `_remove_red_colors(doc)` — финальная замена всех `w:color val="FF0000"/"ff0000"` на `000000`.
 - Удаление `w:themeColor`, `w:themeTint`, `w:themeShade`.

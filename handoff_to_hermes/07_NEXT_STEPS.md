@@ -126,7 +126,18 @@
 - Live-проверка пройдена.
 - Коммит: `70b22b7`.
 
-## Stage 8.9.4: DOCX contract generation ✅ ЗАВЕРШЁН
+## Stage 8.9.5a: Fix catalog item category saving ✅ ЗАВЕРШЁН
+
+### 8.9.5a ✅ Fix catalog category persistence (выполнено)
+- Убран невалидный `<form>` из `<tr>` в `catalog.html`.
+- Per-row AJAX save: кнопка «Сохранить» отправляет `FormData` на `POST /catalog/items/{id}`.
+- Backend `update_catalog_item()` и `create_catalog_item()` сохраняют валидные категории напрямую без `normalize_category`.
+- Route `catalog_item_update` возвращает `{"ok": True}` для AJAX.
+- 28 новых тестов в `tests/test_catalog_category_update.py`.
+- Live-проверка пройдена: категория сохраняется, название редактируется.
+- Коммит: `ff559d2`.
+
+## Stage 8.9.4 ✅ Полностью закрыт
 
 ### 8.9.4a ✅ DOCX generation service (выполнено)
 - `webapp/contract_generator.py`: `build_contract_replacements()`, `replace_placeholders_in_docx()`, `generate_contract_docx()`.
@@ -214,8 +225,8 @@ DOCX/PDF generation: DOCX contract generation завершён (Stage 8.9.4). PD
 ### A. PDF сметы — заголовок
 При скачивании PDF файла сметы нет заголовка: "Смета на выполнение отделочных работ". Нужно добавить заголовок по центру перед самой сметой. Слева сверху реквизиты компании, справа сверху данные клиента/номер договора/ФИО — это уже есть.
 
-### B. Прайс-лист — категория не сохраняется
-При изменении категории работы с "Прочее" на другую визуально сначала сохраняется, но после перезахода на сайт всё возвращается обратно. Нужна диагностика route/UI/DB.
+### B. Прайс-лист — категория не сохранялась ✅ FIXED
+Исправлено в Stage 8.9.5a. Причина: невалидный HTML (`<form>` внутри `<tr>`). Fix: per-row AJAX save + backend preserves valid categories.
 
 ### C. PDF сметы — защита от копирования
 Нужно рассмотреть запрет копирования строк/данных из PDF сметы через PDF permissions/encryption. Не абсолютная защита, но можно ограничить обычное копирование.
