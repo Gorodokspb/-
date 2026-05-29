@@ -45,6 +45,9 @@ class TestBuildSofficeCmd(unittest.TestCase):
         self.assertEqual(cmd[0], "/usr/bin/soffice")
         self.assertIn("--headless", cmd)
         self.assertIn("--norestore", cmd)
+        self.assertIn("--nodefault", cmd)
+        self.assertIn("--nofirststartwizard", cmd)
+        self.assertIn("--nolockcheck", cmd)
         self.assertIn("--convert-to", cmd)
         self.assertIn("pdf", cmd)
         self.assertIn("--outdir", cmd)
@@ -61,6 +64,18 @@ class TestBuildSofficeCmd(unittest.TestCase):
         profile_arg = [a for a in cmd if a.startswith("-env:UserInstallation")]
         self.assertEqual(len(profile_arg), 1)
         self.assertIn("file:///tmp/lo-profile-abc", profile_arg[0])
+
+    def test_user_profile_no_double_file_prefix(self):
+        cmd = _build_soffice_cmd(
+            "/usr/bin/soffice",
+            "/path/contract.docx",
+            "/out",
+            "file:///tmp/lo-profile-abc",
+        )
+        profile_arg = [a for a in cmd if a.startswith("-env:UserInstallation")]
+        self.assertEqual(len(profile_arg), 1)
+        self.assertNotIn("file://file://", profile_arg[0])
+        self.assertEqual(profile_arg[0], "-env:UserInstallation=file:///tmp/lo-profile-abc")
 
     def test_command_is_list_not_string(self):
         cmd = _build_soffice_cmd("/usr/bin/soffice", "/a.docx", "/out", "file:///tmp/p")
@@ -118,7 +133,7 @@ class TestGenerateContractPdf(unittest.TestCase):
         mock_resolve.return_value = docx_path
         mock_gen_docx.return_value = {"document_id": 42, "project_id": 1, "file_path": "test.docx"}
         mock_fetch_doc.return_value = {"id": 42, "file_path": str(docx_path)}
-        mock_subprocess.side_effect = subprocess.TimeoutExpired(cmd="soffice", timeout=30)
+        mock_subprocess.side_effect = subprocess.TimeoutExpired(cmd="soffice", timeout=60)
 
         from webapp.contract_generator import generate_contract_pdf
         with self.assertRaises(RuntimeError) as ctx:

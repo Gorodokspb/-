@@ -829,9 +829,12 @@ def _find_soffice() -> str:
 def _build_soffice_cmd(soffice_path: str, docx_path: str, outdir: str, profile_dir: str) -> list[str]:
     return [
         soffice_path,
-        "-env:UserInstallation=file://" + profile_dir,
+        "-env:UserInstallation=" + profile_dir,
         "--headless",
         "--norestore",
+        "--nodefault",
+        "--nofirststartwizard",
+        "--nolockcheck",
         "--convert-to",
         "pdf",
         "--outdir",
@@ -840,7 +843,7 @@ def _build_soffice_cmd(soffice_path: str, docx_path: str, outdir: str, profile_d
     ]
 
 
-_CONVERSION_TIMEOUT = 30
+_CONVERSION_TIMEOUT = 60
 
 
 def generate_contract_pdf(project_id: int) -> dict:
