@@ -295,19 +295,124 @@ DOCX/PDF generation: DOCX contract generation завершён (Stage 8.9.4). PD
 
 Следующие задачи не начинать без отдельного решения пользователя.
 
-## Stage 8.9.3 — следующий логический этап: диагностика генерации договора из template
+## Stage 8.10.0 — Security diagnostics ✅ ВЫПОЛНЕНА
 
-### Планируемое содержание 8.9.3
-1. Диагностика `contract_template_physical.docx` — структура, 19 `[[PLACEHOLDER]]` полей, совместимость с python-docx.
-2. Реализация `build_contract_replacements()` — маппинг project + counterparty + estimate данных → placeholder values.
-3. Генерация DOCX из шаблона с заполненными плейсхолдерами.
-4. Скачивание DOCX и/или конвертация в PDF.
+Общий уровень риска: **средний**. Критичных находок нет.
 
-### Ограничения (подтверждённые)
-- DOCX/PDF generation не делалась в 8.9.2/8.9.2b; перед 8.9.3 нужна отдельная диагностика и подтверждение пользователя.
-- Акты и приложения — не делались.
-- Смеси, финансы, legacy routes — не затронуты.
-- Mobile/adaptive layout — отложено.
+Проверенные области: auth, documents, POST routes, CSRF, security headers, nginx, storage, secrets, logs, dependencies, SQL/XSS.
+
+Findings:
+1. Нет CSRF-защиты (Medium) — `SameSite=Lax` частично защищает
+2. Session cookie без флага `Secure` (Medium) — `https_only=True` не передан в SessionMiddleware
+3. Default fallback секреты в config.py (Low) — `"change-me-before-production"`, `"change-me"`
+4. Owner password в markdown docs (Low) — `DEKORCRM_ESTIMATE_PDF_OWNER_2026` не замаскирован
+5. Нет Content-Security-Policy (Low)
+6. Устаревшие пакеты (Info) — fastapi, uvicorn, starlette, и др.
+7. SSH PasswordAuthentication/PermitRootLogin (Low, осознанное решение)
+
+## Security backlog (после Stage 8.10.0 diagnostics)
+
+### 8.10.1 — Session cookie Secure flag (план)
+- Добавить `https_only=True` в `SessionMiddleware` kwargs.
+- `webapp/main.py:87-89`.
+- 1 строка, маленький безопасный этап.
+- Нужен restart после fix.
+
+### 8.10.2 — Mask owner password in docs (план)
+- Замаскировать `DEKORCRM_ESTIMATE_PDF_OWNER_2026` → `DEKOR***_2026` в handoff docs.
+- Markdown-only этап. Restart не нужен.
+
+### 8.10.3 — CSP nginx diagnostics/header (план)
+- Добавить `Content-Security-Policy` header на nginx уровне.
+- Начать с мягкой политики: `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'`.
+- Сначала диагностика nginx config, потом добавление header.
+- Нужен nginx reload.
+
+### 8.10.4 — CSRF diagnostics/fix (план)
+- Добавить CSRF-защиту для POST/delete/generate routes.
+- Middleware + hidden `_csrf_token` field во всех формах.
+- Более крупный этап, аккуратно покрыть тестами.
+- `SameSite=Lax` частично защищает от cross-site POST, но не от поддомена/GET→POST цепочек.
+- Нужен restart после fix.
+
+### 8.10.5 — Default secrets hardening (план)
+- Убрать/запретить production fallback `"change-me-before-production"` и `"change-me"`.
+- Приложение не должно стартовать в production без реальных secret/admin password.
+- Либо crash при отсутствии env var, либо WARNING log.
+- `webapp/config.py:68-72`.
+- Нужен restart после fix.
+
+### 8.10.6 — SSH hardening (план, только после настройки SSH-key)
+- Отключить `PasswordAuthentication no`.
+- Отключить `PermitRootLogin no`.
+- Только после подтверждения пользователя, что SSH-key доступ работает.
+
+### 8.10.7 — Dependencies update (план)
+- Отдельный этап — сначала диагностика совместимости каждого major/minor bump.
+- Starlette 0.48→1.2 — major bump, нужна особая аккуратность.
+- Не обновлять массово без тестов.
+
+## Перед UI/UX visual polish и адаптивной переработкой
+
+### Критерии готовности к визуальному этапу
+
+1. **Базовые security hardening задачи закрыты:**
+   - Минимум: Session Secure flag (8.10.1), mask owner password (8.10.2), CSP минимальный header (8.10.3).
+   - CSRF (8.10.4) хотя бы запланировать отдельным этапом, лучше выполнить до публичной активной эксплуатации.
+
+2. **Ключевые бизнес-сценарии проверены end-to-end:**
+   - Создание standalone сметы → импорт Excel → согласование → создание проекта → договор (DOCX + PDF) → PDF сметы → прайс-лист → скачивание документов.
+
+3. **Оставшиеся функциональные модули зафиксированы:**
+   - Акты / приложения / финальный акт — если пользователь решит делать до визуального этапа.
+   - Финансы/платежи — если пользователь решит.
+
+4. **Нет срочных багов данных:**
+   - Сохранение прайс-листа, документы, контрагенты, статусы смет/проектов.
+
+5. **Backup/checkpoint перед визуальной переработкой:**
+   - Git clean, все pushed.
+   - Service active.
+   - База/storage не трогать без backup.
+   - Желательно отдельная ветка или tag перед UI refactor.
+
+### Принципы визуальной переработки
+
+1. **Не переписывать весь сайт сразу.** Только по разделам: проекты, сметы, договор, прайс-лист, документы, финансы.
+
+2. **Не смешивать визуальный refactor с бизнес-логикой.** Сначала visual/layout — отдельные commits, без изменения DB, расчётов, маршрутов (если не требуется).
+
+3. **Сохранить расширяемость кода:**
+   - Выносить повторяющиеся UI блоки в шаблонные partials/components.
+   - Не дублировать разметку.
+   - Сохранять понятные `class`/`data-*` attributes для JS.
+   - Не завязывать бизнес-логику на визуальные классы.
+   - Использовать `data-*` attributes для JS hook points.
+   - Не ломать тесты.
+
+4. **Адаптивность делать системно:** Desktop → tablet → mobile. Проверка основных страниц. Не делать «латки» только под один экран.
+
+5. **Перед visual stage составить UI inventory:**
+   - Список страниц, форм, таблиц, кнопок/статусов.
+   - Что должно быть удобно на телефоне.
+   - Что можно оставить только desktop-first.
+
+6. **Единый визуальный стиль:** Сетка, кнопки, карточки, таблицы, сообщения success/error, формы, типографика.
+
+7. **После каждого visual этапа:** User live browser verification. Не push без отдельного подтверждения. Не переходить к следующему разделу без проверки пользователя.
+
+## Предлагаемый порядок работ после Stage 8.10.0
+
+1. Stage 8.10.1 — Session cookie Secure flag
+2. Stage 8.10.2 — Mask owner password in docs
+3. Stage 8.10.3 — CSP nginx diagnostics/header
+4. Stage 8.10.4 — CSRF diagnostics/fix
+5. Stage 8.11 — Full functional smoke test checklist
+6. Stage 8.12 — UI inventory before redesign
+7. Stage 9.0 — Visual/UI polish по разделам
+8. Stage 9.x — Responsive/mobile/tablet adaptation
+
+Не начинать эти этапы без отдельного подтверждения пользователя.
 
 ## Test suite fixes ✅ ЗАКРЫТЫ
 - `test_estimate_repository.py`: 13/13 pass.
@@ -320,10 +425,13 @@ DOCX/PDF generation: DOCX contract generation завершён (Stage 8.9.4). PD
 - Привести import_excel.html и другие страницы к единому визуальному стилю CRM.
 - Визуальная полировка страниц импорта, списков, редактора.
 - Делать отдельными маленькими этапами, не одним большим рефакторингом.
-- Начинать только после подтверждения пользователя.
+- Начинать только после подтверждения пользователя и выполнения критериев готовности (см. «Перед UI/UX visual polish»).
+- Не смешивать visual refactor с бизнес-логикой.
 
 ### Будущий этап: Mobile/adaptive layout
-- Не начат. Отдельный этап после завершения desktop-функционала.
+- Не начат. Отдельный этап (Stage 9.x) после завершения desktop visual polish.
+- Делать системно: desktop → tablet → mobile.
+- Не делать «латки» только под один экран.
 
 ## Ближайшие задачи по CRM/сметам (после 8.5)
 1. Доводить редактор сметы до плотного desktop-подобного вида.

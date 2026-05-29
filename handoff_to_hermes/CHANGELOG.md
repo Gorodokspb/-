@@ -1,5 +1,15 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-29 Stage 8.10.0 — Security diagnostics + roadmap
+- Проведена безопасная диагностика безопасности CRM198.ru.
+- Общий уровень риска: **средний**, критичных находок нет.
+- Findings: нет CSRF (Medium), session cookie без Secure (Medium), default fallback secrets (Low), owner password в docs (Low), нет CSP (Low), устаревшие пакеты (Info), SSH password auth (Low осознанно).
+- Что подтверждено: auth на всех приватных routes, parameterized SQL, нет XSS через |safe, нет debug mode, .env.web в .gitignore, nginx security headers, HTTP→HTTPS, TLS 1.2+, storage не обслуживается напрямую, documents auth-gated.
+- Зафиксирован roadmap: 8.10.1–8.10.5 security hardening → 8.11 smoke test → 8.12 UI inventory → 9.0 visual polish → 9.x responsive.
+- Зафиксированы принципы визуальной переработки: не переписывать сразу, не смешивать visual и бизнес-логику, сохранять расширяемость, системная адаптивность, UI inventory перед redesign, единый стиль.
+- Зафиксированы критерии готовности к визуальному этапу: security hardening, end-to-end бизнес-сценарии, оставшиеся модули, нет багов данных, backup/checkpoint.
+- Ничего не менялось в коде. Только документация.
+
 ## 2026-05-29 Stage 8.9.7 — Contract PDF generation via LibreOffice
 - Полная реализация генерации PDF договора из DOCX через LibreOffice headless.
 - **8.9.7a**: Установлен `libreoffice-writer` + `fonts-liberation`, LibreOffice 24.2.7.2 на `/usr/bin/soffice`.

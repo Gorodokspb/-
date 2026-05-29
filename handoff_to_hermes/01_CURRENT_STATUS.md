@@ -157,7 +157,37 @@ e28872b Stage 8.5.2 excel estimate import preview/apply routes
 Рабочее дерево чистое, ветка отслеживает `origin/hermes/integrate-origin-master-20260423`.
 
 **Все текущие задачи Stage 8.9 по DOCX/PDF/прайсу закрыты.**
+Security diagnostics (8.10.0) выполнена — общий риск средний, критичных находок нет.
 Следующие задачи не начинать без отдельного решения пользователя.
+
+### Stage 8.10.0 — Security diagnostics (выполнена)
+
+Общий уровень риска: **средний**. Критичных находок нет.
+
+Findings:
+| # | Severity | Что | Где |
+|---|----------|-----|-----|
+| F-1 | Medium | Нет CSRF-защиты | Все POST формы + routes |
+| F-2 | Medium | Session cookie без `Secure` флага | `webapp/main.py:87-89` |
+| F-3 | Low | Default fallback secrets `"change-me..."` | `webapp/config.py:68-72` |
+| F-4 | Low | Owner password в markdown docs | handoff_to_hermes/*.md |
+| F-5 | Low | Нет Content-Security-Policy | nginx config |
+| F-6 | Info | Устаревшие пакеты | requirements.txt |
+| F-7 | Low | SSH PasswordAuth/RootLogin enabled | sshd_config (осознанно) |
+
+Что проверено: auth (✅ все приватные → 302→login), POST routes (✅ все require_auth), SQL injection (✅ parameterized queries), XSS (✅ |safe только для JSON scripts), debug mode (✅ reload=False), secrets in git (✅ .env.web в .gitignore), nginx (✅ HSTS/X-Frame/X-CT-O/Referrer/Permissions-Policy, HTTP→HTTPS, TLS 1.2+), storage (✅ не обслуживается nginx), documents (✅ auth-gated route).
+
+### Roadmap после Stage 8.10.0
+
+1. Stage 8.10.1 — Session cookie Secure flag (`https_only=True`)
+2. Stage 8.10.2 — Mask owner password in docs
+3. Stage 8.10.3 — CSP nginx diagnostics/header
+4. Stage 8.10.4 — CSRF diagnostics/fix
+5. Stage 8.10.5 — Default secrets hardening
+6. Stage 8.11 — Full functional smoke test checklist
+7. Stage 8.12 — UI inventory before redesign
+8. Stage 9.0 — Visual/UI polish по разделам
+9. Stage 9.x — Responsive/mobile/tablet adaptation
 
 Stage 8.5.1–8.5.5 завершены. Live verification пройдена.
 **Stage 8.5 Excel import — функционально закрыт.**
