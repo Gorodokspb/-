@@ -1,5 +1,21 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-29 Stage 8.9.6a — PDF copy protection
+- Для PDF сметы включена ReportLab encryption/permissions через `pdfencrypt.StandardEncryption`.
+- `userPassword=""` — PDF открывается без пароля.
+- `canPrint=1`, `canCopy=0`, `canModify=0`, `canAnnotate=0` — печать разрешена, копирование/изменение/аннотации запрещены.
+- `strength=128` — 128-bit encryption.
+- `_make_encryption()` фабрика — создаёт fresh `StandardEncryption` на каждую генерацию (объект одноразовый, нельзя переиспользовать).
+- `_OWNER_PASSWORD = "DEKORCRM_ESTIMATE_PDF_OWNER_2026"` — owner password не виден в UI.
+- Защита в `webapp/estimate_pdf.py` (project estimate) и `webapp/standalone_estimate_files.py` (standalone draft + final).
+- Encryption первой строкой в `add_watermark` callback: `canvas._doc.encrypt = _make_encryption()`.
+- Новых зависимостей не добавлено — `pdfencrypt` входит в `reportlab`.
+- 21 тест в `tests/test_estimate_pdf_protection.py`.
+- Коммит: `4c6e355`.
+- Live-проверка пройдена: пользователь подтвердил, что копирование заблокировано.
+- Защита применяется только к новым/переформированным PDF; старые PDF нужно переформировать.
+- Ограничение: не абсолютная криптографическая защита, ограничивает обычное копирование в стандартных PDF-просмотрщиках.
+
 ## 2026-05-29 Stage 8.9.5b — PDF estimate heading
 - Добавлен заголовок **«Смета на выполнение отделочных работ»** в PDF сметы проекта.
 - Заголовок: centered, bold (DejaVuSans-Bold), fontSize=9, между блоком реквизитов и таблицей.

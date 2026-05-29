@@ -126,6 +126,22 @@
 - Live-проверка пройдена.
 - Коммит: `70b22b7`.
 
+## Stage 8.9.6a: PDF copy protection ✅ ЗАВЕРШЁН
+
+### 8.9.6a ✅ Protect estimate PDFs from copying (выполнено)
+- ReportLab `pdfencrypt.StandardEncryption` — 128-bit encryption.
+- `userPassword=""` — PDF открывается без пароля.
+- `canPrint=1`, `canCopy=0`, `canModify=0`, `canAnnotate=0`.
+- `_make_encryption()` фабрика (fresh instance на каждую генерацию).
+- Project estimate PDF + standalone draft/final — все защищены.
+- Encryption в `add_watermark` callback: `canvas._doc.encrypt = _make_encryption()`.
+- Новых зависимостей нет — `pdfencrypt` в составе `reportlab`.
+- 21 тест в `tests/test_estimate_pdf_protection.py`.
+- Live-проверка пройдена: копирование текста из PDF заблокировано.
+- Коммит: `4c6e355`.
+- **Важно**: защита применяется только к новым/переформированным PDF; старые PDF нужно переформировать.
+- **Ограничение**: не является абсолютной криптографической защитой, ограничивает обычное копирование в стандартных PDF-просмотрщиках.
+
 ## Stage 8.9.5b: PDF estimate heading ✅ ЗАВЕРШЁН
 
 ### 8.9.5b ✅ Add heading «Смета на выполнение отделочных работ» (выполнено)
@@ -238,8 +254,8 @@ DOCX/PDF generation: DOCX contract generation завершён (Stage 8.9.4). PD
 ### B. Прайс-лист — категория не сохранялась ✅ FIXED
 Исправлено в Stage 8.9.5a. Причина: невалидный HTML (`<form>` внутри `<tr>`). Fix: per-row AJAX save + backend preserves valid categories.
 
-### C. PDF сметы — защита от копирования
-Нужно рассмотреть запрет копирования строк/данных из PDF сметы через PDF permissions/encryption. Не абсолютная защита, но можно ограничить обычное копирование.
+### C. PDF сметы — защита от копирования ✅ FIXED
+Исправлено в Stage 8.9.6a. ReportLab `pdfencrypt.StandardEncryption` с 128-bit encryption. `canCopy=0`, `canModify=0`, `canAnnotate=0`, `canPrint=1`. PDF открывается без пароля. Защита не абсолютная, но ограничивает обычное копирование в стандартных просмотрщиках.
 
 ### D. PDF conversion договора через LibreOffice headless
 Отдельный будущий этап. LibreOffice не устанавливался. ~300MB. Только после отдельного подтверждения пользователя.

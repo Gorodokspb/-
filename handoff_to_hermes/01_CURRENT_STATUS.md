@@ -7,6 +7,7 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+4c6e355 Protect estimate PDFs from copying
 d087b49 Add heading 'Смета на выполнение отделочных работ' to estimate PDF
 a2f8f99 Document Stage 8.9.5 catalog category fix
 ff559d2 Fix catalog item category saving
@@ -225,6 +226,24 @@ Routes:
 - Коммит: `d087b49`.
 - Live-проверка пройдена: заголовок отображается при свежей генерации PDF.
 - **Уточнение**: кнопка «Скачать PDF» (`/documents/{id}/download?kind=pdf`) отдаёт ранее сохранённый файл; если PDF был сформирован до добавления заголовка, нужно нажать «Сформировать PDF» заново, после чего «Скачать PDF» отдаст обновлённый файл. Stage 8.9.5c не нужен — проблема была не в генераторе, а в скачивании старого файла.
+
+### Stage 8.9.6a: PDF copy protection (ЗАКРЫТ)
+
+- Для PDF сметы включена ReportLab encryption/permissions через `pdfencrypt.StandardEncryption`.
+- `userPassword=""` — PDF открывается без пароля.
+- `canPrint=1` — печать разрешена.
+- `canCopy=0`, `canModify=0`, `canAnnotate=0` — копирование, изменение, аннотации запрещены в стандартных PDF-просмотрщиках.
+- `strength=128` — 128-bit encryption.
+- `_make_encryption()` — фабрика, создаёт fresh `StandardEncryption` на каждую генерацию (объект одноразовый).
+- `_OWNER_PASSWORD = "DEKORCRM_ESTIMATE_PDF_OWNER_2026"` — owner password не виден в UI.
+- Защита применена в `webapp/estimate_pdf.py` (project estimate) и `webapp/standalone_estimate_files.py` (standalone draft + final approved).
+- Encryption устанавливается первой строкой `add_watermark` callback: `canvas._doc.encrypt = _make_encryption()`.
+- Новых зависимостей не добавлено — `pdfencrypt` входит в `reportlab`.
+- 21 тест в `tests/test_estimate_pdf_protection.py`.
+- Коммит: `4c6e355`.
+- Live-проверка пройдена: пользователь подтвердил, что копирование текста из PDF заблокировано.
+- **Уточнение**: защита применяется только к новым/переформированным PDF; старые PDF, созданные до Stage 8.9.6a, останутся без защиты, пока их заново не сформировать.
+- **Ограничение**: PDF permissions/encryption не является абсолютной криптографической защитой от продвинутого обхода, но ограничивает обычное копирование в стандартных PDF-просмотрщиках (Adobe Reader и др.).
 
 ### Stage 8.9.1a: Extended counterparty creation fields (закрыт)
 - `/counterparties/new` теперь принимает 28 полей (было 9): паспорт, адреса, реквизиты, банк, директор.
