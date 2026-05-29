@@ -1,5 +1,15 @@
 # Changelog — handoff_to_hermes
 
+## 2026-05-29 Stage 8.9.5b — PDF estimate heading
+- Добавлен заголовок **«Смета на выполнение отделочных работ»** в PDF сметы проекта.
+- Заголовок: centered, bold (DejaVuSans-Bold), fontSize=9, между блоком реквизитов и таблицей.
+- Spacer 2mm после заголовка перед таблицей.
+- `webapp/estimate_pdf.py`: добавлен `heading_style` `ParagraphStyle("Heading", ...)` и `Paragraph("Смета на выполнение отделочных работ", heading_style)`.
+- 6 тестов в `tests/test_estimate_pdf_heading.py`: presence, bold font, center alignment, position, spacer, font size.
+- Коммит: `d087b49`.
+- Live-проверка пройдена: заголовок отображается при свежей генерации PDF.
+- Диагностика: кнопка «Скачать PDF» (`/documents/{id}/download?kind=pdf`) отдаёт ранее сохранённый файл; если PDF был создан до добавления заголовка, нужно нажать «Сформировать PDF» заново. Stage 8.9.5c не нужен.
+
 ## 2026-05-29 Stage 8.9.5a — Fix catalog item category saving
 - Баг: изменение категории работы в прайс-листе визуально сохранялось, но после обновления страницы возвращалось обратно.
 - Причина: `<form>` внутри `<tr>` — невалидный HTML, браузер репарентит форму, category не отправлялась.

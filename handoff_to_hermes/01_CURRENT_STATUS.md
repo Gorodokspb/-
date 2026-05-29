@@ -7,6 +7,8 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
+d087b49 Add heading 'Смета на выполнение отделочных работ' to estimate PDF
+a2f8f99 Document Stage 8.9.5 catalog category fix
 ff559d2 Fix catalog item category saving
 383faf1 Document Stage 8.9.4 DOCX contract completion
 773663d Remove remaining red font from contract DOCX
@@ -212,6 +214,17 @@ Routes:
 - Live-проверка пройдена: категория сохраняется корректно, название работы редактируется.
 - Коммит: `ff559d2`.
 - Файлы: `webapp/templates/catalog.html`, `webapp/static/app.js`, `webapp/db.py`, `webapp/main.py`, `tests/test_catalog_category_update.py` (28 tests).
+
+### Stage 8.9.5b: PDF estimate heading (ЗАКРЫТ)
+
+- Добавлен заголовок **«Смета на выполнение отделочных работ»** в PDF сметы проекта.
+- Заголовок: centered, bold (DejaVuSans-Bold), fontSize=9, расположен между блоком реквизитов и таблицей сметы.
+- Spacer 2mm после заголовка перед таблицей.
+- `webapp/estimate_pdf.py`: добавлен `heading_style` и `Paragraph("Смета на выполнение отделочных работ", heading_style)` в `generate_estimate_pdf()`.
+- 6 новых тестов в `tests/test_estimate_pdf_heading.py`.
+- Коммит: `d087b49`.
+- Live-проверка пройдена: заголовок отображается при свежей генерации PDF.
+- **Уточнение**: кнопка «Скачать PDF» (`/documents/{id}/download?kind=pdf`) отдаёт ранее сохранённый файл; если PDF был сформирован до добавления заголовка, нужно нажать «Сформировать PDF» заново, после чего «Скачать PDF» отдаст обновлённый файл. Stage 8.9.5c не нужен — проблема была не в генераторе, а в скачивании старого файла.
 
 ### Stage 8.9.1a: Extended counterparty creation fields (закрыт)
 - `/counterparties/new` теперь принимает 28 полей (было 9): паспорт, адреса, реквизиты, банк, директор.
