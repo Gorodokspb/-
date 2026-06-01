@@ -1,0 +1,2 @@
+# Development tools (not required in production)
+ruff==0.6.9

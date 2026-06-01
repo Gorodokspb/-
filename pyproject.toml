@@ -1,0 +1,55 @@
+[project]
+name = "dekorcrm"
+version = "0.1.0"
+description = "Internal CRM + estimate/contract system for Dekorartstroy construction company."
+requires-python = ">=3.10"
+# Зависимости намеренно живут в requirements.txt — оставь как есть.
+
+[tool.ruff]
+# Согласовано с реальным стилем проекта: длина строк 100, target Python 3.10+.
+line-length = 100
+target-version = "py310"
+src = ["webapp", "tests"]
+extend-exclude = [
+    ".git",
+    ".repo_git",
+    "build",
+    "dist",
+    "migrations",  # SQL files only
+    "Сметы",
+    "Договоры",
+    "_contract_tmp",
+]
+
+[tool.ruff.lint]
+# Стартовый набор правил: pycodestyle (E, W), pyflakes (F), isort (I),
+# bugbear (B), comprehensions (C4), simplify (SIM), security (S).
+# Не включаем D (docstrings) — слишком много шума, docstrings есть не везде.
+# Не включаем N (pep8-naming) — много camelCase из существующего кода.
+select = ["E", "W", "F", "I", "B", "C4", "SIM", "S", "UP", "RUF"]
+# Разрешаем E501 (line-too-long) и E402 (module level import not at top) — старый код часто это нарушает.
+# E402 мешает в main.py, где импорты идут после sys.path хаков.
+ignore = [
+    "E501",  # line-too-long — оставляем на усмотрение разработчика
+    "B008",  # do not perform function calls in argument defaults — FastAPI Depends() pattern
+    "B904",  # raise without from inside except — старый код
+    "SIM108", # use ternary operator — много if/else блоков
+    "SIM117", # combine if statements — readability
+    "RUF012", # mutable class attributes — dataclass / Pydantic patterns
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests могут быть расслаблены: длинные assert, неиспользуемые fixtures.
+"tests/**" = ["E402", "F401", "F811"]
+# Migration script и launcher — однократные скрипты.
+"migrate_sqlite_to_postgres.py" = ["E402", "F401"]
+"launch_server_app.ps1" = []  # PowerShell, не Python
+
+[tool.ruff.lint.isort]
+known-first-party = ["webapp", "tests"]
+combine-as-imports = true
+
+[tool.ruff.format]
+# Использовать double quotes (как в существующем коде).
+quote-style = "double"
+indent-style = "space"
