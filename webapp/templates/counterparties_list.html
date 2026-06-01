@@ -22,6 +22,7 @@
                     <strong>{{ username }}</strong>
                 </div>
                 <form method="post" action="/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                     <button type="submit" class="ghost-button">Выйти</button>
                 </form>
             </div>

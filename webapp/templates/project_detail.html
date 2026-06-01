@@ -16,6 +16,7 @@
                     <strong>{{ username }}</strong>
                 </div>
                 <form method="post" action="/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                     <button type="submit" class="ghost-button">Выйти</button>
                 </form>
             </div>
@@ -40,6 +41,7 @@
                 </p>
             </div>
             <form method="post" action="/projects/{{ project.id }}/delete" onsubmit="return confirm('Удалить проект вместе с карточкой, документами и черновиками сметы?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                 <button type="submit" class="ghost-button danger-button">Удалить проект</button>
             </form>
         </section>
@@ -186,6 +188,7 @@
                                         <div class="table-actions-inline">
                                             <a class="ghost-button ghost-button-small" href="/finance?edit={{ transaction.id }}#transaction-{{ transaction.id }}">Редактировать</a>
                                             <form method="post" action="/finance/transactions/{{ transaction.id }}/delete" onsubmit="return confirm('Удалить запись из финансов?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                                                 <button class="ghost-button ghost-button-small danger-button" type="submit">Удалить</button>
                                             </form>
                                         </div>
@@ -232,6 +235,7 @@
             </div>
 
             <form class="detail-form detail-form-classic" method="post" action="/projects/{{ project.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                 <div class="detail-form-grid">
                     <label class="detail-form-span-2">
                         <span class="sidebar-label">Название проекта</span>

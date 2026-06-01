@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#11283d">
     <title>{% block title %}Dekorartstroy CRM{% endblock %}</title>
+    <meta name="csrf-token" content="{{ csrf_token(request) }}">
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
 </head>
 <body data-current-project-id="{{ current_project_id or '' }}">
@@ -43,6 +44,7 @@
                 <button class="icon-button" type="button" data-close-modal="quickTransactionModal" aria-label="Закрыть">×</button>
             </div>
             <form class="catalog-modal-form finance-transaction-form" method="post" action="/finance/transactions">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                 <input type="hidden" name="return_to" value="{{ request.url.path if request is defined else '/finance' }}">
                 <div class="catalog-modal-grid">
                     <label>

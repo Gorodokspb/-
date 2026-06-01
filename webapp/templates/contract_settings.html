@@ -22,6 +22,7 @@
                     <strong>{{ username }}</strong>
                 </div>
                 <form method="post" action="/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                     <button type="submit" class="ghost-button">Выйти</button>
                 </form>
             </div>
@@ -92,6 +93,7 @@
             {% endif %}
 
             <form class="detail-form" method="post" action="/projects/{{ project.id }}/contract-settings">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
 
                 <h3 class="section-heading">Настройки договора</h3>
                 <div class="detail-form-grid">
@@ -189,6 +191,7 @@
                 <div class="form-actions-inline">
                     {% if contract_document %}
                     <form method="post" action="/projects/{{ project.id }}/contract/generate-docx" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                         <button type="submit" class="primary-button">Сформировать DOCX договора</button>
                     </form>
                     {% if contract_document.file_path %}
@@ -196,6 +199,7 @@
                     {% endif %}
                     {% if contract_document.file_path %}
                     <form method="post" action="/projects/{{ project.id }}/contract/generate-pdf" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                         <button type="submit" class="primary-button">Сформировать PDF договора</button>
                     </form>
                     {% endif %}

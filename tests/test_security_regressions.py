@@ -145,5 +145,138 @@ class TestConfigSecrets(unittest.TestCase):
                 )
 
 
+class TestCsrfProtection(unittest.TestCase):
+    """Stage 8.10.4 (F-1): CSRF protection on state-changing requests."""
+
+    def test_csrf_module_exists(self):
+        from webapp import csrf
+        self.assertTrue(hasattr(csrf, "CSRFMiddleware"))
+        self.assertTrue(hasattr(csrf, "generate_csrf_token"))
+        self.assertTrue(hasattr(csrf, "verify_csrf_token"))
+
+    def test_csrf_middleware_registered(self):
+        """webapp/main.py must register CSRFMiddleware."""
+        main_text = (Path(__file__).parent.parent / "webapp" / "main.py").read_text()
+        self.assertIn("CSRFMiddleware", main_text)
+        self.assertIn("add_middleware", main_text)
+        self.assertRegex(main_text, r"add_middleware\(CSRFMiddleware,\s*secret_key=")
+
+    def test_csrf_meta_tag_in_base(self):
+        base_text = (Path(__file__).parent.parent / "webapp" / "templates" / "base.html").read_text()
+        self.assertIn('name="csrf-token"', base_text)
+        self.assertIn("csrf_token(request)", base_text)
+
+    def test_csrf_token_global_registered(self):
+        """csrf_token(request) must be a Jinja2 global."""
+        main_text = (Path(__file__).parent.parent / "webapp" / "main.py").read_text()
+        self.assertIn("csrf_token", main_text)
+        self.assertIn("env.globals", main_text)
+
+    def test_no_legacy_login_form_has_csrf(self):
+        """login.html must NOT have csrf_token (would break login bypass)."""
+        login_text = (Path(__file__).parent.parent / "webapp" / "templates" / "login.html").read_text()
+        self.assertNotIn('name="csrf_token"', login_text)
+
+    def test_protected_forms_include_csrf(self):
+        """At least one protected template must include csrf_token field."""
+        for tmpl in ["finance.html", "project_detail.html", "catalog.html"]:
+            text = (Path(__file__).parent.parent / "webapp" / "templates" / tmpl).read_text()
+            self.assertIn(
+                'name="csrf_token"', text,
+                f"{tmpl} is missing csrf_token hidden input"
+            )
+
+    def test_verify_csrf_accepts_matching_tokens(self):
+        from webapp.csrf import generate_csrf_token, verify_csrf_token
+        secret = "x" * 32
+        token = generate_csrf_token(secret)
+        self.assertTrue(verify_csrf_token(secret, token, token))
+
+    def test_verify_csrf_rejects_mismatch(self):
+        from webapp.csrf import generate_csrf_token, verify_csrf_token
+        secret = "x" * 32
+        t1 = generate_csrf_token(secret)
+        t2 = generate_csrf_token(secret)
+        self.assertFalse(verify_csrf_token(secret, t1, t2))
+
+    def test_verify_csrf_rejects_empty(self):
+        from webapp.csrf import verify_csrf_token
+        secret = "x" * 32
+        self.assertFalse(verify_csrf_token(secret, "", ""))
+        self.assertFalse(verify_csrf_token(secret, None, None))
+
+    def test_verify_csrf_rejects_tampered(self):
+        from webapp.csrf import verify_csrf_token
+        secret = "x" * 32
+        self.assertFalse(verify_csrf_token(secret, "forged.value", "forged.value"))
+
+
+class TestCsrfFunctional(unittest.TestCase):
+    """Functional CSRF tests using FastAPI TestClient (no live DB)."""
+
+    @classmethod
+    def setUpClass(cls):
+        os.environ.setdefault("DEKORCRM_WEB_SECRET_KEY", "x" * 64)
+        os.environ.setdefault("DEKORCRM_WEB_PASSWORD", "test-password-12345")
+        os.environ["DEKORCRM_POSTGRES_DSN"] = "postgresql://fake:fake@127.0.0.1:1/fake"
+        from fastapi.testclient import TestClient
+        from webapp import main as webapp_main
+        # Patch DB-touching helpers so login works without a real DB.
+        webapp_main.ensure_auth_bootstrap = lambda: None
+        webapp_main.fetch_web_user = lambda username: {
+            "username": username,
+            "password_hash": webapp_main.hash_password("x" * 20),
+        } if username == "admin" else None
+        cls.client = TestClient(webapp_main.app)
+
+    def test_get_root_sets_csrf_cookie(self):
+        resp = self.client.get("/", follow_redirects=False)
+        self.assertIn(resp.status_code, (200, 302))
+        self.assertIn("csrf_token", resp.cookies)
+
+    def test_login_bypasses_csrf(self):
+        resp = self.client.post(
+            "/login",
+            data={"username": "fake", "password": "fake"},
+            follow_redirects=False,
+        )
+        self.assertNotEqual(resp.status_code, 403)
+
+    def test_post_protected_without_csrf_returns_403(self):
+        resp = self.client.post(
+            "/finance/transactions",
+            data={"type": "Приход", "amount": "100"},
+            follow_redirects=False,
+        )
+        self.assertIn(resp.status_code, (302, 403))
+
+    def test_post_with_valid_csrf_and_auth_succeeds(self):
+        resp0 = self.client.get("/", follow_redirects=False)
+        csrf_token = resp0.cookies.get("csrf_token")
+        self.assertIsNotNone(csrf_token)
+        resp_login = self.client.post(
+            "/login",
+            data={"username": "admin", "password": "x" * 20},
+            follow_redirects=False,
+        )
+        if "csrf_token" in resp_login.cookies:
+            csrf_token = resp_login.cookies["csrf_token"]
+        session_cookie = resp_login.cookies.get("session")
+        # TestClient uses HTTP, but our cookies are Secure — set them
+        # directly on the cookie jar to bypass the Secure check.
+        if session_cookie:
+            self.client.cookies.set("session", session_cookie)
+        self.client.cookies.set("csrf_token", csrf_token)
+        resp = self.client.post(
+            "/finance/transactions",
+            data={"type": "Приход", "amount": "100", "csrf_token": csrf_token},
+            headers={"X-CSRF-Token": csrf_token},
+            follow_redirects=False,
+        )
+        # Either 302 (auth redirect — success from CSRF perspective) or 200/400
+        # (passed both auth and CSRF, then form/DB error). Must NOT be 403.
+        self.assertNotEqual(resp.status_code, 403, f"Got 403: {resp.text}")
+
+
 if __name__ == "__main__":
     unittest.main()

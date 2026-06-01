@@ -17,6 +17,7 @@
     </header>
 
     <form method="post" action="/catalog/upload/resolve" class="catalog-conflict-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
         <input type="hidden" name="conflicts_payload" value='{{ conflicts_json|e }}'>
         <div class="catalog-conflict-actions">
             <button class="primary-button" name="action" value="apply_all" type="submit">Применить все новые</button>

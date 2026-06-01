@@ -14,7 +14,8 @@
         </div>
         <nav class="catalog-nav">
             <a class="topbar-chip topbar-open-action" href="/projects">Проекты</a>
-            <form method="post" action="/logout"><button class="ghost-button" type="submit">Выйти</button></form>
+            <form method="post" action="/logout">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}"><button class="ghost-button" type="submit">Выйти</button></form>
         </nav>
     </header>
 
@@ -29,6 +30,7 @@
         <button id="catalogBulkSaveButton" class="primary-button catalog-bulk-save-button" type="button" disabled hidden>Сохранить все изменения</button>
         <span id="catalogBulkStatus" class="catalog-bulk-status" aria-live="polite"></span>
         <form class="catalog-upload-form" method="post" action="/catalog/upload" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
             <input type="file" name="file" accept=".xlsx" required>
             <button class="ghost-button" type="submit">Импорт .xlsx</button>
         </form>
@@ -64,8 +66,10 @@
                     </td>
                     <td class="catalog-actions">
                         <button class="mini-button catalog-row-save" type="button" data-item-id="{{ item.id }}">Сохранить</button>
-                        <form method="post" action="/catalog/items/{{ item.id }}/copy" style="display:inline"><button class="mini-button" type="submit">Копировать</button></form>
-                        <form method="post" action="/catalog/items/{{ item.id }}/delete" style="display:inline" onsubmit="return confirm('Удалить работу из каталога?')"><button class="mini-button danger" type="submit">Удалить</button></form>
+                        <form method="post" action="/catalog/items/{{ item.id }}/copy" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}"><button class="mini-button" type="submit">Копировать</button></form>
+                        <form method="post" action="/catalog/items/{{ item.id }}/delete" style="display:inline" onsubmit="return confirm('Удалить работу из каталога?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}"><button class="mini-button danger" type="submit">Удалить</button></form>
                     </td>
                 </tr>
                 {% endfor %}
@@ -80,6 +84,7 @@
         <button class="catalog-modal-close" type="button" data-close-modal="catalogAddModal">×</button>
         <h2>Добавить работу</h2>
         <form method="post" action="/catalog/items" class="catalog-modal-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
             <label>Название<input name="name" required></label>
             <label>Ед. изм.<input name="unit"></label>
             <label>Цена<input name="price"></label>

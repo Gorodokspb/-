@@ -70,6 +70,7 @@
 
             {# CHANGED: Form action changed from /projects/{project_id}/estimate to /estimates/{estimate.id} #}
             <form id="estimateEditorForm" class="estimate-workspace-form" method="post" action="/estimates/{{ estimate.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                 <section class="estimate-document-bar">
                     <div class="estimate-document-main">
                         <div class="estimate-document-title-row">

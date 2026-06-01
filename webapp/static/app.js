@@ -1,4 +1,9 @@
 (() => {
+    function getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute("content") : "";
+    }
+
     const searchInput = document.getElementById("projectSearch");
     const chips = Array.from(document.querySelectorAll(".filter-chip"));
     const rows = Array.from(document.querySelectorAll(".project-row"));
@@ -134,7 +139,7 @@
             try {
                 const response = await fetch("/catalog/bulk-update-categories", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify(payload),
                 });
                 if (!response.ok) {
@@ -192,7 +197,7 @@
             try {
                 const response = await fetch(`/catalog/items/${itemId}`, {
                     method: "POST",
-                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                    headers: { "X-Requested-With": "XMLHttpRequest", "X-CSRF-Token": getCsrfToken() },
                     body: formData,
                 });
                 if (response.ok) {

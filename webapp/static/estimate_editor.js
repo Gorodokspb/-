@@ -1,4 +1,9 @@
 (() => {
+    function getCsrfToken() {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute("content") : "";
+    }
+
     const initialRowsNode = document.getElementById("estimateInitialRows");
     const initialPriceLibraryNode = document.getElementById("estimatePriceLibrary");
     const initialCalcStateNode = document.getElementById("estimateInitialCalcState");
@@ -1733,7 +1738,7 @@
             try {
                 const response = await fetch(`/estimates/${estimateId}/${action}`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: Object.keys(payload).length ? JSON.stringify(payload) : undefined,
                 });
                 if (!response.ok) {

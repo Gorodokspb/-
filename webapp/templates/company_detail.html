@@ -23,6 +23,7 @@
                     <strong>{{ username }}</strong>
                 </div>
                 <form method="post" action="/logout">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                     <button type="submit" class="ghost-button">Выйти</button>
                 </form>
             </div>
@@ -35,6 +36,7 @@
                 </div>
 
                 <form method="post" action="{% if company %}/settings/companies/{{ company.id }}{% else %}/settings/companies{% endif %}" class="form-card">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                     <fieldset>
                         <legend>Реквизиты</legend>
 
@@ -125,6 +127,7 @@
                             <p>Печать не загружена.</p>
                             {% endif %}
                             <form method="post" action="/settings/companies/{{ company.id }}/stamp" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                                 <input type="file" name="file" accept="image/png" required>
                                 <button type="submit" class="ghost-button">Загрузить печать (PNG)</button>
                             </form>
@@ -138,6 +141,7 @@
                             <p>Подпись не загружена.</p>
                             {% endif %}
                             <form method="post" action="/settings/companies/{{ company.id }}/signature" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                                 <input type="file" name="file" accept="image/png" required>
                                 <button type="submit" class="ghost-button">Загрузить подпись (PNG)</button>
                             </form>

@@ -25,6 +25,7 @@
                     <a class="ghost-button" href="/finance#transaction-{{ edit_transaction.id }}">Отмена</a>
                 </div>
                 <form class="detail-form finance-inline-form" method="post" action="/finance/transactions/{{ edit_transaction.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                     <div class="detail-form-grid">
                         <label>
                             <span class="sidebar-label">Тип</span>
@@ -115,6 +116,7 @@
                                 <div class="table-actions-inline">
                                     <a class="ghost-button ghost-button-small" href="/finance?edit={{ transaction.id }}#transaction-{{ transaction.id }}">Редактировать</a>
                                     <form method="post" action="/finance/transactions/{{ transaction.id }}/delete" onsubmit="return confirm('Удалить запись из финансов?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                                         <button class="ghost-button ghost-button-small danger-button" type="submit">Удалить</button>
                                     </form>
                                 </div>

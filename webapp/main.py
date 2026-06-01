@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
 from webapp.config import get_settings
+from webapp.csrf import CSRFMiddleware
 from webapp.db import (
     create_counterparty,
     create_project,
@@ -89,6 +90,7 @@ app.add_middleware(
     same_site="lax",
     https_only=True,
 )
+app.add_middleware(CSRFMiddleware, secret_key=settings.secret_key)
 register_standalone_estimate_exception_handlers(app)
 
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
@@ -122,6 +124,13 @@ def status_class(value: str) -> str:
 
 
 templates.env.filters["status_class"] = status_class
+
+
+def _csrf_token(request: Request) -> str:
+    return getattr(request.state, "csrf_token", "")
+
+
+templates.env.globals["csrf_token"] = _csrf_token
 
 
 def hash_password(password: str) -> str:
