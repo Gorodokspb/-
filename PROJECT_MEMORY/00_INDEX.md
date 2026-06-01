@@ -21,13 +21,18 @@ File map:
 - `10_TESTING_AND_QA.md` - manual test matrix and verification notes.
 - `11_ENVIRONMENT_AND_PATHS.md` - machine, repo, server, and storage realities.
 - `12_CONVERSATION_RULES.md` - how to preserve chat decisions in project memory.
-- `13_WEB_DEPLOYMENT_PLAN.md` - staged path from desktop CRM to browser-based access on a rented server.
+- `13_WEB_DEPLOYMENT_PLAN.md` - what and why is being built (stages 1-7, deployment strategy).
+- `../WEB_SERVER_SETUP.md` - step-by-step deployment walkthrough from scratch (tactics, the only document with a full deployment walkthrough).
 - `14_HOME_OFFICE_CONTINUITY.md` - startup and handoff rules for switching between office and home work.
+
+Deployment docs — division of roles:
+- `13_WEB_DEPLOYMENT_PLAN.md` — what and why is being built (stages 1-7, deployment strategy).
+- `../WEB_SERVER_SETUP.md` — step-by-step deployment walkthrough from scratch (tactics; the only document with a full deployment walkthrough). These two are complementary, not duplicates.
 
 Quick rule:
 - if something must still matter next week, it should live in one of these files.
 
 Current anchor:
 - browser MVP is deployed on the server;
-- browser estimate editor is implemented and saved in git commit `e76391b`;
-- local repo, GitHub, and server were aligned to the same commit at the end of the last session.
+- browser estimate editor is implemented and saved in git commit `5c2c558` on branch `hermes/integrate-origin-master-20260423`;
+- local repo, GitHub, and server are aligned on the current session.

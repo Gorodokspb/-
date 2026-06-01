@@ -2,6 +2,8 @@
 
 Дата обновления: 2026-04-24 19:40 UTC
 
+For canonical long-term memory see `../PROJECT_MEMORY/00_INDEX.md`. For deployment walkthrough see `../WEB_SERVER_SETUP.md`. This directory (`handoff_to_hermes/`) is a working history of the Hermes integration stages (6-8.10) and is not the source of truth.
+
 Эта папка — очищенная рабочая память проекта для Hermes. Здесь фиксируются только проектные решения, текущий статус, безопасные инструкции и следующие шаги.
 
 ## Правило безопасности

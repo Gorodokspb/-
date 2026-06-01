@@ -47,7 +47,7 @@ What is already known:
 - A browser MVP already exists under `webapp/` and is deployed on the server.
 - The browser layer already supports login, project list, project detail, document download, and the first editable estimate screen.
 - The web estimate screen already supports section creation, item creation, item editing, row deletion, total recalculation, discount recalculation, and draft save back into PostgreSQL and server storage.
-- At the end of the last session, local repo, GitHub, and server were synchronized on commit `e76391b` (`Add browser estimate editor workflow`).
+- As of the current session, local repo, GitHub, and server are synchronized on commit `5c2c558` on branch `hermes/integrate-origin-master-20260423`. The browser estimate editor is part of this synchronized state.
 
 What not to do casually:
 - do not refactor all of `CRM.py` just for cleanliness;

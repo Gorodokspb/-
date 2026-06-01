@@ -1,36 +1,8 @@
+Canonical long-term memory: see `../PROJECT_MEMORY/00_INDEX.md`. This file is a quick snapshot for the current session only.
+
+Current HEAD: `5c2c558` on branch `hermes/integrate-origin-master-20260423` (synced with `origin/hermes/integrate-origin-master-20260423`).
+
 # 00 — Project context
-
-## Проект
-DekorCRM / CRM_OLD_BAD — CRM и workflow смет/документов для Dekorartstroy.
-
-## Серверный путь
-```text
-/opt/dekorcrm/app/CRM_OLD_BAD
-```
-
-## Основная веб-часть
-```text
-run_web.py
-webapp/
-webapp/main.py
-webapp/db.py
-webapp/templates/
-webapp/static/
-```
-
-## Сервис
-Из прошлой проверки проекта:
-```text
-/etc/systemd/system/dekorcrm-web.service
-```
-
-Ключевая идея: веб-версия CRM работает как серверное приложение, а desktop-реализация остаётся важным референсом бизнес-логики и UX смет.
-
-## Важные рабочие БД/файлы проекта
-- `dekorart_base.db` — историческая SQLite база CRM.
-- `dekorart_prices.db` — историческая SQLite база прайса.
-- PostgreSQL используется для серверной веб-версии через `.env.web`.
-- `.env.web` содержит реальные секреты и не должен попадать в Git.
 
 ## Старый/локальный handoff
 В памяти есть указание на локальный Windows/Yandex Disk handoff:
@@ -38,3 +10,13 @@ webapp/static/
 C:/Users/Aleks/YandexDisk-Gorodok198/СМЕТЫ НА ПРОВЕРКУ/CRM_OLD_BAD/handoff_to_hermes
 ```
 На сервере папка была создана заново в текущем репозитории.
+
+## Handoff-документы в этой папке
+- `01_CURRENT_STATUS.md` — текущее состояние ветки, коммитов и последних работ.
+- `02_DECISIONS.md` — принятые решения и предпочтения пользователя.
+- `03_GITHUB_AND_DEPLOY.md` — GitHub, ветки, push/deploy, без токенов.
+- `04_CRM_WEB_UI_NOTES.md` — заметки по веб-CRM.
+- `05_ESTIMATE_EDITOR_NOTES.md` — редактор смет, UX и проверки.
+- `06_SECRETS_AND_SECURITY.md` — правила обращения с секретами.
+- `07_NEXT_STEPS.md` — ближайшие задачи.
+- `CHANGELOG.md` — история обновлений этой handoff-папки.

@@ -19,7 +19,7 @@ Fast summary:
 - Price DB: `dekorart_prices.db`
 - Contract template: `contract_template_physical.docx`
 - Diagnostic script for office/home portability: `portability_audit.py`
-- Current repo path detected in this session: `C:\Users\Aleks\YandexDisk-Gorodok198\СМЕТЫ НА ПРОВЕРКУ\CRM_OLD_BAD`
+- Repo path this session: `/opt/dekorcrm/app/CRM_OLD_BAD` (server). Local Yandex Disk path on office/home PC may vary; the canonical anchor is the folder name `CRM_OLD_BAD` itself.
 - Server browser entry points: `/login`, `/projects`, `/projects/{id}`, `/projects/{id}/estimate`
 - Browser estimate milestone now includes draft save, improved row editing UX, and direct PDF generation from the web editor
 

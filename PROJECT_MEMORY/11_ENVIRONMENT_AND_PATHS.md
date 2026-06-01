@@ -1,7 +1,7 @@
 # Environment And Paths
 
 Current live repo in this session:
-- `C:\Users\Aleks\YandexDisk-Gorodok198\СМЕТЫ НА ПРОВЕРКУ\CRM_OLD_BAD`
+- Server path (this session): `/opt/dekorcrm/app/CRM_OLD_BAD/`. Local Yandex Disk path may vary across office/home machines — see «Important invariant» below.
 
 Important invariant:
 - the real source of truth is the folder `CRM_OLD_BAD`;
@@ -32,7 +32,6 @@ Desktop/server bridge:
 - `launch_server_app.ps1` is the intended Windows launcher for secure desktop use through an SSH tunnel instead of exposing PostgreSQL directly to the internet.
 
 Current synchronized state:
-- local repo was clean at the end of the last session;
-- GitHub `origin/master` and local `master` were aligned on commit `e76391b`;
-- the server repo under `/opt/dekorcrm/app/CRM_OLD_BAD` was also reset to `e76391b`;
+- local repo was clean as of the current session (HEAD `5c2c558`);
+- GitHub `origin/hermes/integrate-origin-master-20260423` and local `hermes/integrate-origin-master-20260423` are aligned on commit `5c2c558`; the server repo under `/opt/dekorcrm/app/CRM_OLD_BAD` is also at `5c2c558`;
 - `dekorcrm-web` was restarted and confirmed active after deployment of the web estimate editor.

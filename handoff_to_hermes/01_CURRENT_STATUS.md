@@ -7,7 +7,7 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
-5ac15f9 Fix LibreOffice profile URI for contract PDF conversion
+5c2c558 Enable Secure flag on session cookie
 990717d Add contract PDF generation and UI
 4c6e355 Protect estimate PDFs from copying
 d087b49 Add heading 'Смета на выполнение отделочных работ' to estimate PDF
