@@ -87,7 +87,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
     same_site="lax",
-    https_only=False,
+    https_only=True,
 )
 register_standalone_estimate_exception_handlers(app)
 
