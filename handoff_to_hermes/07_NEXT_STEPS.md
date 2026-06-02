@@ -305,7 +305,7 @@ Findings:
 1. Нет CSRF-защиты (Medium) — `SameSite=Lax` частично защищает
 2. Session cookie без флага `Secure` (Medium) — `https_only=True` не передан в SessionMiddleware
 3. Default fallback секреты в config.py (Low) — `"change-me-before-production"`, `"change-me"`
-4. Owner password в markdown docs (Low) — `DEKORCRM_ESTIMATE_PDF_OWNER_2026` не замаскирован
+4. ~~Owner password в markdown docs (Low)~~ — закрыто 2026-06-02 (замаскировано в handoff docs)
 5. Нет Content-Security-Policy (Low)
 6. Устаревшие пакеты (Info) — fastapi, uvicorn, starlette, и др.
 7. SSH PasswordAuthentication/PermitRootLogin (Low, осознанное решение)
@@ -319,7 +319,7 @@ Findings:
 - Нужен restart после fix.
 
 ### 8.10.2 — Mask owner password in docs (план)
-- Замаскировать `DEKORCRM_ESTIMATE_PDF_OWNER_2026` → `DEKOR***_2026` в handoff docs.
+- ✅ Выполнено 2026-06-02: owner password PDF замаскирован в handoff docs (полное значение → `DEKORCRM_ESTIMATE_PDF_OWNER_***`).
 - Markdown-only этап. Restart не нужен.
 
 ### 8.10.3 — CSP nginx diagnostics/header (план)

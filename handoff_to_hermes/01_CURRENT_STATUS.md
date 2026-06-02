@@ -270,7 +270,7 @@ Routes:
 - `canCopy=0`, `canModify=0`, `canAnnotate=0` — копирование, изменение, аннотации запрещены в стандартных PDF-просмотрщиках.
 - `strength=128` — 128-bit encryption.
 - `_make_encryption()` — фабрика, создаёт fresh `StandardEncryption` на каждую генерацию (объект одноразовый).
-- `_OWNER_PASSWORD = "DEKORCRM_ESTIMATE_PDF_OWNER_2026"` — owner password не виден в UI.
+- `_OWNER_PASSWORD = "DEKORCRM_ESTIMATE_PDF_OWNER_***"` — owner password не виден в UI (значение намеренно замаскировано в docs).
 - Защита применена в `webapp/estimate_pdf.py` (project estimate) и `webapp/standalone_estimate_files.py` (standalone draft + final approved).
 - Encryption устанавливается первой строкой `add_watermark` callback: `canvas._doc.encrypt = _make_encryption()`.
 - Новых зависимостей не добавлено — `pdfencrypt` входит в `reportlab`.
