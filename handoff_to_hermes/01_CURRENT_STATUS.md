@@ -177,6 +177,17 @@ Findings:
 
 Что проверено: auth (✅ все приватные → 302→login), POST routes (✅ все require_auth), SQL injection (✅ parameterized queries), XSS (✅ |safe только для JSON scripts), debug mode (✅ reload=False), secrets in git (✅ .env.web в .gitignore), nginx (✅ HSTS/X-Frame/X-CT-O/Referrer/Permissions-Policy, HTTP→HTTPS, TLS 1.2+), storage (✅ не обслуживается nginx), documents (✅ auth-gated route).
 
+### Stage 8.10.8 — FastAPI on_event → lifespan migration (закрыт 2026-06-02)
+
+- Заменён deprecated `@app.on_event("startup")` на `lifespan` async context manager.
+- `webapp/main.py`: добавлены `from contextlib import asynccontextmanager` и `lifespan` функция (5 DB-init/migration функций до `yield`); `app = FastAPI(..., lifespan=lifespan)`; удалён блок `@app.on_event("startup")`.
+- `shutdown` handler отсутствовал и не добавлялся. Поведение 1-в-1.
+- Tests: `tests/test_security_regressions.py` — 25/25 passed.
+- Sanity: `app.router.lifespan_context is not None` = True.
+- Deploy: production на `dcf12e5`. `/login`=200, `/projects`=302, `/catalog`=302. Логи: `Application startup complete`, без Traceback/RuntimeError/DeprecationWarning.
+- Commit: `dcf12e5 Migrate FastAPI startup handler to lifespan`.
+- Files: `webapp/main.py` (+14 / −10).
+
 ### Roadmap после Stage 8.10.0
 
 1. Stage 8.10.1 — Session cookie Secure flag (`https_only=True`)

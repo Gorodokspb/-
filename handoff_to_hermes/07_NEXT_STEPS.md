@@ -352,6 +352,17 @@ Findings:
 - Starlette 0.48→1.2 — major bump, нужна особая аккуратность.
 - Не обновлять массово без тестов.
 
+### 8.10.8 ✅ FastAPI on_event("startup") → lifespan — выполнено 2026-06-02
+- Заменён deprecated `@app.on_event("startup")` на `lifespan` async context manager в `webapp/main.py`.
+- Добавлены: импорт `asynccontextmanager`, `lifespan` функция (5 DB-init до `yield`).
+- Удалён блок `@app.on_event("startup") def startup_web_auth()`.
+- Изменена сигнатура: `app = FastAPI(..., lifespan=lifespan)`.
+- `shutdown` handler отсутствовал и не добавлялся. Поведение 1-в-1.
+- Tests: `tests/test_security_regressions.py` — 25/25 passed.
+- Deploy: `git pull` + `systemctl restart dekorcrm-web.service` + healthcheck (`/login`=200, `/projects`=302, `/catalog`=302). Логи чистые.
+- Commit: `dcf12e5`.
+- Files: `webapp/main.py` (+14 / −10).
+
 ## Перед UI/UX visual polish и адаптивной переработкой
 
 ### Критерии готовности к визуальному этапу

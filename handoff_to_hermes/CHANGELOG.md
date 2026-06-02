@@ -1,5 +1,32 @@
 # Changelog — handoff_to_hermes
 
+## 2026-06-02 Stage 8.10.8 — Migrate `on_event("startup")` → `lifespan` (FastAPI)
+
+- Заменён deprecated `@app.on_event("startup")` на современный `lifespan` async context manager в `webapp/main.py`.
+- Добавлен импорт `from contextlib import asynccontextmanager`.
+- Добавлена `lifespan` функция: 5 синхронных DB-init/migration функций вызываются до `yield`:
+  - `ensure_auth_bootstrap()`
+  - `ensure_transactions_table()`
+  - `ensure_catalog_items_table()`
+  - `ensure_counterparties_updated_at()`
+  - `migrate_catalog_item_categories()`
+- Изменена сигнатура: `app = FastAPI(title="Dekorartstroy CRM Web", lifespan=lifespan)`.
+- Удалён блок `@app.on_event("startup") def startup_web_auth()`.
+- `shutdown` handler отсутствовал до и не добавлялся.
+- Поведение сохранено 1-в-1.
+
+- Tests: `tests/test_security_regressions.py` — 25/25 passed (4 класса: TestConfigSecrets, TestSessionCookieSecurity, TestCsrfProtection, TestCsrfFunctional).
+- Sanity: `app.router.lifespan_context is not None` = True; middleware `[CSRFMiddleware, SessionMiddleware]` на месте.
+- Полный `pytest -q`: 431 passed; 147 failed — **все** из-за отсутствия live PostgreSQL (fake DSN), не из-за этой правки.
+
+- Deploy: `git pull` + `systemctl restart dekorcrm-web.service` выполнены.
+- Live-verify: `GET /login` = 200, `GET /projects` = 302, `GET /catalog` = 302; в `journalctl` — `Application startup complete` без Traceback/RuntimeError/DeprecationWarning.
+- Files changed: `webapp/main.py` (+14 / −10).
+
+- Commit: `dcf12e5 Migrate FastAPI startup handler to lifespan`.
+
+- Stage 8.10.8 закрыт (deprecation FastAPI 0.118+ mitigated).
+
 ## 2026-05-29 Stage 8.10.0 — Security diagnostics + roadmap
 - Проведена безопасная диагностика безопасности CRM198.ru.
 - Общий уровень риска: **средний**, критичных находок нет.
