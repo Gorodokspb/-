@@ -53,6 +53,8 @@ python -m pip install -r requirements.txt
 python run_web.py
 ```
 
+**Повторяющиеся deploy-операции** (после каждого `git push`) описаны в [`handoff_to_hermes/03_GITHUB_AND_DEPLOY.md`](handoff_to_hermes/03_GITHUB_AND_DEPLOY.md#production-deploy-checklist-after-push) — секция "Production deploy checklist after push". Короткая версия: `git pull` + `systemctl restart dekorcrm-web` + `curl /login` + проверка journalctl.
+
 5. После проверки повесить Nginx как reverse proxy на домен или IP.
 
 ## Что это дает
