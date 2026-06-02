@@ -8,6 +8,7 @@ from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File, sta
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from contextlib import asynccontextmanager
 from starlette.middleware.sessions import SessionMiddleware
 
 from webapp.config import get_settings
@@ -83,7 +84,19 @@ PROJECT_STATUS_OPTIONS = [
     "Завершен",
 ]
 
-app = FastAPI(title="Dekorartstroy CRM Web")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_auth_bootstrap()
+    ensure_transactions_table()
+    ensure_catalog_items_table()
+    ensure_counterparties_updated_at()
+    migrate_catalog_item_categories()
+    yield
+
+
+app = FastAPI(title="Dekorartstroy CRM Web", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
@@ -101,15 +114,6 @@ app.mount(
 )
 app.include_router(standalone_estimate_router)
 app.include_router(company_router)
-
-
-@app.on_event("startup")
-def startup_web_auth() -> None:
-    ensure_auth_bootstrap()
-    ensure_transactions_table()
-    ensure_catalog_items_table()
-    ensure_counterparties_updated_at()
-    migrate_catalog_item_categories()
 
 
 def status_class(value: str) -> str:
