@@ -363,6 +363,21 @@ Findings:
 - Commit: `dcf12e5`.
 - Files: `webapp/main.py` (+14 / −10).
 
+### 8.10.9a ✅ Add pytest pythonpath config — выполнено 2026-06-18
+- `pyproject.toml` — добавлена секция `[tool.pytest.ini_options]` с `pythonpath = ["."]`.
+- Устраняет `ModuleNotFoundError: No module named 'webapp'` при `pytest tests/...` без `PYTHONPATH=.`.
+- pytest 9.x не добавляет корень проекта в `sys.path` автоматически; явная настройка восстанавливает старое поведение.
+- Dev/test config, runtime не затрагивает.
+- Commit: `47f4f57`.
+
+### 8.10.9b ✅ Fix PDF test dependency on pypdf — выполнено 2026-06-18
+- `tests/test_estimate_pdf_protection.py:5` — `from PyPDF2 import PdfReader` → `from pypdf import PdfReader`.
+- `requirements-dev.txt` — добавлен `pypdf==6.13.3`.
+- PyPDF2 устарел (legacy maintenance), pypdf — поддерживаемый successor с совместимым API.
+- Tests: `tests/test_estimate_pdf_protection.py` — 21 passed; общий `pytest --collect-only` — 599 tests collected.
+- Dev/test config, runtime не затрагивает.
+- Commit: `69f322a`.
+
 ## Перед UI/UX visual polish и адаптивной переработкой
 
 ### Критерии готовности к визуальному этапу

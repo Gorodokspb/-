@@ -1,5 +1,25 @@
 # Changelog — handoff_to_hermes
 
+## 2026-06-18 Stage 8.10.9 — pytest collection fixes
+
+### 8.10.9a — Add pytest pythonpath config (47f4f57)
+- `pyproject.toml` — добавлена секция `[tool.pytest.ini_options]` с `pythonpath = ["."]`.
+- Устраняет `ModuleNotFoundError: No module named 'webapp'` при `pytest tests/...` без `PYTHONPATH=.`.
+- pytest 9.x не добавляет корень проекта в `sys.path` автоматически; явная настройка восстанавливает старое поведение.
+- Dev/test config, runtime не затрагивает.
+
+### 8.10.9b — Fix PDF test dependency on pypdf (69f322a)
+- `tests/test_estimate_pdf_protection.py:5` — `from PyPDF2 import PdfReader` → `from pypdf import PdfReader`.
+- `requirements-dev.txt` — добавлен `pypdf==6.13.3` (рядом с `ruff==0.6.9`).
+- PyPDF2 устарел (legacy maintenance), pypdf — поддерживаемый successor с совместимым API (`is_encrypted`, `decrypt`, `/Encrypt`).
+- Tests: `tests/test_estimate_pdf_protection.py` — 21 passed; общий `pytest --collect-only` — 599 tests collected (без `ModuleNotFoundError: No module named 'PyPDF2'`).
+- Dev/test config, runtime не затрагивает.
+
+- Session snapshot: `fe2cf28 docs: add session 2026-06-02 handoff` (HISTORICAL — describes 2026-06-02 cleanup, deploy-checklist, lifespan migration session).
+- Stage 8.10.9 закрыт. Production runtime restart не нужен (dev/test/docs изменения).
+- Files changed: `pyproject.toml` (+5 / -0), `requirements-dev.txt` (+1 / -0), `tests/test_estimate_pdf_protection.py` (+1 / -1).
+- Commits: `47f4f57`, `69f322a`, `fe2cf28`.
+
 ## 2026-06-02 Stage 8.10.8 — Migrate `on_event("startup")` → `lifespan` (FastAPI)
 
 - Заменён deprecated `@app.on_event("startup")` на современный `lifespan` async context manager в `webapp/main.py`.

@@ -7,7 +7,7 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
-5c2c558 Enable Secure flag on session cookie
+fe2cf28 docs: add session 2026-06-02 handoff
 990717d Add contract PDF generation and UI
 4c6e355 Protect estimate PDFs from copying
 d087b49 Add heading 'Смета на выполнение отделочных работ' to estimate PDF
@@ -187,6 +187,17 @@ Findings:
 - Deploy: production на `dcf12e5`. `/login`=200, `/projects`=302, `/catalog`=302. Логи: `Application startup complete`, без Traceback/RuntimeError/DeprecationWarning.
 - Commit: `dcf12e5 Migrate FastAPI startup handler to lifespan`.
 - Files: `webapp/main.py` (+14 / −10).
+
+### Stage 8.10.9 — pytest collection fixes (закрыт 2026-06-18)
+
+- `pyproject.toml` — добавлена секция `[tool.pytest.ini_options]` с `pythonpath = ["."]`. Устраняет `ModuleNotFoundError: No module named 'webapp'` при `pytest tests/...` без `PYTHONPATH=.`. (Commit: `47f4f57`)
+- `tests/test_estimate_pdf_protection.py:5` — `from PyPDF2 import PdfReader` → `from pypdf import PdfReader`. (Commit: `69f322a`)
+- `requirements-dev.txt` — добавлен `pypdf==6.13.3`. (Commit: `69f322a`)
+- Tests: `tests/test_estimate_pdf_protection.py` — 21 passed; общий `pytest --collect-only` — 599 tests collected.
+- Session snapshot: `fe2cf28 docs: add session 2026-06-02 handoff` (HISTORICAL — описывает cleanup/deploy-checklist/lifespan session).
+- Stage 8.10.9 закрыт. Production runtime restart **не нужен** (dev/test/docs изменения).
+- Files: `pyproject.toml` (+5 / -0), `requirements-dev.txt` (+1 / -0), `tests/test_estimate_pdf_protection.py` (+1 / -1).
+- Commits: `47f4f57`, `69f322a`, `fe2cf28`.
 
 ### Roadmap после Stage 8.10.0
 
