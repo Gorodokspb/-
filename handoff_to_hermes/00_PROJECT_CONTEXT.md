@@ -1,6 +1,6 @@
 Canonical long-term memory: see `../PROJECT_MEMORY/00_INDEX.md`. This file is a quick snapshot for the current session only.
 
-Current HEAD: `5c2c558` on branch `hermes/integrate-origin-master-20260423` (synced with `origin/hermes/integrate-origin-master-20260423`).
+Current HEAD: `222230e` on branch `hermes/integrate-origin-master-20260423` (synced with `origin/hermes/integrate-origin-master-20260423`).
 
 # 00 — Project context
 

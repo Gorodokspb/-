@@ -24,7 +24,7 @@ hermes/integrate-origin-master-20260423
 
 ## Recent pushed commit
 ```text
-5c2c558 Enable Secure flag on session cookie
+222230e Document Stage 8.10.9 pytest collection fixes
 ```
 
 ## Deploy caution

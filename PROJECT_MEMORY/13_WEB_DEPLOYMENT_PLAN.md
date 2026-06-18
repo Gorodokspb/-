@@ -4,7 +4,7 @@ Current status:
 - browser MVP is already deployed on the server;
 - login, project list, project detail, and document download are live;
 - the first editable browser estimate screen is also implemented and deployed;
-- the latest synchronized web milestone is git commit `5c2c558` (`Enable Secure flag on session cookie`) on branch `hermes/integrate-origin-master-20260423`.
+- the latest synchronized web milestone is git commit `222230e` (`Document Stage 8.10.9 pytest collection fixes`) on branch `hermes/integrate-origin-master-20260423`.
 
 Goal:
 - move from the current single-user desktop workflow to a server-hosted system that the owner can use and a colleague can test through a browser with login and password.

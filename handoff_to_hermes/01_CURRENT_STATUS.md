@@ -7,7 +7,7 @@ hermes/integrate-origin-master-20260423
 
 ## Последние важные коммиты
 ```text
-fe2cf28 docs: add session 2026-06-02 handoff
+222230e Document Stage 8.10.9 pytest collection fixes
 990717d Add contract PDF generation and UI
 4c6e355 Protect estimate PDFs from copying
 d087b49 Add heading 'Смета на выполнение отделочных работ' to estimate PDF

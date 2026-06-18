@@ -32,6 +32,6 @@ Desktop/server bridge:
 - `launch_server_app.ps1` is the intended Windows launcher for secure desktop use through an SSH tunnel instead of exposing PostgreSQL directly to the internet.
 
 Current synchronized state:
-- local repo was clean as of the current session (HEAD `5c2c558`);
-- GitHub `origin/hermes/integrate-origin-master-20260423` and local `hermes/integrate-origin-master-20260423` are aligned on commit `5c2c558`; the server repo under `/opt/dekorcrm/app/CRM_OLD_BAD` is also at `5c2c558`;
+- local repo was clean as of the current session (HEAD `222230e`);
+- GitHub `origin/hermes/integrate-origin-master-20260423` and local `hermes/integrate-origin-master-20260423` are aligned on commit `222230e`; the server repo under `/opt/dekorcrm/app/CRM_OLD_BAD` is also at `222230e`;
 - `dekorcrm-web` was restarted and confirmed active after deployment of the web estimate editor.

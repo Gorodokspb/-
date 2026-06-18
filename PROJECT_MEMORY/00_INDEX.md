@@ -34,5 +34,5 @@ Quick rule:
 
 Current anchor:
 - browser MVP is deployed on the server;
-- browser estimate editor is implemented and saved in git commit `5c2c558` on branch `hermes/integrate-origin-master-20260423`;
+- browser estimate editor is implemented and saved in git commit `222230e` on branch `hermes/integrate-origin-master-20260423`;
 - local repo, GitHub, and server are aligned on the current session.
