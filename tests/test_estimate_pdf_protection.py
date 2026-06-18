@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 from reportlab.lib import pdfencrypt
 from reportlab.platypus import Paragraph
 
