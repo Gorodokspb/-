@@ -328,19 +328,24 @@ Findings:
 - Сначала диагностика nginx config, потом добавление header.
 - Нужен nginx reload.
 
-### 8.10.4 — CSRF diagnostics/fix (план)
-- Добавить CSRF-защиту для POST/delete/generate routes.
-- Middleware + hidden `_csrf_token` field во всех формах.
-- Более крупный этап, аккуратно покрыть тестами.
-- `SameSite=Lax` частично защищает от cross-site POST, но не от поддомена/GET→POST цепочек.
-- Нужен restart после fix.
+### 8.10.4 ✅ CSRF protection (double-submit cookie + itsdangerous) — выполнено 2026-06-01
+- Реализована CSRF-защита через double-submit cookie + `itsdangerous.URLSafeTimedSerializer` в `webapp/csrf.py`.
+- 38 POST-эндпоинтов, 37 Jinja2-форм, 3 JS-fetch защищены через middleware.
+- Скрытое поле `<input type="hidden" name="csrf_token">` в формах + `X-CSRF-Token` header в JS.
+- Login bypass (csrf_token middleware не валидирует на `/login`).
+- Tests: `tests/test_security_regressions.py` — 25/25 passed (TestConfigSecrets, TestSessionCookieSecurity, TestCsrfProtection, TestCsrfFunctional).
+- Deploy: `git pull` + `systemctl restart dekorcrm-web.service` + smoke-test в браузере.
+- Production на `crm198.ru` подтверждено работающим (логин + создание транзакции).
+- Bugfix: `c0c9878 fix(F-1): CSRF middleware no longer breaks form body for handlers` (после `4aa8ff8`) — первая реализация ломала `await request.form()` в BaseHTTPMiddleware; заменено на ручной парсинг + re-inject body через `request._receive`.
+- Commits: `4aa8ff8` (initial), `c0c9878` (body fix), `ea11b5e` (docs: Document FastAPI lifespan migration — закрыл `app.router.lifespan_context`).
 
-### 8.10.5 — Default secrets hardening (план)
-- Убрать/запретить production fallback `"change-me-before-production"` и `"change-me"`.
-- Приложение не должно стартовать в production без реальных secret/admin password.
-- Либо crash при отсутствии env var, либо WARNING log.
-- `webapp/config.py:68-72`.
-- Нужен restart после fix.
+### 8.10.5 ✅ Default secrets hardening (_require_secret validation) — выполнено 2026-06-01
+- Добавлена функция `_require_secret(env_var, min_length)` в `webapp/config.py`.
+- Приложение **отказывается стартовать** если `DEKORCRM_WEB_SECRET_KEY` < 32 символов или равен placeholder, или если `DEKORCRM_WEB_PASSWORD` < 12 символов.
+- `RuntimeError` с понятным сообщением + подсказкой: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+- 11 новых тестов в `tests/test_security_regressions.py::TestConfigSecrets` (placeholder, empty, short, strong).
+- Deploy: `git pull` + `systemctl restart dekorcrm-web.service`. Production на `crm198.ru` стартует (реальные секреты в `.env.web`).
+- Commit: `f53e1e8 security(F-3): require non-placeholder secrets at startup (Stage 8.10.5)`.
 
 ### 8.10.6 — SSH hardening (план, только после настройки SSH-key)
 - Отключить `PasswordAuthentication no`.
