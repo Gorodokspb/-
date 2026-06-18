@@ -5,6 +5,13 @@ description = "Internal CRM + estimate/contract system for Dekorartstroy constru
 requires-python = ">=3.10"
 # Зависимости намеренно живут в requirements.txt — оставь как есть.
 
+[tool.pytest.ini_options]
+# pytest 9.x не добавляет корень проекта в sys.path автоматически, поэтому
+# `pytest tests/...` без PYTHONPATH=. падает с `ModuleNotFoundError: No module named 'webapp'`.
+# Явное указание `pythonpath = ["."]` восстанавливает старое поведение без необходимости
+# передавать PYTHONPATH в окружении при каждом запуске.
+pythonpath = ["."]
+
 [tool.ruff]
 # Согласовано с реальным стилем проекта: длина строк 100, target Python 3.10+.
 line-length = 100
